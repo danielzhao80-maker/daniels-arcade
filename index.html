@@ -1,0 +1,609 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Daniel's Arcade</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=Nunito:wght@400;700;900&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #0d0b1a;
+    --bg2: #171331;
+    --card: #1d1840;
+    --text: #f3efff;
+    --muted: #a79fcf;
+    --line: rgba(255,255,255,0.08);
+    --glow1: #3a1d6e;
+    --glow2: #0f4d63;
+    --accent: #ffd24a;
+    --coin: #ffd24a;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    min-height: 100vh;
+    font-family: "Nunito", system-ui, sans-serif;
+    color: var(--text);
+    background:
+      radial-gradient(circle at 20% 0%, var(--glow1) 0%, transparent 45%),
+      radial-gradient(circle at 90% 20%, var(--glow2) 0%, transparent 40%),
+      var(--bg);
+    background-attachment: fixed;
+    transition: background .4s;
+  }
+  button { font: inherit; cursor: pointer; }
+  .stars {
+    position: fixed; inset: 0; pointer-events: none; z-index: 0;
+    background-image:
+      radial-gradient(1px 1px at 10% 20%, #fff8 50%, transparent 51%),
+      radial-gradient(1px 1px at 30% 70%, #fff6 50%, transparent 51%),
+      radial-gradient(2px 2px at 55% 30%, #fff5 50%, transparent 51%),
+      radial-gradient(1px 1px at 80% 60%, #fff8 50%, transparent 51%),
+      radial-gradient(1px 1px at 70% 90%, #fff6 50%, transparent 51%),
+      radial-gradient(2px 2px at 92% 12%, #fff4 50%, transparent 51%);
+    animation: twinkle 6s ease-in-out infinite alternate;
+  }
+  @keyframes twinkle { from { opacity: .5 } to { opacity: 1 } }
+
+  /* ---------- top bar (home) ---------- */
+  .topbar {
+    position: sticky; top: 0; z-index: 5;
+    display: flex; align-items: center; gap: 12px; flex-wrap: wrap;
+    padding: 12px 16px;
+    background: color-mix(in srgb, var(--bg) 80%, transparent);
+    backdrop-filter: blur(10px);
+    border-bottom: 1px solid var(--line);
+    padding-right: 70px; /* room for Nullp's mic button, top-right */
+  }
+  .player { display: flex; align-items: center; gap: 10px; margin-right: auto; }
+  .avatar {
+    width: 42px; height: 42px; border-radius: 12px; display: grid; place-items: center;
+    font-size: 1.6rem; background: var(--bg2); border: 1px solid var(--line);
+  }
+  .player b { display: block; font-weight: 900; }
+  .player small { color: var(--accent); font-weight: 700; font-size: .78rem; }
+  .wallet {
+    display: flex; align-items: center; gap: 10px;
+    background: var(--bg2); border: 1px solid var(--line); border-radius: 999px;
+    padding: 6px 14px 6px 8px;
+  }
+  .coins { font-weight: 900; font-size: 1.05rem; color: var(--coin); white-space: nowrap; }
+  .next { width: 90px; }
+  .next small { display: block; font-size: .68rem; color: var(--muted); white-space: nowrap; }
+  .bar { height: 6px; border-radius: 999px; background: rgba(255,255,255,.08); overflow: hidden; }
+  .bar i { display: block; height: 100%; width: 0; background: var(--coin); transition: width .9s linear; }
+  .btn {
+    font-weight: 900; border: 0; border-radius: 12px; padding: 10px 16px;
+    background: var(--accent); color: #0d0b1a;
+  }
+  .btn.ghost { background: var(--bg2); color: var(--text); border: 1px solid var(--line); }
+
+  main { position: relative; z-index: 1; max-width: 1100px; margin: 0 auto; padding: 44px 16px 64px; }
+
+  header { text-align: center; margin-bottom: 36px; }
+  h1 {
+    font-family: "Press Start 2P", monospace;
+    font-size: clamp(1.4rem, 5vw, 2.6rem);
+    line-height: 1.4;
+    background: linear-gradient(90deg, #ff5fa2, #ffd24a, #4ae3ff);
+    -webkit-background-clip: text; background-clip: text; color: transparent;
+    filter: drop-shadow(0 4px 18px rgba(255, 95, 162, .35));
+  }
+  header p { margin-top: 14px; color: var(--muted); font-size: 1.05rem; }
+  .stats { display: flex; gap: 10px; justify-content: center; flex-wrap: wrap; margin-top: 18px; }
+  .stats span {
+    padding: 6px 14px; border: 1px solid var(--line); border-radius: 999px;
+    font-size: .85rem; color: var(--muted); background: rgba(255,255,255,.03);
+  }
+  .stats b { color: var(--text); }
+
+  /* The "locked" corner button on the code panel. Looks unusable; it isn't. */
+  .secret-btn {
+    position: absolute; left: 10px; bottom: 8px; width: 28px; height: 28px; border-radius: 8px;
+    border: 1px dashed var(--line); background: transparent; color: var(--muted); opacity: .35;
+    font-size: .8rem; cursor: help; transition: opacity .2s;
+  }
+  .secret-btn:hover { opacity: .8; }
+  .admin-btn { display: none; }
+  body.is-admin .admin-btn { display: inline-block; }
+
+  .panel-veil {
+    position: fixed; inset: 0; z-index: 50; display: none; align-items: center; justify-content: center; padding: 16px;
+    background: rgba(0,0,0,.65); backdrop-filter: blur(4px);
+  }
+  .panel-veil.open { display: flex; }
+  .panel {
+    width: min(560px, 100%); max-height: 88vh; overflow: auto; padding: 22px;
+    background: var(--bg); border: 1px solid var(--line); border-radius: 22px; box-shadow: 0 30px 80px rgba(0,0,0,.6);
+  }
+  .panel header { display: flex; align-items: center; gap: 10px; margin: 0 0 6px; text-align: left; }
+  .panel h2 { font-family: "Press Start 2P", monospace; font-size: .9rem; margin-right: auto; line-height: 1.5; }
+  .panel .sub { color: var(--muted); font-size: .9rem; margin-bottom: 16px; line-height: 1.5; }
+  .task { display: grid; grid-template-columns: 28px 1fr auto; gap: 4px 10px; align-items: center; padding: 10px 0; border-top: 1px solid var(--line); }
+  .task .ico { font-size: 1.2rem; }
+  .task b { font-weight: 800; }
+  .task span { font-size: .85rem; color: var(--muted); font-variant-numeric: tabular-nums; }
+  .task.done span { color: var(--accent); font-weight: 900; }
+  .task .bar { grid-column: 2 / 4; }
+  .panel .actions { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 18px; }
+  .panel .actions .btn:disabled { opacity: .45; cursor: not-allowed; }
+  .admin-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 10px; }
+  .admin-grid button { text-align: left; padding: 12px; border-radius: 14px; border: 1px solid var(--line); background: var(--card); color: var(--text); font-weight: 800; }
+  .admin-grid button small { display: block; font-weight: 400; color: var(--muted); font-size: .78rem; margin-top: 4px; }
+  .admin-grid button.danger { border-color: #ff5f7e; }
+  .codebox {
+    position: relative;
+    max-width: 420px; margin: 0 auto 30px; padding: 16px 18px; text-align: center;
+    background: var(--card); border: 1px solid var(--line); border-radius: 18px;
+  }
+  .codebox h3 { font-family: "Press Start 2P", monospace; font-size: .75rem; color: var(--accent); margin-bottom: 12px; }
+  .codebox form { display: flex; gap: 8px; }
+  .codebox input {
+    flex: 1; min-width: 0; font: 900 1rem "Nunito", sans-serif; text-align: center; letter-spacing: .08em; text-transform: uppercase;
+    padding: 10px 12px; border-radius: 999px; border: 1px solid var(--line); background: var(--bg2); color: var(--text);
+  }
+  .codebox p { margin-top: 10px; font-size: .85rem; color: var(--muted); min-height: 1.2em; }
+  .codebox p.ok { color: var(--accent); font-weight: 900; }
+  .filters { display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; margin-bottom: 28px; }
+  .filters button {
+    font-weight: 700; font-size: .9rem;
+    color: var(--muted); background: var(--bg2);
+    border: 1px solid var(--line); border-radius: 999px;
+    padding: 8px 16px; transition: all .15s;
+  }
+  .filters button:hover { color: var(--text); }
+  .filters button.on { color: #0d0b1a; background: var(--accent); border-color: var(--accent); }
+
+  .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 22px; }
+  .card {
+    display: flex; flex-direction: column;
+    background: var(--card); border: 1px solid var(--line); border-radius: 20px;
+    overflow: hidden; text-decoration: none; color: inherit;
+    transition: transform .18s ease, box-shadow .18s ease, border-color .18s;
+  }
+  .card:hover, .card:focus-visible {
+    transform: translateY(-6px);
+    box-shadow: 0 18px 40px -12px var(--glow);
+    border-color: var(--glow);
+    outline: none;
+  }
+  .art {
+    height: 150px; display: grid; place-items: center;
+    font-size: 4.2rem; position: relative; overflow: hidden;
+    background: var(--art);
+  }
+  .art::after {
+    content: ""; position: absolute; inset: 0;
+    background: repeating-linear-gradient(0deg, rgba(0,0,0,.12) 0 2px, transparent 2px 4px);
+  }
+  .art span { position: relative; z-index: 1; filter: drop-shadow(0 6px 10px rgba(0,0,0,.4)); transition: transform .2s; }
+  .card:hover .art span { transform: scale(1.12) rotate(-4deg); }
+  .art em {
+    position: absolute; z-index: 2; top: 10px; right: 10px; font-style: normal;
+    font-size: .75rem; font-weight: 700; padding: 3px 10px; border-radius: 999px;
+    background: rgba(0,0,0,.45); color: #fff;
+  }
+  .body { padding: 18px 20px 20px; display: flex; flex-direction: column; gap: 10px; flex: 1; }
+  .body h2 { font-size: 1.3rem; font-weight: 900; }
+  .body p { color: var(--muted); line-height: 1.5; font-size: .95rem; flex: 1; }
+  .tags { display: flex; flex-wrap: wrap; gap: 6px; }
+  .tag { font-size: .75rem; font-weight: 700; padding: 3px 10px; border-radius: 999px; background: rgba(255,255,255,.06); }
+  .play {
+    margin-top: 4px; align-self: flex-start;
+    font-family: "Press Start 2P", monospace; font-size: .7rem;
+    padding: 10px 14px; border-radius: 10px;
+    background: var(--glow); color: #0d0b1a;
+  }
+  .note { font-size: .8rem; color: #ffb86b; }
+
+  footer { text-align: center; margin-top: 56px; color: var(--muted); font-size: .85rem; line-height: 1.7; }
+  footer code { background: var(--bg2); padding: 2px 6px; border-radius: 6px; }
+
+  /* ---------- play view ---------- */
+  #playView { display: none; position: fixed; inset: 0; z-index: 10; flex-direction: column; background: #000; }
+  body.playing #playView { display: flex; }
+  body.playing #homeView { display: none; }
+  .playbar {
+    display: flex; align-items: center; gap: 10px; padding: 8px 12px;
+    background: var(--bg); border-bottom: 1px solid var(--line);
+  }
+  .playbar h3 { font-weight: 900; margin-right: auto; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .playbar .paused { font-size: .75rem; color: #ffb86b; display: none; }
+  .playbar .paused.show { display: inline; }
+  #frame { flex: 1; width: 100%; border: 0; background: #000; }
+  /* Each game carries its own Nullp; don't show two. */
+  body.playing #nullp-widget { display: none !important; }
+  /* Floats over the game, bottom-left, faded until you point at it. */
+  #back {
+    position: absolute; left: 16px; bottom: 16px; z-index: 11;
+    opacity: .75; box-shadow: 0 6px 20px rgba(0,0,0,.5); transition: opacity .15s, transform .15s;
+  }
+  #back:hover, #back:focus-visible { opacity: 1; transform: translateY(-2px); }
+
+  .toast {
+    position: fixed; left: 50%; bottom: 24px; z-index: 30;
+    transform: translate(-50%, 120px); transition: transform .35s cubic-bezier(.2,1.4,.4,1);
+    background: var(--coin); color: #0d0b1a; font-weight: 900;
+    padding: 12px 20px; border-radius: 14px; box-shadow: 0 10px 30px rgba(0,0,0,.4);
+  }
+  .toast.show { transform: translate(-50%, 0); }
+
+  @media (max-width: 480px) {
+    main { padding-top: 28px; }
+    .grid { grid-template-columns: 1fr; }
+    .next { display: none; }
+  }
+</style>
+</head>
+<body>
+<div class="stars"></div>
+
+<div id="homeView">
+  <div class="topbar">
+    <div class="player">
+      <div class="avatar" data-avatar></div>
+      <div><b>Daniel</b><small data-title></small></div>
+    </div>
+    <div class="wallet" title="You earn 1 coin for every 10 minutes of play">
+      <span class="coins">🪙 <span data-coins>0</span></span>
+      <div class="next"><small data-next></small><div class="bar"><i data-bar></i></div></div>
+    </div>
+    <button class="btn ghost admin-btn" id="adminBtn">🛠️ Admin</button>
+    <button class="btn" data-open-shop>🛒 Shop</button>
+  </div>
+
+  <main>
+    <header>
+      <h1>DANIEL'S ARCADE</h1>
+      <p>Every game I've made, all in one place. Play to earn 🪙 — 1 coin every 10 minutes!</p>
+      <div class="stats">
+        <span>🎮 <b id="gameCount"></b></span>
+        <span>⏱ Total play time <b id="totalTime"></b></span>
+      </div>
+    </header>
+
+    <section class="codebox">
+      <h3>🎁 ENTER CODE</h3>
+      <form id="codeForm" autocomplete="off">
+        <input id="codeInput" maxlength="24" placeholder="TYPE CODE..." spellcheck="false" aria-label="Code">
+        <button class="btn" type="submit">Redeem</button>
+      </form>
+      <p id="codeMsg"></p>
+      <button class="secret-btn" id="secretBtn" title="???" aria-label="Locked">🔒</button>
+    </section>
+
+    <nav class="filters" id="filters"></nav>
+    <section class="grid" id="grid"></section>
+
+    <footer>
+      Play time only counts while a game is open and this window is in front.<br>
+      Tip: start Nullp (<code>Nullp-AI/start-nullp.command</code>) and open
+      <code>localhost:4173/games/arcade/</code> so Nullp works inside every game.
+    </footer>
+  </main>
+</div>
+
+<div id="playView">
+  <div class="playbar">
+    <h3 id="playTitle"></h3>
+    <span class="paused" id="paused">⏸ timer paused</span>
+    <div class="wallet">
+      <span class="coins">🪙 <span data-coins>0</span></span>
+      <div class="next"><small data-next></small><div class="bar"><i data-bar></i></div></div>
+    </div>
+    <button class="btn ghost" id="full" title="Fullscreen">⛶</button>
+  </div>
+  <button class="btn" id="back" title="Back to the arcade">◀ Arcade</button>
+  <iframe id="frame" allow="fullscreen; microphone; camera; autoplay; gamepad" allowfullscreen></iframe>
+</div>
+
+<div class="panel-veil" id="questVeil">
+  <div class="panel" role="dialog" aria-label="Hard quest">
+    <header><h2>🔐 THE HARD QUEST</h2><button class="btn ghost" data-close>✕</button></header>
+    <p class="sub">Finish every task to unlock the <b>🛠️ Admin Panel</b>. Owners can skip it — but the 👑 Owner title only comes from the Admin Panel.</p>
+    <div id="questTasks"></div>
+    <div class="actions">
+      <button class="btn" id="questClaim" disabled>🛠️ Unlock Admin Panel</button>
+      <button class="btn ghost" id="questSkip" hidden>👑 Skip (Owner)</button>
+    </div>
+  </div>
+</div>
+
+<div class="panel-veil" id="adminVeil">
+  <div class="panel" role="dialog" aria-label="Admin panel">
+    <header><h2>🛠️ ADMIN PANEL</h2><button class="btn ghost" data-close>✕</button></header>
+    <p class="sub">You beat the Hard Quest. These change your arcade save on this computer.</p>
+    <div class="admin-grid">
+      <button data-admin="owner">👑 Owner title<small>Get the Owner and Admin titles</small></button>
+      <button data-admin="coins10">🪙 +10 coins<small>Add play coins</small></button>
+      <button data-admin="coins100">🪙 +100 coins<small>Add a lot of play coins</small></button>
+      <button data-admin="unlock">🔓 Unlock all<small>Every theme, avatar, title and skin</small></button>
+      <button data-admin="maxab">⚡ Max abilities<small>Every ability to level 5</small></button>
+      <button data-admin="time">⏱ +1 hour<small>Add play time</small></button>
+      <button data-admin="reset" class="danger">🧹 Reset save<small>Click twice. Starts over.</small></button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script src="arcade-shop.js"></script>
+<script>
+  // slug = folder name next to this one; file = path to index.html inside it
+  const GAMES = [
+    {
+      slug: "monster-city", file: "monster-city/index.html",
+      title: "Monster Attack!", emoji: "👾",
+      desc: "Top-down shooter in an abandoned city. Roll for one of 20 classes and survive waves of monstrosities.",
+      tags: ["Action", "Shooter"],
+      art: "linear-gradient(135deg, #5b1a3a, #c2344f)", glow: "#ff5f7e",
+    },
+    {
+      slug: "rebuild", file: "rebuild/index.html",
+      title: "REBUILD", emoji: "🧟",
+      desc: "Spell words to summon units and hold the bunker against a zombie apocalypse. 10 chapters, 50 levels.",
+      tags: ["Strategy", "Spelling", "Story"],
+      art: "linear-gradient(135deg, #1b3b2a, #3e8e4f)", glow: "#6ee07f",
+    },
+    {
+      slug: "shooting-game", file: "shooting-game/public/index.html",
+      title: "Buckshot Roulette", emoji: "🔫",
+      desc: "3D first-person showdown. Play offline against a bot or go 1v1 online with a friend.",
+      tags: ["Action", "3D", "Multiplayer"],
+      art: "linear-gradient(135deg, #2a1c12, #8a4b1f)", glow: "#ffa24a",
+      note: "Online mode needs its server: npm start in shooting-game",
+    },
+    {
+      slug: "Pocket-Dice", file: "Pocket-Dice/index.html",
+      title: "Track Run", emoji: "🎲",
+      desc: "Race up your lane of hidden cards. Roll to advance, dodge explodes, and use power cards to sabotage enemies.",
+      tags: ["Board", "Multiplayer"],
+      art: "linear-gradient(135deg, #0d3220, #1a8e5a)", glow: "#4ae3a5",
+    },
+    {
+      slug: "english-program", file: "english-program/index.html",
+      title: "Learn English", emoji: "📚",
+      desc: "爸爸学英语 — learn English step by step with fun lessons and practice.",
+      tags: ["Learning"],
+      art: "linear-gradient(135deg, #1b2a5e, #3f6fd8)", glow: "#4ae3ff",
+    },
+  ];
+
+  // ---------------------------------------------------------------- shop + save (arcade-shop.js)
+  const { SHOP, SECONDS_PER_COIN, find, gameSkins, shareSkins } = ArcadeShop;
+  let save = ArcadeShop.load();
+
+  // ---------------------------------------------------------------- helpers
+  const $ = (id) => document.getElementById(id);
+  const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+  const fmt = (sec) => {
+    const h = Math.floor(sec / 3600), m = Math.floor((sec % 3600) / 60);
+    return h ? `${h}h ${m}m` : `${m}m`;
+  };
+
+  let toastTimer;
+  function toast(msg) {
+    const t = $("toast");
+    t.textContent = msg;
+    t.classList.add("show");
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(() => t.classList.remove("show"), 2600);
+  }
+
+  // ---------------------------------------------------------------- wallet ui
+  function renderWallet() {
+    const left = SECONDS_PER_COIN - save.progress;
+    document.querySelectorAll("[data-coins]").forEach((e) => (e.textContent = save.coins));
+    document.querySelectorAll("[data-bar]").forEach((e) => (e.style.width = (save.progress / SECONDS_PER_COIN) * 100 + "%"));
+    document.querySelectorAll("[data-next]").forEach((e) => (e.textContent = `next coin in ${Math.ceil(left / 60)}m`));
+    $("totalTime").textContent = fmt(save.total);
+  }
+
+  function applyLook() {
+    const theme = find("Themes", save.equipped.theme);
+    for (const [k, v] of Object.entries(theme.vars)) document.documentElement.style.setProperty("--" + k, v);
+    document.querySelectorAll("[data-avatar]").forEach((e) => (e.textContent = find("Avatars", save.equipped.avatar).emoji));
+    document.querySelectorAll("[data-title]").forEach((e) => (e.textContent = find("Titles", save.equipped.title).name));
+  }
+
+  // ---------------------------------------------------------------- game grid
+  // Served by Nullp: games live at /games/<slug>/. Opened as a file: use real paths.
+  const viaFile = location.protocol === "file:";
+  const srcFor = (g) => (viaFile ? "../" + g.file : "../" + encodeURIComponent(g.slug) + "/")
+    + "?arcadeSkins=" + encodeURIComponent(JSON.stringify(gameSkins(ArcadeShop.load())));
+  let currentTag = "All";
+
+  function renderGrid() {
+    const list = currentTag === "All" ? GAMES : GAMES.filter((g) => g.tags.includes(currentTag));
+    $("grid").innerHTML = list.map((g) => `
+      <a class="card" href="#play/${encodeURIComponent(g.slug)}" style="--art:${g.art};--glow:${g.glow}">
+        <div class="art"><span>${g.emoji}</span>${save.perGame[g.slug] >= 60 ? `<em>⏱ ${fmt(save.perGame[g.slug])}</em>` : ""}</div>
+        <div class="body">
+          <h2>${esc(g.title)}</h2>
+          <p>${esc(g.desc)}</p>
+          ${g.note ? `<div class="note">⚠ ${esc(g.note)}</div>` : ""}
+          <div class="tags">${g.tags.map((t) => `<span class="tag">${esc(t)}</span>`).join("")}</div>
+          <span class="play">PLAY ▶</span>
+        </div>
+      </a>`).join("");
+    $("gameCount").textContent = `${list.length} game${list.length === 1 ? "" : "s"}`;
+    $("filters").querySelectorAll("button").forEach((b) => b.classList.toggle("on", b.dataset.tag === currentTag));
+  }
+
+  const tags = ["All", ...new Set(GAMES.flatMap((g) => g.tags))];
+  $("filters").innerHTML = tags.map((t) => `<button data-tag="${esc(t)}">${esc(t)}</button>`).join("");
+  $("filters").addEventListener("click", (e) => {
+    if (e.target.dataset.tag) { currentTag = e.target.dataset.tag; renderGrid(); }
+  });
+
+  // ---------------------------------------------------------------- playing
+  // Games open inside this page (#play/<slug>) so the arcade can count play time.
+  let playing = null;
+
+  function route() {
+    const m = location.hash.match(/^#play\/(.+)$/);
+    const game = m && GAMES.find((g) => g.slug === decodeURIComponent(m[1]));
+    if (game) {
+      if (playing !== game) {
+        playing = game;
+        $("playTitle").textContent = game.emoji + " " + game.title;
+        $("frame").src = srcFor(game);
+        document.body.classList.add("playing");
+        setTimeout(() => $("frame").focus(), 300);
+      }
+    } else {
+      playing = null;
+      $("frame").src = "about:blank";
+      document.body.classList.remove("playing");
+      renderGrid();
+    }
+  }
+  window.addEventListener("hashchange", route);
+  $("back").onclick = () => { location.hash = ""; };
+  $("full").onclick = () => $("frame").requestFullscreen?.();
+
+  // Count a second only while a game is open and this window is the one in front.
+  setInterval(() => {
+    const active = playing && !document.hidden && document.hasFocus();
+    $("paused").classList.toggle("show", !!playing && !active);
+    if (!active) {
+      // Still pick up coins spent in a game's own shop.
+      if (playing) { save = ArcadeShop.load(); renderWallet(); }
+      return;
+    }
+    let earned = false;
+    save = ArcadeShop.update((sv) => {
+      sv.total++;
+      sv.perGame[playing.slug] = (sv.perGame[playing.slug] || 0) + 1;
+      sv.progress++;
+      if (sv.progress >= SECONDS_PER_COIN) {
+        sv.progress -= SECONDS_PER_COIN;
+        sv.coins++;
+        earned = true;
+      }
+    });
+    if (earned) toast("🪙 +1 coin! 10 minutes played");
+    renderWallet();
+  }, 1000);
+
+  // ---------------------------------------------------------------- shop
+  document.querySelectorAll("[data-open-shop]").forEach((b) => (b.onclick = () => ArcadeShop.open({
+    title: "SHOP",
+    subtitle: "Spend the coins you earn by playing. Buy it once, keep it forever. Gun, ability and background skins show up in Monster Attack!, Buckshot Roulette and REBUILD — you can also buy them inside those games.",
+    categories: [...Object.keys(SHOP).slice(0, 3), ArcadeShop.ABILITY_TAB, ...Object.keys(SHOP).slice(3), ArcadeShop.CODES_TAB],
+    onChange: (sv) => { save = sv; applyLook(); renderWallet(); },
+  })));
+
+  // Coming back from a game: pick up anything bought in the game's own shop.
+  window.addEventListener("hashchange", () => { save = ArcadeShop.load(); applyLook(); renderWallet(); });
+
+  // ---------------------------------------------------------------- codes
+  const codeFound = () => `${ArcadeShop.codesFound()} / ${ArcadeShop.codeCount()} codes found`;
+  $("codeMsg").textContent = codeFound();
+  $("codeForm").addEventListener("submit", (e) => {
+    e.preventDefault();
+    const r = ArcadeShop.redeem($("codeInput").value);
+    $("codeMsg").textContent = r.msg + (r.ok ? " · " + codeFound() : "");
+    $("codeMsg").classList.toggle("ok", r.ok);
+    if (r.ok) { $("codeInput").value = ""; toast(r.msg); save = ArcadeShop.load(); renderWallet(); }
+  });
+
+  // ---------------------------------------------------------------- hard quest + admin panel
+  // The faint 🔒 in the code panel's corner opens the quest. Beating it unlocks the Admin
+  // Panel; the Admin Panel is the only place the 👑 Owner title comes from; owners may skip.
+  const QUEST_GAMES = GAMES.map((g) => g.slug);
+  function questTasks(sv) {
+    const learned = ArcadeShop.ABILITIES.filter((a) => !a.secret && ArcadeShop.abilityLevel(a.id, sv) > 0);
+    const maxed = learned.filter((a) => ArcadeShop.abilityLevel(a.id, sv) >= ArcadeShop.ABILITY_MAX);
+    const bought = Object.values(SHOP).flat().filter((i) => i.price > 0 && sv.owned.includes(i.id));
+    return [
+      { ico: "⏱", name: "Play for 2 hours in the arcade", have: Math.floor(sv.total / 60), need: 120, unit: "min" },
+      { ico: "🎮", name: "Play every game for 10 minutes", have: QUEST_GAMES.filter((g) => (sv.perGame[g] || 0) >= 600).length, need: QUEST_GAMES.length },
+      { ico: "🎁", name: "Find 20 codes", have: ArcadeShop.codesFound(sv), need: 20 },
+      { ico: "⚡", name: "Learn 8 abilities", have: learned.length, need: 8 },
+      { ico: "💪", name: "Max out 2 abilities (level 5)", have: maxed.length, need: 2 },
+      { ico: "🛒", name: "Buy 15 things in the shop", have: bought.length, need: 15 },
+    ];
+  }
+  const isOwner = (sv) => sv.owned.includes("owner");
+
+  function openVeil(id) { $(id).classList.add("open"); }
+  document.querySelectorAll(".panel-veil").forEach((v) => v.addEventListener("click", (e) => {
+    if (e.target === v || e.target.closest("[data-close]")) v.classList.remove("open");
+  }));
+  document.addEventListener("keydown", (e) => {
+    if (e.key === "Escape") document.querySelectorAll(".panel-veil.open").forEach((v) => v.classList.remove("open"));
+  });
+
+  function renderQuest() {
+    const sv = ArcadeShop.load();
+    const tasks = questTasks(sv);
+    $("questTasks").innerHTML = tasks.map((t) => {
+      const done = t.have >= t.need;
+      return `<div class="task ${done ? "done" : ""}"><span class="ico">${done ? "✅" : t.ico}</span><b>${esc(t.name)}</b>
+        <span>${Math.min(t.have, t.need)} / ${t.need}${t.unit ? " " + t.unit : ""}</span>
+        <div class="bar"><i style="width:${Math.min(100, (t.have / t.need) * 100)}%"></i></div></div>`;
+    }).join("");
+    const all = tasks.every((t) => t.have >= t.need);
+    $("questClaim").disabled = !all || !!sv.adminUnlocked;
+    $("questClaim").textContent = sv.adminUnlocked ? "✓ Admin Panel unlocked" : "🛠️ Unlock Admin Panel";
+    $("questSkip").hidden = !isOwner(sv) || !!sv.adminUnlocked;
+  }
+
+  function unlockAdmin(how) {
+    save = ArcadeShop.update((sv) => { sv.adminUnlocked = true; });
+    document.body.classList.add("is-admin");
+    $("questVeil").classList.remove("open");
+    toast(how === "skip" ? "👑 Owner skip — Admin Panel unlocked!" : "🏆 Quest complete — Admin Panel unlocked!");
+    openVeil("adminVeil");
+  }
+
+  $("secretBtn").onclick = () => {
+    if (ArcadeShop.load().adminUnlocked) return openVeil("adminVeil");
+    renderQuest();
+    openVeil("questVeil");
+  };
+  $("questClaim").onclick = () => {
+    if (questTasks(ArcadeShop.load()).every((t) => t.have >= t.need)) unlockAdmin("quest");
+  };
+  $("questSkip").onclick = () => { if (isOwner(ArcadeShop.load())) unlockAdmin("skip"); };
+  $("adminBtn").onclick = () => openVeil("adminVeil");
+
+  let resetArmed = 0;
+  document.querySelector(".admin-grid").addEventListener("click", (e) => {
+    const b = e.target.closest("[data-admin]");
+    if (!b || !ArcadeShop.load().adminUnlocked) return;
+    const all = Object.values(SHOP).flat();
+    const act = b.dataset.admin;
+    if (act === "reset") {
+      if (Date.now() - resetArmed > 3000) { resetArmed = Date.now(); return toast("Click Reset again to wipe everything."); }
+      try { localStorage.removeItem("daniels-arcade-v1"); localStorage.removeItem("daniels-arcade-skins"); } catch {}
+      return location.reload();
+    }
+    save = ArcadeShop.update((sv) => {
+      if (act === "owner") {
+        sv.owned = [...new Set([...sv.owned, "owner", "admin"])];
+        sv.equipped.title = "owner";
+      }
+      if (act === "coins10") sv.coins += 10;
+      if (act === "coins100") sv.coins += 100;
+      if (act === "unlock") sv.owned = [...new Set([...sv.owned, ...all.map((i) => i.id)])];
+      if (act === "maxab") for (const a of ArcadeShop.ABILITIES) sv.abilities[a.id] = a.secret ? 1 : ArcadeShop.ABILITY_MAX;
+      if (act === "time") sv.total += 3600;
+    });
+    ArcadeShop.shareSkins(save);
+    applyLook(); renderWallet();
+    toast({ owner: "👑 You are now the Owner!", coins10: "🪙 +10 coins", coins100: "🪙 +100 coins",
+      unlock: "🔓 Everything unlocked", maxab: "⚡ All abilities maxed", time: "⏱ +1 hour of play time" }[act]);
+  });
+
+  // ---------------------------------------------------------------- start
+  if (save.adminUnlocked) document.body.classList.add("is-admin");
+  applyLook();
+  shareSkins(save);
+  renderWallet();
+  route();
+</script>
+<script defer src="nullp-widget.js" data-game="Daniel's Arcade (a hub page listing all of Daniel's games)"></script>
+</body>
+</html>

@@ -97,16 +97,6 @@
   }
   .stats b { color: var(--text); }
 
-  /* The "locked" corner button on the code panel. Looks unusable; it isn't. */
-  .secret-btn {
-    position: absolute; left: 10px; bottom: 8px; width: 28px; height: 28px; border-radius: 8px;
-    border: 1px dashed var(--line); background: transparent; color: var(--muted); opacity: .35;
-    font-size: .8rem; cursor: help; transition: opacity .2s;
-  }
-  .secret-btn:hover { opacity: .8; }
-  .admin-btn { display: none; }
-  body.is-admin .admin-btn { display: inline-block; }
-
   .panel-veil {
     position: fixed; inset: 0; z-index: 50; display: none; align-items: center; justify-content: center; padding: 16px;
     background: rgba(0,0,0,.65); backdrop-filter: blur(4px);
@@ -131,19 +121,29 @@
   .admin-grid button { text-align: left; padding: 12px; border-radius: 14px; border: 1px solid var(--line); background: var(--card); color: var(--text); font-weight: 800; }
   .admin-grid button small { display: block; font-weight: 400; color: var(--muted); font-size: .78rem; margin-top: 4px; }
   .admin-grid button.danger { border-color: #ff5f7e; }
-  .codebox {
-    position: relative;
-    max-width: 420px; margin: 0 auto 30px; padding: 16px 18px; text-align: center;
-    background: var(--card); border: 1px solid var(--line); border-radius: 18px;
+  .admin-grid button.on { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent) inset; }
+  .panel h4 { font-size: .8rem; letter-spacing: .06em; text-transform: uppercase; color: var(--accent); margin: 18px 0 8px; }
+  .admin-row { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; margin-bottom: 8px; }
+  .admin-row select, .admin-row input {
+    flex: 1; min-width: 120px; font: 700 .9rem "Nunito", sans-serif; padding: 9px 10px; border-radius: 10px;
+    border: 1px solid var(--line); background: var(--bg2); color: var(--text);
   }
-  .codebox h3 { font-family: "Press Start 2P", monospace; font-size: .75rem; color: var(--accent); margin-bottom: 12px; }
-  .codebox form { display: flex; gap: 8px; }
-  .codebox input {
-    flex: 1; min-width: 0; font: 900 1rem "Nunito", sans-serif; text-align: center; letter-spacing: .08em; text-transform: uppercase;
-    padding: 10px 12px; border-radius: 999px; border: 1px solid var(--line); background: var(--bg2); color: var(--text);
+  .admin-row .btn { padding: 9px 14px; }
+  .admin-row .btn.on { background: var(--accent); color: #0d0b1a; border-color: var(--accent); }
+  .owner-only { display: none; }
+  .bug-form { display: flex; flex-direction: column; gap: 10px; }
+  .bug-form select, .bug-form textarea {
+    font: 600 .95rem "Nunito", sans-serif; padding: 10px 12px; border-radius: 12px;
+    border: 1px solid var(--line); background: var(--bg2); color: var(--text);
   }
-  .codebox p { margin-top: 10px; font-size: .85rem; color: var(--muted); min-height: 1.2em; }
-  .codebox p.ok { color: var(--accent); font-weight: 900; }
+  .bug-form textarea { min-height: 110px; resize: vertical; }
+  .bug-list { display: flex; flex-direction: column; gap: 8px; }
+  .bug { background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 10px 12px; font-size: .85rem; }
+  .bug .meta { display: flex; gap: 8px; align-items: center; color: var(--muted); font-size: .75rem; margin-bottom: 4px; }
+  .bug .meta button { margin-left: auto; background: none; border: 0; color: var(--muted); cursor: pointer; font-size: .9rem; }
+  .bug.auto { border-color: #ff5f7e55; }
+  .bug p { white-space: pre-wrap; overflow-wrap: anywhere; }
+  body.is-owner .owner-only { display: block; }
   .filters { display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; margin-bottom: 28px; }
   .filters button {
     font-weight: 700; font-size: .9rem;
@@ -248,7 +248,7 @@
       <span class="coins">🪙 <span data-coins>0</span></span>
       <div class="next"><small data-next></small><div class="bar"><i data-bar></i></div></div>
     </div>
-    <button class="btn ghost admin-btn" id="adminBtn">🛠️ Admin</button>
+    <button class="btn ghost" id="bugBtn" title="Found something broken? Report it">🐞 Bug</button>
     <button class="btn" data-open-shop>🛒 Shop</button>
   </div>
 
@@ -262,21 +262,11 @@
       </div>
     </header>
 
-    <section class="codebox">
-      <h3>🎁 ENTER CODE</h3>
-      <form id="codeForm" autocomplete="off">
-        <input id="codeInput" maxlength="24" placeholder="TYPE CODE..." spellcheck="false" aria-label="Code">
-        <button class="btn" type="submit">Redeem</button>
-      </form>
-      <p id="codeMsg"></p>
-      <button class="secret-btn" id="secretBtn" title="???" aria-label="Locked">🔒</button>
-    </section>
-
     <nav class="filters" id="filters"></nav>
     <section class="grid" id="grid"></section>
 
     <footer>
-      Play time only counts while a game is open and this window is in front.<br>
+      Play time only counts while a game is open, this window is in front, and you are not idle (5 minutes with no input pauses it).<br>
       Tip: start Nullp (<code>Nullp-AI/start-nullp.command</code>) and open
       <code>localhost:4173/games/arcade/</code> so Nullp works inside every game.
     </footer>
@@ -298,30 +288,104 @@
 </div>
 
 <div class="panel-veil" id="questVeil">
-  <div class="panel" role="dialog" aria-label="Hard quest">
-    <header><h2>🔐 THE HARD QUEST</h2><button class="btn ghost" data-close>✕</button></header>
-    <p class="sub">Finish every task to unlock the <b>🛠️ Admin Panel</b>. Owners can skip it — but the 👑 Owner title only comes from the Admin Panel.</p>
+  <div class="panel" role="dialog" aria-label="Quests">
+    <header><h2>🔐 QUESTS</h2><button class="btn ghost" data-close>✕</button></header>
+
+    <h4>🔐 The Hard Quest</h4>
+    <p class="sub" id="hardSub">Finish every task to unlock the <b>🛠️ Admin Panel</b>. Owners can skip it — but the 👑 Owner title only comes from the Admin Panel.</p>
     <div id="questTasks"></div>
     <div class="actions">
       <button class="btn" id="questClaim" disabled>🛠️ Unlock Admin Panel</button>
+      <button class="btn" id="questAdmin" hidden>🛠️ Open Admin Panel</button>
       <button class="btn ghost" id="questSkip" hidden>👑 Skip (Owner)</button>
     </div>
+
+    <h4>🔮 The Medium Quests</h4>
+    <div id="mediumBox"></div>
   </div>
 </div>
 
 <div class="panel-veil" id="adminVeil">
   <div class="panel" role="dialog" aria-label="Admin panel">
     <header><h2>🛠️ ADMIN PANEL</h2><button class="btn ghost" data-close>✕</button></header>
-    <p class="sub">You beat the Hard Quest. These change your arcade save on this computer.</p>
+    <p class="sub">You beat the Hard Quest. These change your arcade save on this computer, and the boosts work inside Monster Attack!, Buckshot Roulette and REBUILD.</p>
+
+    <h4>🪙 Wallet</h4>
+    <div class="admin-row">
+      <input id="admCoins" type="text" inputmode="numeric" placeholder="Coins, or inf">
+      <button class="btn" data-admin="setcoins">Set coins</button>
+      <button class="btn ghost" data-admin="coins10">+10</button>
+      <button class="btn ghost" data-admin="coins100">+100</button>
+    </div>
+    <div class="admin-row" id="admBoost">
+      Coin speed:
+      <button class="btn ghost" data-boost="1">×1</button>
+      <button class="btn ghost" data-boost="2">×2</button>
+      <button class="btn ghost" data-boost="5">×5</button>
+    </div>
+
+    <h4>🎁 Items</h4>
+    <div class="admin-row">
+      <select id="admItem"></select>
+      <button class="btn" data-admin="give">Give</button>
+      <button class="btn ghost" data-admin="take">Take away</button>
+    </div>
     <div class="admin-grid">
-      <button data-admin="owner">👑 Owner title<small>Get the Owner and Admin titles</small></button>
-      <button data-admin="coins10">🪙 +10 coins<small>Add play coins</small></button>
-      <button data-admin="coins100">🪙 +100 coins<small>Add a lot of play coins</small></button>
+      <button data-admin="owner">👑 Owner title<small>Get the Owner, Admin and VIP titles</small></button>
       <button data-admin="unlock">🔓 Unlock all<small>Every theme, avatar, title and skin</small></button>
-      <button data-admin="maxab">⚡ Max abilities<small>Every ability to level 5</small></button>
+    </div>
+
+    <h4>⚡ Abilities</h4>
+    <div class="admin-row">
+      <select id="admAbility"></select>
+      <select id="admLevel" style="flex:0 0 90px"></select>
+      <button class="btn" data-admin="setab">Set</button>
+    </div>
+    <div class="admin-grid">
+      <button data-admin="maxab">⚡ Max all<small>Every ability to level 5</small></button>
+      <button data-admin="clearab">🧽 Clear all<small>Forget every ability</small></button>
+    </div>
+
+    <h4>🚀 Cheats</h4>
+    <div class="admin-grid">
+      <button data-toggle-admin="freeShop">🆓 Free Shop<small>Everything costs 0</small></button>
+      <button data-toggle-admin="infCoins">♾️ Infinite Coins<small>Your wallet shows ∞ and never goes down</small></button>
+      <button data-toggle-admin="super">🚀 Super Mode<small>Big boost to HP, damage, speed and more in every game</small></button>
       <button data-admin="time">⏱ +1 hour<small>Add play time</small></button>
+    </div>
+
+    <h4>🐞 Bug reports</h4>
+    <div class="bug-list" id="bugList"></div>
+    <div class="admin-row" style="margin-top:8px"><button class="btn ghost" data-admin="clearbugs">🧽 Delete all reports</button></div>
+
+    <h4>🎟️ Codes &amp; quest</h4>
+    <div class="admin-grid">
+      <button data-admin="allcodes">🎟️ Find all codes<small>Also gives the Secret Agent pack</small></button>
+      <button data-admin="medium">🔮 Unlock Medium Quests<small>Same as finding the Astral secret</small></button>
+      <button data-admin="resetcodes">♻️ Reset codes<small>Use every code again</small></button>
+      <button data-admin="relock" class="danger">🔒 Re-lock panel<small>Click twice. Do the Medium Quests again.</small></button>
       <button data-admin="reset" class="danger">🧹 Reset save<small>Click twice. Starts over.</small></button>
     </div>
+
+    <div class="owner-only">
+      <h4>👑 Owner only</h4>
+      <div class="admin-grid">
+        <button data-admin="royal">🟣 Owner Royal<small>Exclusive theme</small></button>
+        <button data-admin="crown">🫅 Owner Crown<small>Exclusive avatar</small></button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="panel-veil" id="bugVeil">
+  <div class="panel" role="dialog" aria-label="Report a bug">
+    <header><h2>🐞 FIND A BUG</h2><button class="btn ghost" data-close>✕</button></header>
+    <p class="sub">Found something broken, weird or unfair? Tell us what happened. Finding a bug is one of the Hard Quest tasks.</p>
+    <form class="bug-form" id="bugForm">
+      <select id="bugGame"></select>
+      <textarea id="bugText" maxlength="1000" placeholder="What happened? What did you expect to happen?"></textarea>
+      <button class="btn" type="submit">🐞 Send report</button>
+    </form>
   </div>
 </div>
 
@@ -393,9 +457,11 @@
   // ---------------------------------------------------------------- wallet ui
   function renderWallet() {
     const left = SECONDS_PER_COIN - save.progress;
-    document.querySelectorAll("[data-coins]").forEach((e) => (e.textContent = save.coins));
+    document.querySelectorAll("[data-coins]").forEach((e) => (e.textContent = ArcadeShop.coinText(save)));
     document.querySelectorAll("[data-bar]").forEach((e) => (e.style.width = (save.progress / SECONDS_PER_COIN) * 100 + "%"));
-    document.querySelectorAll("[data-next]").forEach((e) => (e.textContent = `next coin in ${Math.ceil(left / 60)}m`));
+    const capped = ArcadeShop.playLeft(save) <= 0 ? `daily cap ${ArcadeShop.CAPS.playPerDay}/${ArcadeShop.CAPS.playPerDay}` : "";
+    document.querySelectorAll("[data-next]").forEach((e) => (e.textContent = capped || `next coin in ${Math.ceil(left / 60)}m`));
+    document.querySelectorAll(".wallet").forEach((e) => (e.title = `Play-time coins today: ${ArcadeShop.CAPS.playPerDay - ArcadeShop.playLeft(save)} / ${ArcadeShop.CAPS.playPerDay} · no limit on your wallet`));
     $("totalTime").textContent = fmt(save.total);
   }
 
@@ -462,10 +528,28 @@
   $("back").onclick = () => { location.hash = ""; };
   $("full").onclick = () => $("frame").requestFullscreen?.();
 
-  // Count a second only while a game is open and this window is the one in front.
+  // Idle: after 5 minutes with no key, click, touch or mouse movement, play time and coins stop
+  // counting until the player does something again. Inputs inside the game count too (same
+  // origin only — opened as plain files the browser hides them, so only this page is watched).
+  const IDLE_MS = 5 * 60 * 1000;
+  let lastInput = Date.now();
+  const INPUT_EVENTS = ["keydown", "mousedown", "mousemove", "wheel", "touchstart", "pointerdown"];
+  const markInput = () => { lastInput = Date.now(); };
+  for (const ev of INPUT_EVENTS) window.addEventListener(ev, markInput, { capture: true, passive: true });
+  $("frame").addEventListener("load", () => {
+    markInput(); // opening a game counts as doing something
+    try {
+      const w = $("frame").contentWindow;
+      for (const ev of INPUT_EVENTS) w.addEventListener(ev, markInput, { capture: true, passive: true });
+    } catch { /* other origin: can't see inside */ }
+  });
+
+  // Count a second only while a game is open, this window is in front, and the player isn't idle.
   setInterval(() => {
-    const active = playing && !document.hidden && document.hasFocus();
+    const idle = Date.now() - lastInput > IDLE_MS;
+    const active = playing && !document.hidden && document.hasFocus() && !idle;
     $("paused").classList.toggle("show", !!playing && !active);
+    $("paused").textContent = idle ? "⏸ idle — move or press a key" : "⏸ timer paused";
     if (!active) {
       // Still pick up coins spent in a game's own shop.
       if (playing) { save = ArcadeShop.load(); renderWallet(); }
@@ -475,10 +559,13 @@
     save = ArcadeShop.update((sv) => {
       sv.total++;
       sv.perGame[playing.slug] = (sv.perGame[playing.slug] || 0) + 1;
-      sv.progress++;
+      // Cap: no play-time coins past today's limit (play time still counts).
+      if (ArcadeShop.playLeft(sv) <= 0) return;
+      sv.progress += (sv.admin && sv.admin.coinBoost) || 1; // Admin Panel coin speed
       if (sv.progress >= SECONDS_PER_COIN) {
         sv.progress -= SECONDS_PER_COIN;
         sv.coins++;
+        ArcadeShop.daily(sv).play++;
         earned = true;
       }
     });
@@ -497,19 +584,8 @@
   // Coming back from a game: pick up anything bought in the game's own shop.
   window.addEventListener("hashchange", () => { save = ArcadeShop.load(); applyLook(); renderWallet(); });
 
-  // ---------------------------------------------------------------- codes
-  const codeFound = () => `${ArcadeShop.codesFound()} / ${ArcadeShop.codeCount()} codes found`;
-  $("codeMsg").textContent = codeFound();
-  $("codeForm").addEventListener("submit", (e) => {
-    e.preventDefault();
-    const r = ArcadeShop.redeem($("codeInput").value);
-    $("codeMsg").textContent = r.msg + (r.ok ? " · " + codeFound() : "");
-    $("codeMsg").classList.toggle("ok", r.ok);
-    if (r.ok) { $("codeInput").value = ""; toast(r.msg); save = ArcadeShop.load(); renderWallet(); }
-  });
-
   // ---------------------------------------------------------------- hard quest + admin panel
-  // The faint 🔒 in the code panel's corner opens the quest. Beating it unlocks the Admin
+  // The invisible corner of the shop's 🎁 Codes tab opens the quest. Beating it unlocks the Admin
   // Panel; the Admin Panel is the only place the 👑 Owner title comes from; owners may skip.
   const QUEST_GAMES = GAMES.map((g) => g.slug);
   function questTasks(sv) {
@@ -523,6 +599,7 @@
       { ico: "⚡", name: "Learn 8 abilities", have: learned.length, need: 8 },
       { ico: "💪", name: "Max out 2 abilities (level 5)", have: maxed.length, need: 2 },
       { ico: "🛒", name: "Buy 15 things in the shop", have: bought.length, need: 15 },
+      { ico: "🐞", name: "Find a bug and report it", have: (sv.bugsReported || 0), need: 1 },
     ];
   }
   const isOwner = (sv) => sv.owned.includes("owner");
@@ -535,69 +612,297 @@
     if (e.key === "Escape") document.querySelectorAll(".panel-veil.open").forEach((v) => v.classList.remove("open"));
   });
 
+  // Medium Quests: unlocked by the invisible secret near spawn in Monster Attack!'s 🔮 Astral
+  // Temple (it sets save.mediumUnlocked). You move on to them once the Hard Quest is done.
+  const MEDIUM_COINS = 15;
+  function mediumTasks(sv) {
+    const pg = (g) => Math.floor((sv.perGame[g] || 0) / 60);
+    const eq = sv.equipped;
+    const skinsOn = ["gun-none", "ab-none", "bg-none"].filter((id, i) => eq[["gun", "ability", "bg"][i]] !== id).length;
+    const fullBar = ["monster-city", "buckshot", "rebuild"].some((g) => ArcadeShop.activeIds(g, sv).length >= ArcadeShop.ACTIVE_SLOTS);
+    return [
+      { ico: "👾", name: "Play Monster Attack! for 30 minutes", have: pg("monster-city"), need: 30, unit: "min" },
+      { ico: "🧟", name: "Play REBUILD for 20 minutes", have: pg("rebuild"), need: 20, unit: "min" },
+      { ico: "🔫", name: "Play Buckshot Roulette for 20 minutes", have: pg("shooting-game"), need: 20, unit: "min" },
+      { ico: "🎨", name: "Wear a gun skin, an ability skin and a background", have: skinsOn, need: 3 },
+      { ico: "⚡", name: "Switch on 3 abilities in one game", have: fullBar ? 1 : 0, need: 1 },
+      { ico: "🔁", name: "Trade coins into a game's money 5 times", have: (sv.stats && sv.stats.trades) || 0, need: 5 },
+    ];
+  }
+  const taskRows = (tasks) => tasks.map((t) => {
+    const done = t.have >= t.need;
+    return `<div class="task ${done ? "done" : ""}"><span class="ico">${done ? "✅" : t.ico}</span><b>${esc(t.name)}</b>
+      <span>${Math.min(t.have, t.need)} / ${t.need}${t.unit ? " " + t.unit : ""}</span>
+      <div class="bar"><i style="width:${Math.min(100, (t.have / t.need) * 100)}%"></i></div></div>`;
+  }).join("");
+
+  // Chain: Hard Quest (hardDone) → Medium Quests (needs the Astral secret: mediumUnlocked)
+  // → finishing them (mediumDone) unlocks the 🛠️ Admin Panel (adminUnlocked). Owners may skip.
+  function renderMedium(sv) {
+    const box = $("mediumBox");
+    if (!sv.mediumUnlocked) {
+      box.innerHTML = `<p class="sub">🔒 Locked. A secret is hidden somewhere in <b>👾 Monster Attack!</b> — find it to unlock the Medium Quests.</p>`;
+      return;
+    }
+    if (!sv.hardDone) {
+      box.innerHTML = `<p class="sub">🔮 You found the Astral secret! Finish the Hard Quest first, then you move on to the Medium Quests.</p>`;
+      return;
+    }
+    const tasks = mediumTasks(sv);
+    const all = tasks.every((t) => t.have >= t.need);
+    box.innerHTML = `<p class="sub">Finish them to unlock the <b>🛠️ Admin Panel</b>. Also: 🪙 ${MEDIUM_COINS} coins, the <b>🔮 Astral Seeker</b> title and the <b>🔮 Astral Oracle</b> avatar.</p>
+      ${sv.mediumDone ? "" : taskRows(tasks)}
+      <div class="actions"><button class="btn" id="mediumClaim" ${!all || sv.mediumDone ? "disabled" : ""}>
+        ${sv.mediumDone ? "✓ Medium Quests complete" : "🛠️ Finish & unlock Admin Panel"}</button></div>`;
+    $("mediumClaim").onclick = () => {
+      let ok = false;
+      save = ArcadeShop.update((v) => {
+        if (v.mediumDone || !v.mediumUnlocked || !v.hardDone || !mediumTasks(v).every((t) => t.have >= t.need)) return;
+        v.mediumDone = true; ok = true;
+        v.coins += MEDIUM_COINS;
+        v.owned = [...new Set([...v.owned, "astral", "oracle"])];
+        v.equipped.title = "astral"; v.equipped.avatar = "oracle";
+      });
+      if (!ok) return renderQuest();
+      applyLook(); renderWallet();
+      unlockAdmin("medium");
+    };
+  }
+
   function renderQuest() {
     const sv = ArcadeShop.load();
     const tasks = questTasks(sv);
-    $("questTasks").innerHTML = tasks.map((t) => {
-      const done = t.have >= t.need;
-      return `<div class="task ${done ? "done" : ""}"><span class="ico">${done ? "✅" : t.ico}</span><b>${esc(t.name)}</b>
-        <span>${Math.min(t.have, t.need)} / ${t.need}${t.unit ? " " + t.unit : ""}</span>
-        <div class="bar"><i style="width:${Math.min(100, (t.have / t.need) * 100)}%"></i></div></div>`;
-    }).join("");
+    $("questTasks").innerHTML = taskRows(tasks);
     const all = tasks.every((t) => t.have >= t.need);
-    $("questClaim").disabled = !all || !!sv.adminUnlocked;
-    $("questClaim").textContent = sv.adminUnlocked ? "✓ Admin Panel unlocked" : "🛠️ Unlock Admin Panel";
+    // Once the Hard Quest is beaten its tasks fold away; the Admin Panel only opens after the Medium Quests.
+    $("questTasks").hidden = !!sv.hardDone;
+    $("hardSub").innerHTML = sv.adminUnlocked ? "✅ Complete."
+      : sv.hardDone ? "✅ Complete — on to the Medium Quests! Finish those to unlock the <b>🛠️ Admin Panel</b>."
+      : "Finish every task, then the Medium Quests, to unlock the <b>🛠️ Admin Panel</b>. Owners can skip — but the 👑 Owner title only comes from the Admin Panel.";
+    $("questClaim").hidden = !!sv.hardDone;
+    $("questClaim").disabled = !all;
+    $("questClaim").textContent = "✅ Finish the Hard Quest";
+    $("questAdmin").hidden = !sv.adminUnlocked;
     $("questSkip").hidden = !isOwner(sv) || !!sv.adminUnlocked;
+    renderMedium(sv);
   }
 
   function unlockAdmin(how) {
-    save = ArcadeShop.update((sv) => { sv.adminUnlocked = true; });
+    save = ArcadeShop.update((sv) => {
+      sv.adminUnlocked = true;
+      if (how === "skip") sv.hardDone = true;
+    });
     document.body.classList.add("is-admin");
     $("questVeil").classList.remove("open");
-    toast(how === "skip" ? "👑 Owner skip — Admin Panel unlocked!" : "🏆 Quest complete — Admin Panel unlocked!");
-    openVeil("adminVeil");
+    toast(how === "skip" ? "👑 Owner skip — Admin Panel unlocked!"
+      : `🏆 Medium Quests complete! +🪙 ${MEDIUM_COINS} and the 🛠️ Admin Panel is unlocked!`);
+    openAdmin();
   }
 
-  $("secretBtn").onclick = () => {
-    if (ArcadeShop.load().adminUnlocked) return openVeil("adminVeil");
-    renderQuest();
-    openVeil("questVeil");
-  };
   $("questClaim").onclick = () => {
-    if (questTasks(ArcadeShop.load()).every((t) => t.have >= t.need)) unlockAdmin("quest");
+    if (!questTasks(ArcadeShop.load()).every((t) => t.have >= t.need)) return;
+    save = ArcadeShop.update((sv) => { sv.hardDone = true; });
+    toast(ArcadeShop.load().mediumUnlocked ? "🔐 Hard Quest done — on to the Medium Quests!"
+      : "🔐 Hard Quest done! Now find the secret in 👾 Monster Attack! to open the Medium Quests.");
+    renderQuest();
   };
   $("questSkip").onclick = () => { if (isOwner(ArcadeShop.load())) unlockAdmin("skip"); };
-  $("adminBtn").onclick = () => openVeil("adminVeil");
 
-  let resetArmed = 0;
-  document.querySelector(".admin-grid").addEventListener("click", (e) => {
+  // Admin Panel. Every action re-reads the save (games may have changed it) and writes it back.
+  const ALL_ITEMS = Object.entries(SHOP).flatMap(([cat, list]) => list.filter((i) => i.price > 0 || i.secret).map((i) => ({ cat, ...i })));
+  $("admItem").innerHTML = ALL_ITEMS.map((i) => `<option value="${esc(i.id)}">${esc(i.cat)}: ${esc(i.name)}${i.secret ? " ⭐" : ""}</option>`).join("");
+  $("admAbility").innerHTML = ArcadeShop.ABILITIES.map((a) =>
+    `<option value="${esc(a.id)}">${a.emoji} ${esc(a.name)} (${esc({ "monster-city": "Monster Attack!", buckshot: "Buckshot", rebuild: "REBUILD" }[a.game])})</option>`).join("");
+  const fillLevels = () => {
+    const a = ArcadeShop.ABILITIES.find((x) => x.id === $("admAbility").value);
+    const max = a && a.secret ? 1 : ArcadeShop.ABILITY_MAX;
+    $("admLevel").innerHTML = Array.from({ length: max + 1 }, (_, i) => `<option value="${i}">Lv ${i}</option>`).join("");
+    $("admLevel").value = String(ArcadeShop.abilityLevel(a.id));
+  };
+  $("admAbility").onchange = fillLevels;
+
+  function renderAdmin() {
+    const sv = ArcadeShop.load();
+    const adm = sv.admin || {};
+    $("admCoins").value = ArcadeShop.isInf(sv) ? "inf" : sv.coins;
+    document.querySelectorAll("[data-boost]").forEach((b) => b.classList.toggle("on", +b.dataset.boost === (adm.coinBoost || 1)));
+    document.querySelectorAll("[data-toggle-admin]").forEach((b) => b.classList.toggle("on", !!adm[b.dataset.toggleAdmin]));
+    document.body.classList.toggle("is-owner", sv.owned.includes("owner"));
+    fillLevels();
+    renderBugs();
+  }
+  const openAdmin = () => { renderAdmin(); openVeil("adminVeil"); };
+  // Called by the invisible corner of the arcade shop's 🎁 Codes tab (not in the games' shops).
+  window.arcadeSecret = () => { renderQuest(); openVeil("questVeil"); };
+  $("questAdmin").onclick = () => { $("questVeil").classList.remove("open"); openAdmin(); };
+
+  // Tell every part of the page (and a game in the iframe) that the save changed.
+  function adminChanged(msg) {
+    save = ArcadeShop.load();
+    ArcadeShop.shareSkins(save);
+    ArcadeShop.abilitiesChanged(save);
+    applyLook(); renderWallet(); renderGrid(); renderAdmin();
+    if (msg) toast(msg);
+  }
+
+  const armed = {};
+  const twice = (key, warn) => {
+    if (Date.now() - (armed[key] || 0) > 3000) { armed[key] = Date.now(); toast(warn); return false; }
+    return true;
+  };
+
+  $("adminVeil").addEventListener("click", (e) => {
+    if (!ArcadeShop.load().adminUnlocked) return;
+    const boost = e.target.closest("[data-boost]");
+    const tog = e.target.closest("[data-toggle-admin]");
     const b = e.target.closest("[data-admin]");
-    if (!b || !ArcadeShop.load().adminUnlocked) return;
-    const all = Object.values(SHOP).flat();
+    if (boost) {
+      ArcadeShop.update((sv) => { sv.admin = { ...(sv.admin || {}), coinBoost: +boost.dataset.boost }; });
+      return adminChanged(`🪙 Coin speed ×${boost.dataset.boost}`);
+    }
+    if (tog) {
+      const k = tog.dataset.toggleAdmin;
+      let now = false;
+      ArcadeShop.update((sv) => {
+        sv.admin = { ...(sv.admin || {}) };
+        if (k === "infCoins" && !sv.admin.infCoins) sv.coinsBeforeInf = sv.coins;
+        now = sv.admin[k] = !sv.admin[k];
+      });
+      // Switching Infinite Coins off leaves a normal wallet, not 999,999,999 coins.
+      if (k === "infCoins" && !now) ArcadeShop.update((sv) => { sv.coins = sv.coinsBeforeInf || 0; delete sv.coinsBeforeInf; });
+      return adminChanged(`${{ freeShop: "🆓 Free Shop", super: "🚀 Super Mode", infCoins: "♾️ Infinite Coins" }[k]} ${now ? "ON" : "off"}`);
+    }
+    if (!b) return;
     const act = b.dataset.admin;
     if (act === "reset") {
-      if (Date.now() - resetArmed > 3000) { resetArmed = Date.now(); return toast("Click Reset again to wipe everything."); }
+      if (!twice("reset", "Click Reset again to wipe everything.")) return;
       try { localStorage.removeItem("daniels-arcade-v1"); localStorage.removeItem("daniels-arcade-skins"); } catch {}
       return location.reload();
     }
-    save = ArcadeShop.update((sv) => {
-      if (act === "owner") {
-        sv.owned = [...new Set([...sv.owned, "owner", "admin"])];
-        sv.equipped.title = "owner";
+    if (act === "relock") {
+      if (!twice("relock", "Click Re-lock again to lock the Admin Panel.")) return;
+      ArcadeShop.update((sv) => { delete sv.adminUnlocked; delete sv.mediumDone; });
+      document.body.classList.remove("is-admin");
+      $("adminVeil").classList.remove("open");
+      return adminChanged("🔒 Admin Panel locked. Finish the Medium Quests (or skip as Owner) to get it back.");
+    }
+    if (act === "clearbugs") {
+      if (!twice("clearbugs", "Click again to delete every bug report.")) return;
+      saveBugs([]); renderBugs(); return toast("🧽 Bug reports deleted");
+    }
+    if (act === "allcodes") {
+      ArcadeShop.update((sv) => { sv.redeemed = [...new Set([...(sv.redeemed || []), ...Object.keys(ArcadeShop.CODES)])]; });
+      const got = ArcadeShop.grantSecretReward();
+      return adminChanged(got ? "🎟️ All codes found — 🕵️ Secret Agent pack unlocked!" : "🎟️ All codes found");
+    }
+    const all = Object.values(SHOP).flat();
+    const msg = {};
+    ArcadeShop.update((sv) => {
+      const item = ALL_ITEMS.find((i) => i.id === $("admItem").value);
+      switch (act) {
+        case "setcoins": {
+          const raw = String($("admCoins").value).trim().toLowerCase();
+          if (["inf", "infinite", "infinity", "∞"].includes(raw)) {
+            if (!ArcadeShop.isInf(sv)) sv.coinsBeforeInf = sv.coins;
+            sv.admin = { ...(sv.admin || {}), infCoins: true }; msg.t = "♾️ Infinite Coins ON"; break;
+          }
+          sv.admin = { ...(sv.admin || {}), infCoins: false }; delete sv.coinsBeforeInf;
+          sv.coins = Math.max(0, Math.min(Number.MAX_SAFE_INTEGER, Math.floor(+raw) || 0)); msg.t = `🪙 Coins set to ${sv.coins}`; break;
+        }
+        case "coins10": sv.coins += 10; msg.t = "🪙 +10 coins"; break;
+        case "coins100": sv.coins += 100; msg.t = "🪙 +100 coins"; break;
+        case "give": sv.owned = [...new Set([...sv.owned, item.id])]; msg.t = `🎁 Gave ${item.name}`; break;
+        case "take": {
+          sv.owned = sv.owned.filter((id) => id !== item.id);
+          // Taking away something that is in use puts the free one back on.
+          const slot = ArcadeShop.SLOT[item.cat];
+          if (sv.equipped[slot] === item.id) sv.equipped[slot] = SHOP[item.cat][0].id;
+          msg.t = `🗑️ Took away ${item.name}`; break;
+        }
+        case "owner":
+          sv.owned = [...new Set([...sv.owned, "owner", "admin", "vip"])];
+          sv.equipped.title = "owner"; msg.t = "👑 You are now the Owner!"; break;
+        case "unlock": sv.owned = [...new Set([...sv.owned, ...all.map((i) => i.id)])]; msg.t = "🔓 Everything unlocked"; break;
+        case "setab": sv.abilities[$("admAbility").value] = +$("admLevel").value; msg.t = "⚡ Ability set"; break;
+        case "maxab": for (const a of ArcadeShop.ABILITIES) sv.abilities[a.id] = a.secret ? 1 : ArcadeShop.ABILITY_MAX; msg.t = "⚡ All abilities maxed"; break;
+        case "clearab": sv.abilities = {}; sv.active = {}; msg.t = "🧽 All abilities cleared"; break;
+        case "time": sv.total += 3600; msg.t = "⏱ +1 hour of play time"; break;
+        case "resetcodes": sv.redeemed = []; msg.t = "♻️ Codes reset — use them again"; break;
+        case "medium": sv.mediumUnlocked = true; msg.t = "🔮 Medium Quests unlocked"; break;
+        case "royal":
+          if (!sv.owned.includes("owner")) return;
+          sv.owned = [...new Set([...sv.owned, "royal"])]; sv.equipped.theme = "royal"; msg.t = "🟣 Owner Royal theme on"; break;
+        case "crown":
+          if (!sv.owned.includes("owner")) return;
+          sv.owned = [...new Set([...sv.owned, "royalcrown"])]; sv.equipped.avatar = "royalcrown"; msg.t = "🫅 Owner Crown on"; break;
       }
-      if (act === "coins10") sv.coins += 10;
-      if (act === "coins100") sv.coins += 100;
-      if (act === "unlock") sv.owned = [...new Set([...sv.owned, ...all.map((i) => i.id)])];
-      if (act === "maxab") for (const a of ArcadeShop.ABILITIES) sv.abilities[a.id] = a.secret ? 1 : ArcadeShop.ABILITY_MAX;
-      if (act === "time") sv.total += 3600;
     });
-    ArcadeShop.shareSkins(save);
-    applyLook(); renderWallet();
-    toast({ owner: "👑 You are now the Owner!", coins10: "🪙 +10 coins", coins100: "🪙 +100 coins",
-      unlock: "🔓 Everything unlocked", maxab: "⚡ All abilities maxed", time: "⏱ +1 hour of play time" }[act]);
+    adminChanged(msg.t);
+  });
+
+  // ---------------------------------------------------------------- bugs
+  // Reports live in their own key so a big list never slows the main save down.
+  // Crashes inside a game are caught too (same origin only) and saved as automatic reports.
+  const BUGS_KEY = "daniels-arcade-bugs";
+  const loadBugs = () => { try { return JSON.parse(localStorage.getItem(BUGS_KEY) || "[]"); } catch { return []; } };
+  const saveBugs = (list) => { try { localStorage.setItem(BUGS_KEY, JSON.stringify(list.slice(-100))); } catch {} };
+
+  $("bugGame").innerHTML = [`<option value="arcade">🕹️ The arcade itself</option>`,
+    ...GAMES.map((g) => `<option value="${esc(g.slug)}">${g.emoji} ${esc(g.title)}</option>`)].join("");
+  $("bugBtn").onclick = () => {
+    $("bugGame").value = playing ? playing.slug : "arcade";
+    openVeil("bugVeil");
+    setTimeout(() => $("bugText").focus(), 0);
+  };
+  $("bugForm").addEventListener("submit", (e) => {
+    e.preventDefault();
+    const text = $("bugText").value.trim();
+    if (text.length < 10) return toast("Tell us a bit more (at least 10 letters).");
+    if (ArcadeShop.bugsLeft() <= 0) return toast(`That's ${ArcadeShop.CAPS.bugsPerDay} reports today — thanks! Send more tomorrow.`);
+    saveBugs([...loadBugs(), { at: Date.now(), game: $("bugGame").value, text }]);
+    save = ArcadeShop.update((sv) => { sv.bugsReported = (sv.bugsReported || 0) + 1; ArcadeShop.daily(sv).bugs++; });
+    $("bugText").value = "";
+    $("bugVeil").classList.remove("open");
+    toast("🐞 Thanks! Bug reported.");
+  });
+
+  function logAutoBug(game, msg) {
+    const list = loadBugs();
+    // The same crash over and over is one bug.
+    if (list.some((b) => b.auto && b.game === game && b.text === msg)) return;
+    saveBugs([...list, { at: Date.now(), game, text: msg, auto: true }]);
+  }
+  $("frame").addEventListener("load", () => {
+    const game = playing && playing.slug;
+    if (!game) return;
+    try {
+      const w = $("frame").contentWindow;
+      const file = (f) => (f || "").split(/[?#]/)[0].split("/").pop() || "page";
+      w.addEventListener("error", (e) => logAutoBug(game, `${e.message} (${file(e.filename)}:${e.lineno})`));
+      w.addEventListener("unhandledrejection", (e) => logAutoBug(game, "Promise: " + ((e.reason && e.reason.message) || e.reason)));
+    } catch { /* opened as a file: the browser won't let us look inside */ }
+  });
+
+  function renderBugs() {
+    const name = (slug) => slug === "arcade" ? "🕹️ Arcade" : (GAMES.find((g) => g.slug === slug) || { title: slug }).title;
+    const list = loadBugs().map((b, i) => ({ ...b, i })).reverse();
+    $("bugList").innerHTML = list.length ? list.map((b) => `<div class="bug ${b.auto ? "auto" : ""}">
+        <div class="meta">${b.auto ? "🤖 caught automatically" : "🐞 reported"} · ${esc(name(b.game))} · ${new Date(b.at).toLocaleString()}
+          <button data-delbug="${b.i}" title="Delete">✕</button></div><p>${esc(b.text)}</p></div>`).join("")
+      : `<p class="sub" style="margin:0">No bug reports yet.</p>`;
+  }
+  $("bugList").addEventListener("click", (e) => {
+    const b = e.target.closest("[data-delbug]");
+    if (!b) return;
+    const list = loadBugs(); list.splice(+b.dataset.delbug, 1); saveBugs(list); renderBugs();
   });
 
   // ---------------------------------------------------------------- start
+  // Saves from before the Medium Quests: the Hard Quest alone opened the Admin Panel. Now it
+  // only counts as the Hard Quest being done; the Medium Quests are still needed.
+  if (save.adminUnlocked && !save.mediumDone && save.hardDone === undefined) {
+    save = ArcadeShop.update((sv) => { sv.hardDone = true; delete sv.adminUnlocked; });
+  }
   if (save.adminUnlocked) document.body.classList.add("is-admin");
   applyLook();
   shareSkins(save);

@@ -30,6 +30,7 @@
       { id: "lava",   name: "Lava", price: 4, vars: { bg: "#170806", bg2: "#2a0f0a", card: "#34130d", glow1: "#8a1f0a", glow2: "#7a4a05", accent: "#ff7a3d" } },
       { id: "candy",  name: "Candy", price: 5, vars: { bg: "#1a0a1a", bg2: "#2d1230", card: "#3a1740", glow1: "#9a2a7a", glow2: "#2a5a9a", accent: "#ff8ad8" } },
       { id: "gold",   name: "Pure Gold", price: 15, vars: { bg: "#140f02", bg2: "#241b05", card: "#2e2308", glow1: "#8a6a0a", glow2: "#5a3a05", accent: "#ffe066" } },
+      { id: "royal",  name: "👑 Owner Royal", price: 0, secret: true, lockText: "Owner only", vars: { bg: "#12061f", bg2: "#22103a", card: "#2c1450", glow1: "#6a1fd6", glow2: "#c98a00", accent: "#ffd24a" } },
     ],
     Avatars: [
       { id: "smile", name: "Smile", price: 0, emoji: "🙂" },
@@ -41,6 +42,8 @@
       { id: "dragon", name: "Dragon", price: 8, emoji: "🐉" },
       { id: "crown", name: "King", price: 20, emoji: "👑" },
       { id: "agent", name: "Mystery Secret Agent Merchant", price: 0, emoji: "🕵️", secret: true },
+      { id: "royalcrown", name: "Owner Crown", price: 0, emoji: "🫅", secret: true, lockText: "Owner only" },
+      { id: "oracle", name: "Astral Oracle", price: 0, emoji: "🔮", secret: true, lockText: "Medium Quest" },
     ],
     Titles: [
       { id: "rookie",  name: "Rookie", price: 0 },
@@ -51,6 +54,8 @@
       { id: "legend",  name: "Arcade Legend", price: 25 },
       { id: "admin",   name: "🛠️ Admin", price: 0, secret: true, lockText: "Admin Panel" },
       { id: "owner",   name: "👑 Owner", price: 0, secret: true, lockText: "Admin Panel" },
+      { id: "vip",     name: "💎 VIP", price: 0, secret: true, lockText: "Admin Panel" },
+      { id: "astral",  name: "🔮 Astral Seeker", price: 0, secret: true, lockText: "Medium Quest" },
     ],
   };
 
@@ -217,9 +222,14 @@
     return ABILITIES.filter((a) => a.game === game && abilityLevel(a.id, save) > 0).slice(0, ACTIVE_SLOTS).map((a) => a.id);
   }
   // Sum of every switched-on ability that gives `key` (its own level × step, plus secret bonuses).
+  // Admin Panel → 🚀 Super Mode: a big boost to every effect, in every game.
+  const SUPER_BONUS = { tough: 50, power: 50, swift: 20, reload: 30, greed: 50, regen: 3, insight: 50, energy: 50 };
+  // Where a key means something else in one game. Buckshot's regen is a % chance, not HP healed.
+  const SUPER_BONUS_GAME = { buckshot: { regen: 50 } };
   function abilityValue(key, game = currentGame, save = load()) {
     const on = activeIds(game, save);
-    let v = 0;
+    const superOn = save.admin && save.admin.super;
+    let v = superOn ? ((SUPER_BONUS_GAME[game] || {})[key] ?? SUPER_BONUS[key] ?? 0) : 0;
     for (const a of ABILITIES) {
       if (a.game !== game || !on.includes(a.id)) continue;
       if (a.key === key) v += abilityLevel(a.id, save) * a.step;
@@ -229,6 +239,10 @@
   }
   const effectText = (a, level) => (a.secret ? a.text : a.text.replace("{v}", level * a.step));
   const find = (cat, id) => SHOP[cat].find((i) => i.id === id) || SHOP[cat][0];
+  // Admin Panel → 🆓 Free Shop makes every price 0.
+  const isFree = (save = load()) => !!(save.admin && save.admin.freeShop);
+  const priceOf = (item, save) => (isFree(save) ? 0 : item.price);
+  const costOf = (lv, save) => (isFree(save) ? 0 : abilityCost(lv));
 
   // ---------------------------------------------------------------- codes
   // Each works once per save. Letters are matched without caring about case or spaces.
@@ -308,12 +322,39 @@
   }
 
   // Always re-read before writing: the arcade page and a game inside it both change the save.
+  const INF_COINS = 999999999;
+  const isInf = (save = load()) => !!(save.admin && save.admin.infCoins);
+  const coinText = (save = load()) => (isInf(save) ? "∞" : String(save.coins));
+
   function update(fn) {
     const save = load();
     fn(save);
+    save.coins = Math.max(0, Math.min(CAPS.wallet, Math.floor(save.coins) || 0)); // never negative or fractional
+    // Admin Panel → ♾️ Infinite Coins: a huge real number (Infinity can't be saved — it comes back
+    // as 0), topped up after every change so spending never makes it go down. Shown as ∞.
+    if (isInf(save)) save.coins = INF_COINS;
     try { localStorage.setItem(KEY, JSON.stringify(save)); } catch {}
     return save;
   }
+
+  // ---------------------------------------------------------------- caps
+  // Limits that keep the coin economy fair. Daily ones reset at local midnight.
+  const CAPS = {
+    wallet: Infinity,    // no limit on how many play coins you can hold
+    playPerDay: 24,      // play-time coins per day (4 hours)
+    tradePerDay: 20,     // coins traded into ONE game's currency per day
+    bugsPerDay: 5,       // bug reports per day
+  };
+  const todayKey = () => { const d = new Date(); return `${d.getFullYear()}-${d.getMonth() + 1}-${d.getDate()}`; };
+  // The day's counters, reset when the date changes. Call inside update() to change them.
+  function daily(save) {
+    if (!save.daily || save.daily.day !== todayKey()) save.daily = { day: todayKey(), play: 0, bugs: 0, trade: {} };
+    save.daily.trade = save.daily.trade || {};
+    return save.daily;
+  }
+  const playLeft = (save = load()) => Math.max(0, CAPS.playPerDay - daily(save).play);
+  const tradeLeft = (game, save = load()) => Math.max(0, CAPS.tradePerDay - (daily(save).trade[game] || 0));
+  const bugsLeft = (save = load()) => Math.max(0, CAPS.bugsPerDay - daily(save).bugs);
 
   // What the games receive: { gun, ability, bg }, each null when "Normal" is equipped.
   function gameSkins(save = load()) {
@@ -380,7 +421,8 @@
   .as-ab .fx em{color:#f3efff;font-style:normal;font-weight:700}
   .as-ab button{font-weight:900;border-radius:10px;padding:8px;border:0;cursor:pointer;background:var(--as-coin);color:#0d0b1a;font-size:.9rem}
   .as-ab button:disabled{background:rgba(255,255,255,.08);color:var(--as-muted);cursor:not-allowed}
-  .as-code{background:var(--as-card);border:1px solid var(--as-line);border-radius:16px;padding:22px;display:flex;flex-direction:column;gap:12px;align-items:center;text-align:center}
+  .as-code{position:relative;background:var(--as-card);border:1px solid var(--as-line);border-radius:16px;padding:22px;display:flex;flex-direction:column;gap:12px;align-items:center;text-align:center}
+  .as-code .as-secret{position:absolute;left:0;bottom:0;width:44px;height:44px;padding:0;border:0;background:transparent;opacity:0;cursor:default}
   .as-code input{width:min(280px,100%);font:900 1.2rem system-ui,sans-serif;text-align:center;letter-spacing:.08em;text-transform:uppercase;padding:10px;border-radius:12px;border:1px solid var(--as-line);background:var(--as-bg2);color:#f3efff}
   .as-code button{background:var(--as-coin);color:#0d0b1a;border:0;border-radius:12px;padding:11px 26px;font-weight:900;font-size:1rem;cursor:pointer}
   .as-code .msg{min-height:1.3em;font-weight:900}
@@ -447,16 +489,29 @@
   const curFor = (tab) => currencies.find((c) => tabOf(c) === tab);
   function registerCurrency(c) { currencies.push(c); }
 
+  // Most coins that can go into this currency right now: wallet, today's trade cap, and how
+  // much more the game can hold (currency.room(), in its own units, if it has a limit).
+  function tradeMax(currency, save) {
+    let max = Math.min(save.coins, tradeLeft(currentGame || "arcade", save));
+    if (typeof currency.room === "function") max = Math.min(max, Math.floor(Math.max(0, currency.room()) / currency.rate));
+    return Math.max(0, max);
+  }
   function renderCurrency(box, save, amount, currency) {
-    const n = Math.max(0, Math.min(save.coins, Math.floor(amount) || 0));
+    const max = tradeMax(currency, save);
+    const n = Math.max(0, Math.min(max, Math.floor(amount) || 0));
+    const traded = CAPS.tradePerDay - tradeLeft(currentGame || "arcade", save);
+    const full = typeof currency.room === "function" && currency.room() < currency.rate;
     box.innerHTML = `<div class="as-cur">
       <div class="rate">🪙 1 play coin = ${esc(currency.emoji)} ${currency.rate.toLocaleString()} ${esc(currency.name)}</div>
       ${currency.note ? `<div class="rate">${esc(typeof currency.note === "function" ? currency.note() : currency.note)}</div>` : ""}
-      <div class="row">How many coins? <input type="number" min="1" max="${save.coins}" value="${n}" data-amount></div>
-      <div class="row quick">${[1, 5, 10].map((q) => `<button data-q="${q}" ${save.coins < q ? "disabled" : ""}>${q}</button>`).join("")}<button data-q="${save.coins}">All (${save.coins})</button></div>
+      <div class="row">How many coins? <input type="number" min="1" max="${max}" value="${n}" data-amount></div>
+      <div class="row quick">${[1, 5, 10].map((q) => `<button data-q="${q}" ${max < q ? "disabled" : ""}>${q}</button>`).join("")}<button data-q="${max}">Max (${max})</button></div>
       <div class="get">= ${esc(currency.emoji)} ${(n * currency.rate).toLocaleString()}</div>
       <button class="go" data-trade ${n < 1 ? "disabled" : ""}>Trade 🪙 ${n}</button>
-      ${save.coins < 1 ? `<div class="rate">No play coins yet — play for 10 minutes from the arcade to earn one.</div>` : ""}
+      <div class="rate">Today: ${traded} / ${CAPS.tradePerDay} coins traded here</div>
+      ${full ? `<div class="rate">You're holding the most ${esc(currency.name)} you can — use some first.</div>`
+        : traded >= CAPS.tradePerDay ? `<div class="rate">Daily trade cap reached — come back tomorrow.</div>`
+        : save.coins < 1 ? `<div class="rate">No play coins yet — play for 10 minutes from the arcade to earn one.</div>` : ""}
     </div>`;
   }
 
@@ -476,7 +531,7 @@
         const now = lv ? `<em>${esc(effectText(a, lv))}</em>${isOn ? " · ⚡ ON" : " · off (switch on in the ⚡ bar)"}` : "not learned yet";
         const next = lv < ABILITY_MAX ? `<br>next: ${esc(effectText(a, lv + 1))}` : "";
         const btn = lv >= ABILITY_MAX ? `<button disabled>MAX</button>`
-          : `<button data-lvl="${esc(a.id)}" ${save.coins < abilityCost(lv) ? "disabled" : ""}>${lv ? "Upgrade" : "Learn"} 🪙 ${abilityCost(lv)}</button>`;
+          : `<button data-lvl="${esc(a.id)}" ${save.coins < costOf(lv, save) ? "disabled" : ""}>${lv ? "Upgrade" : "Learn"} 🪙 ${costOf(lv, save)}</button>`;
         return `<div class="as-ab"><div class="top"><span class="ico">${a.emoji}</span><b>${esc(a.name)}</b>
           <span class="pips">${Array.from({ length: ABILITY_MAX }, (_, i) => `<i class="${i < lv ? "on" : ""}"></i>`).join("")}</span></div>
           <div class="fx">${now}${next}</div>${btn}</div>`;
@@ -608,7 +663,8 @@
   }
 
   function open(opts = {}) {
-    const cats = opts.categories || [...currencies.map(tabOf), ABILITY_TAB, ...SKIN_TABS, CODES_TAB];
+    // Codes (and the secret corner in them) only live in the arcade's own shop, never in a game's.
+    const cats = opts.categories || [...currencies.map(tabOf), ABILITY_TAB, ...SKIN_TABS, ...(currentGame ? [] : [CODES_TAB])];
     let codeMsg = "";
     let amount = 1;
     let tab = opts.tab && cats.includes(opts.tab) ? opts.tab : cats[0];
@@ -628,7 +684,7 @@
 
     const render = () => {
       const save = load();
-      veil.querySelector(".as-coins").textContent = "🪙 " + save.coins;
+      veil.querySelector(".as-coins").textContent = "🪙 " + coinText(save);
       veil.querySelector(".as-tabs").innerHTML = cats
         .map((c) => `<button data-tab="${esc(c)}" class="${c === tab ? "on" : ""}">${esc(c)}</button>`).join("");
       const box = veil.querySelector(".as-items");
@@ -642,7 +698,8 @@
         box.innerHTML = `<div class="as-code"><b>Got a code? Type it here.</b>
           <input data-code maxlength="24" placeholder="TYPE CODE..." autocomplete="off" spellcheck="false">
           <button data-redeem>Redeem</button><div class="msg">${esc(codeMsg)}</div>
-          <div class="found">${codesFound(save)} / ${Object.keys(CODES).length} codes found</div></div>`;
+          <div class="found">${codesFound(save)} / ${Object.keys(CODES).length} codes found</div>
+          ${currentGame ? "" : `<button class="as-secret" data-secret tabindex="-1" aria-hidden="true"></button>`}</div>`;
         const inp = box.querySelector("[data-code]");
         setTimeout(() => inp.focus(), 0);
         return;
@@ -654,7 +711,7 @@
         const action = on ? `<button class="as-now" disabled>✓ Using</button>`
           : owned ? `<button class="as-use" data-use="${item.id}">Use</button>`
           : item.secret ? `<button class="as-buy" disabled>🔒 ${esc(item.lockText || "All codes")}</button>`
-          : `<button class="as-buy" data-buy="${item.id}" ${save.coins < item.price ? "disabled" : ""}>🪙 ${item.price}</button>`;
+          : `<button class="as-buy" data-buy="${item.id}" ${save.coins < priceOf(item, save) ? "disabled" : ""}>🪙 ${priceOf(item, save)}</button>`;
         return `<div class="as-item ${on ? "on" : ""}">${preview(tab, item)}<b>${esc(item.name)}</b>${action}</div>`;
       }).join("");
     };
@@ -668,8 +725,12 @@
       if (t.dataset.trade !== undefined && currency) {
         let spent = 0;
         update((s) => {
-          const n = Math.max(0, Math.min(s.coins, Math.floor(amount) || 0));
-          if (n >= 1) { s.coins -= n; spent = n; }
+          const n = Math.max(0, Math.min(tradeMax(currency, s), Math.floor(amount) || 0));
+          if (n >= 1) {
+            s.coins -= n; spent = n;
+            const d = daily(s); d.trade[currentGame || "arcade"] = (d.trade[currentGame || "arcade"] || 0) + n;
+            s.stats = s.stats || {}; s.stats.trades = (s.stats.trades || 0) + 1; // for the Medium Quests
+          }
         });
         if (!spent) return render();
         try {
@@ -677,12 +738,18 @@
           toast(`${currency.emoji} +${(spent * currency.rate).toLocaleString()} ${currency.name}!`);
         } catch (err) {
           console.warn("currency grant failed, refunding", err);
-          update((s) => { s.coins += spent; });
+          update((s) => { s.coins += spent; const d = daily(s); d.trade[currentGame || "arcade"] -= spent; });
           toast("Something went wrong — your coins were given back.");
         }
         amount = 1;
         try { opts.onChange && opts.onChange(load()); } catch (err) { console.warn(err); }
         return render();
+      }
+      // Invisible bottom-left corner of the Codes tab — only in the arcade's own shop (never in
+      // a game's): opens the arcade's Hard Quest / Admin Panel.
+      if (t.dataset.secret !== undefined) {
+        if (!currentGame && typeof window.arcadeSecret === "function") { close(); window.arcadeSecret(); }
+        return;
       }
       if (t.dataset.redeem !== undefined) {
         const r = redeem(veil.querySelector("[data-code]").value);
@@ -697,11 +764,14 @@
         const save = update((s) => {
           s.abilities = s.abilities || {};
           const lv = abilityLevel(a.id, s);
-          if (a.secret || lv >= abilityMax(a) || s.coins < abilityCost(lv)) return;
-          s.coins -= abilityCost(lv);
-          s.abilities[a.id] = to = lv + 1;
+          if (a.secret || lv >= abilityMax(a) || s.coins < costOf(lv, s)) return;
+          s.coins -= costOf(lv, s);
+          // Read what's switched on BEFORE learning, and save it as the explicit list: otherwise
+          // the "first 3 learned" default could let a newly learned ability push one out.
           const on = activeIds(a.game, s);
-          if (!on.includes(a.id) && on.length < ACTIVE_SLOTS) { s.active = s.active || {}; s.active[a.game] = [...on, a.id]; }
+          s.abilities[a.id] = to = lv + 1;
+          s.active = s.active || {};
+          s.active[a.game] = !on.includes(a.id) && on.length < ACTIVE_SLOTS ? [...on, a.id] : on;
         });
         if (to) toast(`${a.emoji} ${a.name} is now level ${to}!`);
         abilitiesChanged(save);
@@ -715,8 +785,8 @@
       const save = update((s) => {
         if (buyId) {
           const item = find(tab, buyId);
-          if (item.secret || s.coins < item.price || s.owned.includes(item.id)) return;
-          s.coins -= item.price;
+          if (item.secret || s.coins < priceOf(item, s) || s.owned.includes(item.id)) return;
+          s.coins -= priceOf(item, s);
           s.owned.push(item.id);
           s.equipped[slot] = item.id;
           bought = item;
@@ -737,7 +807,7 @@
       if (e.target.dataset.amount === undefined || !currency) return;
       amount = +e.target.value;
       const save = load();
-      const n = Math.max(0, Math.min(save.coins, Math.floor(amount) || 0));
+      const n = Math.max(0, Math.min(tradeMax(currency, save), Math.floor(amount) || 0));
       veil.querySelector(".as-cur .get").textContent = `= ${currency.emoji} ${(n * currency.rate).toLocaleString()}`;
       const go = veil.querySelector("[data-trade]");
       go.textContent = `Trade 🪙 ${n}`;
@@ -756,7 +826,8 @@
       if (document.body) mountBar();
       else document.addEventListener("DOMContentLoaded", mountBar, { once: true });
     },
-    ACTIVE_SLOTS, activeIds, CODES_TAB, grantSecretReward, redeem, codesFound, codeCount: () => Object.keys(CODES).length,
+    CAPS, daily, playLeft, tradeLeft, bugsLeft, isInf, coinText,
+    ACTIVE_SLOTS, activeIds, CODES_TAB, grantSecretReward, CODES, SECRET_ITEMS, abilitiesChanged, redeem, codesFound, codeCount: () => Object.keys(CODES).length,
     abilityLevels: () => ({ ...(load().abilities || {}) }),
     isOpen: () => !!veil,
   };

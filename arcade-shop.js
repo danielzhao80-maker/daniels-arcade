@@ -56,6 +56,12 @@
       { id: "owner",   name: "👑 Owner", price: 0, secret: true, lockText: "Admin Panel" },
       { id: "vip",     name: "💎 VIP", price: 0, secret: true, lockText: "Admin Panel" },
       { id: "astral",  name: "🔮 Astral Seeker", price: 0, secret: true, lockText: "Medium Quest" },
+      // Die to the ☠️ Reaper in Monster Attack!, then beat it in your very next match.
+      { id: "revenge", name: "⚔️ Revenge", price: 0, secret: true, lockText: "Revenge" },
+      // Win Buckshot Roulette 10 times in a row, then wear the Shadow gun skin.
+      { id: "champion", name: "🏆 Champion", price: 0, secret: true, lockText: "Champion" },
+      // REBUILD: win a battle after your base dropped to 1 HP.
+      { id: "comeback", name: "⚡ Fast Comebacker", price: 0, secret: true, lockText: "Comeback" },
     ],
   };
 
@@ -323,6 +329,15 @@
 
   // Always re-read before writing: the arcade page and a game inside it both change the save.
   const INF_COINS = 999999999;
+  const CHAMPION_STREAK = 10;
+  let justChampion = false;
+  // Show the Champion news once, from whoever caused it (a win, or equipping the Shadow skin).
+  function announceChampion() {
+    if (!justChampion) return false;
+    justChampion = false;
+    toast("🏆 CHAMPION! 10 wins in a row with the Shadow gun — title unlocked!");
+    return true;
+  }
   const isInf = (save = load()) => !!(save.admin && save.admin.infCoins);
   const coinText = (save = load()) => (isInf(save) ? "∞" : String(save.coins));
 
@@ -333,6 +348,14 @@
     // Admin Panel → ♾️ Infinite Coins: a huge real number (Infinity can't be saved — it comes back
     // as 0), topped up after every change so spending never makes it go down. Shown as ∞.
     if (isInf(save)) save.coins = INF_COINS;
+    // 🏆 Champion: 10 Buckshot wins in a row (ever) AND the Shadow gun skin on. Whichever comes
+    // last grants it — the 10th win, or putting the skin on later.
+    if (!save.owned.includes("champion") && ((save.buckshot && save.buckshot.best) || 0) >= CHAMPION_STREAK
+        && save.equipped.gun === "gun-shadow") {
+      save.owned = [...save.owned, "champion"];
+      save.equipped.title = "champion";
+      justChampion = true;
+    }
     try { localStorage.setItem(KEY, JSON.stringify(save)); } catch {}
     return save;
   }
@@ -794,7 +817,7 @@
           s.equipped[slot] = useId;
         }
       });
-      if (bought) toast(`🎉 You got ${bought.name}!`);
+      if (!announceChampion() && bought) toast(`🎉 You got ${bought.name}!`);
       const skins = shareSkins(save);
       try { window.applyArcadeSkins && window.applyArcadeSkins(skins); } catch (err) { console.warn("applyArcadeSkins failed", err); }
       window.dispatchEvent(new CustomEvent("arcade-skins-changed", { detail: skins }));
@@ -826,7 +849,7 @@
       if (document.body) mountBar();
       else document.addEventListener("DOMContentLoaded", mountBar, { once: true });
     },
-    CAPS, daily, playLeft, tradeLeft, bugsLeft, isInf, coinText,
+    CAPS, daily, playLeft, tradeLeft, bugsLeft, isInf, coinText, CHAMPION_STREAK, announceChampion,
     ACTIVE_SLOTS, activeIds, CODES_TAB, grantSecretReward, CODES, SECRET_ITEMS, abilitiesChanged, redeem, codesFound, codeCount: () => Object.keys(CODES).length,
     abilityLevels: () => ({ ...(load().abilities || {}) }),
     isOpen: () => !!veil,

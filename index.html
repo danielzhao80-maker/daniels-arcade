@@ -302,6 +302,9 @@
 
     <h4>🔮 The Medium Quests</h4>
     <div id="mediumBox"></div>
+
+    <h4>🟢 The Easy Quest</h4>
+    <div id="easyBox"></div>
   </div>
 </div>
 
@@ -363,7 +366,7 @@
       <button data-admin="allcodes">🎟️ Find all codes<small>Also gives the Secret Agent pack</small></button>
       <button data-admin="medium">🔮 Unlock Medium Quests<small>Same as finding the Astral secret</small></button>
       <button data-admin="resetcodes">♻️ Reset codes<small>Use every code again</small></button>
-      <button data-admin="relock" class="danger">🔒 Re-lock panel<small>Click twice. Do the Medium Quests again.</small></button>
+      <button data-admin="relock" class="danger">🔒 Re-lock panel<small>Click twice. Do the Easy Quest again.</small></button>
       <button data-admin="reset" class="danger">🧹 Reset save<small>Click twice. Starts over.</small></button>
     </div>
 
@@ -650,10 +653,10 @@
     }
     const tasks = mediumTasks(sv);
     const all = tasks.every((t) => t.have >= t.need);
-    box.innerHTML = `<p class="sub">Finish them to unlock the <b>🛠️ Admin Panel</b>. Also: 🪙 ${MEDIUM_COINS} coins, the <b>🔮 Astral Seeker</b> title and the <b>🔮 Astral Oracle</b> avatar.</p>
+    box.innerHTML = `<p class="sub">Finish them to move on to the Easy Quest. Reward: 🪙 ${MEDIUM_COINS} coins, the <b>🔮 Astral Seeker</b> title and the <b>🔮 Astral Oracle</b> avatar.</p>
       ${sv.mediumDone ? "" : taskRows(tasks)}
       <div class="actions"><button class="btn" id="mediumClaim" ${!all || sv.mediumDone ? "disabled" : ""}>
-        ${sv.mediumDone ? "✓ Medium Quests complete" : "🛠️ Finish & unlock Admin Panel"}</button></div>`;
+        ${sv.mediumDone ? "✓ Medium Quests complete" : "🔮 Finish & claim reward"}</button></div>`;
     $("mediumClaim").onclick = () => {
       let ok = false;
       save = ArcadeShop.update((v) => {
@@ -663,9 +666,41 @@
         v.owned = [...new Set([...v.owned, "astral", "oracle"])];
         v.equipped.title = "astral"; v.equipped.avatar = "oracle";
       });
-      if (!ok) return renderQuest();
-      applyLook(); renderWallet();
-      unlockAdmin("medium");
+      if (ok) {
+        applyLook(); renderWallet();
+        toast(`🔮 Medium Quests complete! +🪙 ${MEDIUM_COINS} — on to the Easy Quest!`);
+      }
+      renderQuest();
+    };
+  }
+
+  // 🟢 Easy Quest (after the Medium Quests): own the three challenge titles. It unlocks the Admin Panel.
+  const EASY_TITLES = [
+    { id: "champion", how: "win Buckshot 10 times in a row, with the Shadow gun skin on" },
+    { id: "comeback", how: "win a REBUILD battle after your base hit 1 HP" },
+    { id: "revenge", how: "die to the ☠️ Reaper in Monster Attack!, then beat it next match" },
+  ];
+  const easyTasks = (sv) => EASY_TITLES.map((t) => {
+    const item = SHOP.Titles.find((i) => i.id === t.id);
+    return { ico: item.name.split(" ")[0], name: `Unlock ${item.name.slice(item.name.indexOf(" ") + 1)} — ${t.how}`, have: sv.owned.includes(t.id) ? 1 : 0, need: 1 };
+  });
+  function renderEasy(sv) {
+    const box = $("easyBox");
+    if (!sv.mediumDone) {
+      box.innerHTML = `<p class="sub">🔒 Finish the Medium Quests first.</p>`;
+      return;
+    }
+    const tasks = easyTasks(sv);
+    const all = tasks.every((t) => t.have >= t.need);
+    box.innerHTML = `<p class="sub">Unlock the three challenge titles to unlock the <b>🛠️ Admin Panel</b>.</p>
+      ${sv.adminUnlocked ? "" : taskRows(tasks)}
+      <div class="actions"><button class="btn" id="easyClaim" ${!all || sv.adminUnlocked ? "disabled" : ""}>
+        ${sv.adminUnlocked ? "✓ Easy Quest complete" : "🛠️ Finish & unlock Admin Panel"}</button></div>`;
+    $("easyClaim").onclick = () => {
+      const v = ArcadeShop.load();
+      if (v.adminUnlocked || !v.mediumDone || !easyTasks(v).every((t) => t.have >= t.need)) return renderQuest();
+      ArcadeShop.update((x) => { x.easyDone = true; });
+      unlockAdmin("easy");
     };
   }
 
@@ -674,17 +709,18 @@
     const tasks = questTasks(sv);
     $("questTasks").innerHTML = taskRows(tasks);
     const all = tasks.every((t) => t.have >= t.need);
-    // Once the Hard Quest is beaten its tasks fold away; the Admin Panel only opens after the Medium Quests.
+    // Once the Hard Quest is beaten its tasks fold away; the Admin Panel only opens after the Easy Quest.
     $("questTasks").hidden = !!sv.hardDone;
     $("hardSub").innerHTML = sv.adminUnlocked ? "✅ Complete."
-      : sv.hardDone ? "✅ Complete — on to the Medium Quests! Finish those to unlock the <b>🛠️ Admin Panel</b>."
-      : "Finish every task, then the Medium Quests, to unlock the <b>🛠️ Admin Panel</b>. Owners can skip — but the 👑 Owner title only comes from the Admin Panel.";
+      : sv.hardDone ? "✅ Complete — on to the Medium Quests, then the Easy Quest, to unlock the <b>🛠️ Admin Panel</b>."
+      : "Finish every task, then the Medium Quests, then the Easy Quest, to unlock the <b>🛠️ Admin Panel</b>. Owners can skip — but the 👑 Owner title only comes from the Admin Panel.";
     $("questClaim").hidden = !!sv.hardDone;
     $("questClaim").disabled = !all;
     $("questClaim").textContent = "✅ Finish the Hard Quest";
     $("questAdmin").hidden = !sv.adminUnlocked;
     $("questSkip").hidden = !isOwner(sv) || !!sv.adminUnlocked;
     renderMedium(sv);
+    renderEasy(sv);
   }
 
   function unlockAdmin(how) {
@@ -694,8 +730,7 @@
     });
     document.body.classList.add("is-admin");
     $("questVeil").classList.remove("open");
-    toast(how === "skip" ? "👑 Owner skip — Admin Panel unlocked!"
-      : `🏆 Medium Quests complete! +🪙 ${MEDIUM_COINS} and the 🛠️ Admin Panel is unlocked!`);
+    toast(how === "skip" ? "👑 Owner skip — Admin Panel unlocked!" : "🟢 Easy Quest complete — the 🛠️ Admin Panel is unlocked!");
     openAdmin();
   }
 
@@ -781,10 +816,10 @@
     }
     if (act === "relock") {
       if (!twice("relock", "Click Re-lock again to lock the Admin Panel.")) return;
-      ArcadeShop.update((sv) => { delete sv.adminUnlocked; delete sv.mediumDone; });
+      ArcadeShop.update((sv) => { delete sv.adminUnlocked; delete sv.easyDone; });
       document.body.classList.remove("is-admin");
       $("adminVeil").classList.remove("open");
-      return adminChanged("🔒 Admin Panel locked. Finish the Medium Quests (or skip as Owner) to get it back.");
+      return adminChanged("🔒 Admin Panel locked. Finish the Easy Quest (or skip as Owner) to get it back.");
     }
     if (act === "clearbugs") {
       if (!twice("clearbugs", "Click again to delete every bug report.")) return;
@@ -902,6 +937,11 @@
   // only counts as the Hard Quest being done; the Medium Quests are still needed.
   if (save.adminUnlocked && !save.mediumDone && save.hardDone === undefined) {
     save = ArcadeShop.update((sv) => { sv.hardDone = true; delete sv.adminUnlocked; });
+  }
+  // Saves from before the Easy Quest: the Medium Quests opened the Admin Panel. Now the Easy
+  // Quest does (Owners who skipped keep it — a skip sets hardDone but not mediumDone).
+  if (save.adminUnlocked && save.mediumDone && !save.easyDone) {
+    save = ArcadeShop.update((sv) => { delete sv.adminUnlocked; });
   }
   if (save.adminUnlocked) document.body.classList.add("is-admin");
   applyLook();

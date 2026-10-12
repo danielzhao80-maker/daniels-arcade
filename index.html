@@ -132,7 +132,7 @@
   .admin-row .btn.on { background: var(--accent); color: #0d0b1a; border-color: var(--accent); }
   .owner-only { display: none; }
   .bug-form { display: flex; flex-direction: column; gap: 10px; }
-  .bug-form select, .bug-form textarea {
+  .bug-form select, .bug-form textarea, .bug-form input {
     font: 600 .95rem "Nunito", sans-serif; padding: 10px 12px; border-radius: 12px;
     border: 1px solid var(--line); background: var(--bg2); color: var(--text);
   }
@@ -242,12 +242,13 @@
   <div class="topbar">
     <div class="player">
       <div class="avatar" data-avatar></div>
-      <div><b>Daniel</b><small data-title></small></div>
+      <div><b id="playerName">Daniel</b><small data-title></small></div>
     </div>
     <div class="wallet" title="You earn 1 coin for every 10 minutes of play">
       <span class="coins">🪙 <span data-coins>0</span></span>
       <div class="next"><small data-next></small><div class="bar"><i data-bar></i></div></div>
     </div>
+    <button class="btn ghost" id="accountBtn" title="Sign up or log in to save your progress">👤 Log in</button>
     <button class="btn ghost" id="bugBtn" title="Found something broken? Report it">🐞 Bug</button>
     <button class="btn" data-open-shop>🛒 Shop</button>
   </div>
@@ -375,6 +376,34 @@
       <div class="admin-grid">
         <button data-admin="royal">🟣 Owner Royal<small>Exclusive theme</small></button>
         <button data-admin="crown">🫅 Owner Crown<small>Exclusive avatar</small></button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="panel-veil" id="accountVeil">
+  <div class="panel" role="dialog" aria-label="Account">
+    <header><h2>👤 ACCOUNT</h2><button class="btn ghost" data-close>✕</button></header>
+    <div id="accountOut">
+      <div class="admin-row" style="margin-bottom:14px">
+        <button class="btn" id="tabLogin">Log in</button>
+        <button class="btn ghost" id="tabSignup">Sign up</button>
+      </div>
+      <form class="bug-form" id="accountForm" autocomplete="off">
+        <input id="accName" maxlength="16" placeholder="Name (3–16 letters or numbers)" autocomplete="username" spellcheck="false">
+        <input id="accPass" type="password" maxlength="100" placeholder="Password (at least 4)" autocomplete="current-password">
+        <input id="accPass2" type="password" maxlength="100" placeholder="Type the password again" autocomplete="new-password" hidden>
+        <button class="btn" type="submit" id="accGo">Log in</button>
+      </form>
+      <p class="sub" id="accMsg" style="margin-top:12px"></p>
+      <p class="sub" id="accNote" style="font-size:.8rem">Your progress is saved on this computer's arcade server. Don't use a password from another website.</p>
+    </div>
+    <div id="accountIn" hidden>
+      <p class="sub">Logged in as <b id="accWho"></b>. Your coins, skins, abilities, quests, titles and game progress save automatically.</p>
+      <p class="sub" id="accSaved"></p>
+      <div class="admin-row">
+        <button class="btn" id="accSaveNow">💾 Save now</button>
+        <button class="btn ghost" id="accLogout">🚪 Log out</button>
       </div>
     </div>
   </div>
@@ -874,6 +903,129 @@
     });
     adminChanged(msg.t);
   });
+
+  // ---------------------------------------------------------------- accounts
+  // Sign up / log in through the Nullp server (Nullp-AI/arcade-accounts.js). An account keeps a
+  // snapshot of every arcade and game save in this browser; while logged in it's uploaded
+  // whenever it changes. Logging in loads the account's snapshot; logging out clears it here.
+  const ACC_KEY = "daniels-arcade-account"; // { name, token } — never part of the snapshot
+  const SYNC_PREFIXES = ["daniels-arcade-v1", "daniels-arcade-skins", "monster_city_", "project-revive-", "buckshot_", "fps_arena_save"];
+  const synced = (k) => SYNC_PREFIXES.some((p) => k.startsWith(p));
+  const getAcc = () => { try { return JSON.parse(localStorage.getItem(ACC_KEY) || "null"); } catch { return null; } };
+  const setAcc = (a) => { try { a ? localStorage.setItem(ACC_KEY, JSON.stringify(a)) : localStorage.removeItem(ACC_KEY); } catch {} };
+  function snapshot() {
+    const out = {};
+    try { for (let i = 0; i < localStorage.length; i++) { const k = localStorage.key(i); if (synced(k)) out[k] = localStorage.getItem(k); } } catch {}
+    return out;
+  }
+  function restore(snap) {
+    try {
+      const keys = []; for (let i = 0; i < localStorage.length; i++) keys.push(localStorage.key(i));
+      keys.filter(synced).forEach((k) => localStorage.removeItem(k));
+      for (const [k, v] of Object.entries(snap || {})) if (synced(k) && typeof v === "string") localStorage.setItem(k, v);
+    } catch {}
+  }
+  async function api(method, route, body) {
+    const acc = getAcc();
+    const r = await fetch("/api/arcade/" + route, {
+      method, keepalive: true,
+      headers: { "Content-Type": "application/json", ...(acc ? { "X-Arcade-Token": acc.token } : {}) },
+      body: body ? JSON.stringify(body) : undefined,
+    });
+    const data = await r.json().catch(() => ({}));
+    if (!r.ok) throw Object.assign(new Error(data.error || "Something went wrong."), { status: r.status });
+    return data;
+  }
+
+  let lastUploaded = "", lastSavedAt = 0;
+  async function upload(force) {
+    if (!getAcc()) return false;
+    const snap = snapshot(), json = JSON.stringify(snap);
+    if (!force && json === lastUploaded) return true;
+    try {
+      const r = await api("PUT", "save", { save: snap });
+      lastUploaded = json; lastSavedAt = r.savedAt; renderAccount();
+      return true;
+    } catch (e) {
+      if (e.status === 401) { setAcc(null); renderAccount(); toast("You were logged out — log in again to keep saving."); }
+      return false;
+    }
+  }
+  setInterval(() => upload(false), 15000);
+  document.addEventListener("visibilitychange", () => { if (document.hidden) upload(false); });
+  window.addEventListener("pagehide", () => upload(false));
+
+  let accMode = "login";
+  function setAccMode(m) {
+    accMode = m;
+    $("tabLogin").className = m === "login" ? "btn" : "btn ghost";
+    $("tabSignup").className = m === "signup" ? "btn" : "btn ghost";
+    $("accPass2").hidden = m !== "signup";
+    $("accPass").autocomplete = m === "signup" ? "new-password" : "current-password";
+    $("accGo").textContent = m === "signup" ? "Sign up" : "Log in";
+    $("accMsg").textContent = m === "signup" ? "Your progress on this browser right now becomes your new account's progress." : "Logging in loads your account's progress on this browser.";
+  }
+  function renderAccount() {
+    const acc = getAcc();
+    $("accountBtn").textContent = acc ? "👤 " + acc.name : "👤 Log in";
+    $("playerName").textContent = acc ? acc.name : "Daniel";
+    $("accountOut").hidden = !!acc;
+    $("accountIn").hidden = !acc;
+    if (acc) {
+      $("accWho").textContent = acc.name;
+      $("accSaved").textContent = lastSavedAt ? `Last saved ${new Date(lastSavedAt).toLocaleTimeString()}.` : "Saving…";
+    }
+  }
+  $("accountBtn").onclick = () => {
+    if (location.protocol === "file:") return toast("Accounts need the arcade opened through Nullp (localhost:4173).");
+    renderAccount(); if (!getAcc()) setAccMode(accMode); openVeil("accountVeil");
+    setTimeout(() => (getAcc() ? null : $("accName").focus()), 0);
+  };
+  $("tabLogin").onclick = () => setAccMode("login");
+  $("tabSignup").onclick = () => setAccMode("signup");
+  $("accountForm").addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const name = $("accName").value.trim(), password = $("accPass").value;
+    if (accMode === "signup" && password !== $("accPass2").value) { $("accMsg").textContent = "❌ The two passwords don't match."; return; }
+    $("accGo").disabled = true;
+    try {
+      if (accMode === "signup") {
+        const r = await api("POST", "signup", { name, password });
+        setAcc({ name: r.name, token: r.token });
+        await upload(true);
+        $("accPass").value = $("accPass2").value = "";
+        $("accountVeil").classList.remove("open");
+        toast(`🎉 Welcome, ${r.name}! Your progress is saved to your account.`);
+        renderAccount();
+      } else {
+        const r = await api("POST", "login", { name, password });
+        setAcc({ name: r.name, token: r.token });
+        if (r.save && Object.keys(r.save).length) {
+          restore(r.save);
+          lastUploaded = JSON.stringify(snapshot());
+          location.hash = "";
+          return location.reload(); // load the account's progress everywhere
+        }
+        await upload(true); // a brand-new account with no save yet keeps what's here
+        $("accountVeil").classList.remove("open");
+        toast(`👋 Hi ${r.name}!`);
+        renderAccount();
+      }
+    } catch (err) {
+      $("accMsg").textContent = "❌ " + (err.message === "Failed to fetch" ? "Can't reach the arcade server — is Nullp running?" : err.message);
+    } finally { $("accGo").disabled = false; }
+  });
+  $("accSaveNow").onclick = async () => { toast((await upload(true)) ? "💾 Saved!" : "Couldn't save — is Nullp running?"); };
+  $("accLogout").onclick = async () => {
+    if (!(await upload(true))) return toast("Couldn't save before logging out — try again when Nullp is running.");
+    try { await api("POST", "logout"); } catch {}
+    setAcc(null);
+    restore({}); // the next person starts fresh here; your progress is in your account
+    location.hash = "";
+    location.reload();
+  };
+  if (getAcc()) { lastUploaded = ""; upload(false); }
+  renderAccount();
 
   // ---------------------------------------------------------------- bugs
   // Reports live in their own key so a big list never slows the main save down.

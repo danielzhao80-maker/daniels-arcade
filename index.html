@@ -295,6 +295,11 @@
     <h4>🔐 The Hard Quest</h4>
     <p class="sub" id="hardSub">Finish every task to unlock the <b>🛠️ Admin Panel</b>. Owners can skip it — but the 👑 Owner title only comes from the Admin Panel.</p>
     <div id="questTasks"></div>
+    <div id="discordBox" class="admin-row" style="margin-top:6px" hidden>
+      <button class="btn" id="discordJoin" type="button">💬 Join the Discord</button>
+      <input id="discordCode" maxlength="40" placeholder="Code from the Discord" autocomplete="off" spellcheck="false">
+      <button class="btn ghost" id="discordCheck" type="button">Check</button>
+    </div>
     <div class="actions">
       <button class="btn" id="questClaim" disabled>🛠️ Unlock Admin Panel</button>
       <button class="btn" id="questAdmin" hidden>🛠️ Open Admin Panel</button>
@@ -620,6 +625,42 @@
   // The invisible corner of the shop's 🎁 Codes tab opens the quest. Beating it unlocks the Admin
   // Panel; the Admin Panel is the only place the 👑 Owner title comes from; owners may skip.
   const QUEST_GAMES = GAMES.map((g) => g.slug);
+  // 💬 Discord task. Put the server's invite link in `invite`. If `code` is set, joining only counts
+  // once the player types that code — post it in the server (e.g. #welcome) so only members know it.
+  // With no code, opening the invite counts as joining.
+  const DISCORD = { invite: "https://discord.gg/jhvNpfAkn", code: "" }; // server "archade"; this invite expires 2026-11-13
+  const normDiscord = (c) => String(c || "").trim().toUpperCase().replace(/\s+/g, "");
+
+  function renderDiscord(sv) {
+    const box = $("discordBox");
+    box.hidden = !!sv.hardDone || !!sv.discordJoined;
+    if (box.hidden) return;
+    $("discordJoin").disabled = !DISCORD.invite;
+    $("discordJoin").textContent = DISCORD.invite ? "💬 Join the Discord" : "💬 Discord link coming soon";
+    $("discordCode").hidden = $("discordCheck").hidden = !DISCORD.code;
+  }
+  $("discordJoin").onclick = () => {
+    if (!DISCORD.invite) return;
+    window.open(DISCORD.invite, "_blank", "noopener");
+    if (!DISCORD.code) {
+      ArcadeShop.update((sv) => { sv.discordJoined = true; });
+      toast("💬 Thanks for joining the Discord!");
+      renderQuest();
+    } else {
+      toast("Find the code in the Discord, then type it here.");
+      $("discordCode").focus();
+    }
+  };
+  const checkDiscord = () => {
+    if (!DISCORD.code) return;
+    if (normDiscord($("discordCode").value) !== normDiscord(DISCORD.code)) return toast("❌ That's not the Discord code.");
+    ArcadeShop.update((sv) => { sv.discordJoined = true; });
+    toast("💬 Discord code correct — task done!");
+    renderQuest();
+  };
+  $("discordCheck").onclick = checkDiscord;
+  $("discordCode").addEventListener("keydown", (e) => { if (e.key === "Enter") checkDiscord(); });
+
   function questTasks(sv) {
     const learned = ArcadeShop.ABILITIES.filter((a) => !a.secret && ArcadeShop.abilityLevel(a.id, sv) > 0);
     const maxed = learned.filter((a) => ArcadeShop.abilityLevel(a.id, sv) >= ArcadeShop.ABILITY_MAX);
@@ -632,6 +673,7 @@
       { ico: "💪", name: "Max out 2 abilities (level 5)", have: maxed.length, need: 2 },
       { ico: "🛒", name: "Buy 15 things in the shop", have: bought.length, need: 15 },
       { ico: "🐞", name: "Find a bug and report it", have: (sv.bugsReported || 0), need: 1 },
+      { ico: "💬", name: DISCORD.code ? "Join the Discord server and enter its code" : "Join the Discord server", have: sv.discordJoined ? 1 : 0, need: 1 },
     ];
   }
   const isOwner = (sv) => sv.owned.includes("owner");
@@ -748,6 +790,7 @@
     $("questClaim").textContent = "✅ Finish the Hard Quest";
     $("questAdmin").hidden = !sv.adminUnlocked;
     $("questSkip").hidden = !isOwner(sv) || !!sv.adminUnlocked;
+    renderDiscord(sv);
     renderMedium(sv);
     renderEasy(sv);
   }

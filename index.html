@@ -318,6 +318,7 @@
   <div class="panel" role="dialog" aria-label="Admin panel">
     <header><h2>🛠️ ADMIN PANEL</h2><button class="btn ghost" data-close>✕</button></header>
     <p class="sub">You beat the Hard Quest. These change your arcade save on this computer, and the boosts work inside Monster Attack!, Buckshot Roulette and REBUILD.</p>
+    <p class="sub" id="discordNotice" hidden style="color:#ffb86b;font-weight:800"></p>
 
     <h4>🪙 Wallet</h4>
     <div class="admin-row">
@@ -631,16 +632,38 @@
   const DISCORD = { invite: "https://discord.gg/jhvNpfAkn", code: "" }; // server "archade"; this invite expires 2026-11-13
   const normDiscord = (c) => String(c || "").trim().toUpperCase().replace(/\s+/g, "");
 
+  // Is the invite still good? The Nullp server asks Discord (and caches it for 6 hours).
+  // { valid: true|false|null(unknown), expiresAt }. Unknown (offline, plain file) never blocks.
+  let discordStatus = { valid: null, expiresAt: null };
+  async function checkDiscordInvite() {
+    if (!DISCORD.invite || location.protocol === "file:") return;
+    try {
+      const r = await fetch("/api/arcade/discord?invite=" + encodeURIComponent(DISCORD.invite));
+      if (r.ok) discordStatus = await r.json();
+    } catch { /* unknown */ }
+    renderQuest(); renderDiscordNotice();
+  }
+  function renderDiscordNotice() {
+    const el = $("discordNotice");
+    const exp = discordStatus.expiresAt ? Date.parse(discordStatus.expiresAt) : null;
+    const days = exp ? Math.ceil((exp - Date.now()) / 86400000) : null;
+    let msg = "";
+    if (discordStatus.valid === false) msg = "⚠️ The Discord invite link has EXPIRED — players can't do the Discord task. Make a new invite in Discord and send it to Claude.";
+    else if (days !== null && days <= 7) msg = `⚠️ The Discord invite link expires in ${days} day${days === 1 ? "" : "s"} (${new Date(exp).toLocaleDateString()}). Make a new one in Discord and send it to Claude.`;
+    el.textContent = msg; el.hidden = !msg;
+  }
+
   function renderDiscord(sv) {
     const box = $("discordBox");
     box.hidden = !!sv.hardDone || !!sv.discordJoined;
     if (box.hidden) return;
-    $("discordJoin").disabled = !DISCORD.invite;
-    $("discordJoin").textContent = DISCORD.invite ? "💬 Join the Discord" : "💬 Discord link coming soon";
+    const expired = discordStatus.valid === false;
+    $("discordJoin").disabled = !DISCORD.invite || expired;
+    $("discordJoin").textContent = !DISCORD.invite ? "💬 Discord link coming soon" : expired ? "💬 Discord link expired" : "💬 Join the Discord";
     $("discordCode").hidden = $("discordCheck").hidden = !DISCORD.code;
   }
   $("discordJoin").onclick = () => {
-    if (!DISCORD.invite) return;
+    if (!DISCORD.invite || discordStatus.valid === false) return;
     window.open(DISCORD.invite, "_blank", "noopener");
     if (!DISCORD.code) {
       ArcadeShop.update((sv) => { sv.discordJoined = true; });
@@ -838,9 +861,9 @@
     fillLevels();
     renderBugs();
   }
-  const openAdmin = () => { renderAdmin(); openVeil("adminVeil"); };
+  const openAdmin = () => { renderAdmin(); renderDiscordNotice(); openVeil("adminVeil"); checkDiscordInvite(); };
   // Called by the invisible corner of the arcade shop's 🎁 Codes tab (not in the games' shops).
-  window.arcadeSecret = () => { renderQuest(); openVeil("questVeil"); };
+  window.arcadeSecret = () => { renderQuest(); openVeil("questVeil"); checkDiscordInvite(); };
   $("questAdmin").onclick = () => { $("questVeil").classList.remove("open"); openAdmin(); };
 
   // Tell every part of the page (and a game in the iframe) that the save changed.

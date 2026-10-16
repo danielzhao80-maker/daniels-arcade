@@ -144,6 +144,23 @@
   .bug.auto { border-color: #ff5f7e55; }
   .bug p { white-space: pre-wrap; overflow-wrap: anywhere; }
   body.is-owner .owner-only { display: block; }
+  .freebox { max-width: 760px; margin: 0 auto 30px; }
+  .freebox h3 { font-family: "Press Start 2P", monospace; font-size: .8rem; color: var(--accent); text-align: center; margin-bottom: 12px; }
+  .free-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 14px; }
+  .free-card { background: var(--card); border: 1px solid var(--line); border-radius: 18px; padding: 16px; display: flex; flex-direction: column; gap: 10px; align-items: center; text-align: center; }
+  .free-card b { font-weight: 900; font-size: 1.05rem; }
+  .free-card small { color: var(--muted); font-size: .82rem; line-height: 1.4; }
+  .days { display: flex; gap: 6px; flex-wrap: wrap; justify-content: center; }
+  .day { width: 44px; padding: 6px 0; border-radius: 10px; background: var(--bg2); border: 1px solid var(--line); font-size: .72rem; font-weight: 800; color: var(--muted); }
+  .day span { display: block; font-size: .95rem; color: var(--text); }
+  .day.got { background: color-mix(in srgb, var(--accent) 22%, var(--bg2)); border-color: var(--accent); }
+  .day.next { box-shadow: 0 0 0 2px var(--accent); }
+  .free-card .btn:disabled { opacity: .5; cursor: not-allowed; }
+  .wheel-wrap { position: relative; width: 170px; height: 170px; }
+  .wheel-wrap::after { content: "▼"; position: absolute; top: -12px; left: 50%; transform: translateX(-50%); color: var(--accent); font-size: 1.3rem; text-shadow: 0 2px 4px rgba(0,0,0,.6); }
+  .wheel { width: 100%; height: 100%; border-radius: 50%; border: 4px solid var(--accent); position: relative; transition: transform 3s cubic-bezier(.15,.8,.2,1);
+    background: conic-gradient(#ff5f7e 0 45deg, #ffd24a 0 90deg, #4ae3a5 0 135deg, #4ae3ff 0 180deg, #b36bff 0 225deg, #ff9f43 0 270deg, #6ee07f 0 315deg, #ff8ad8 0 360deg); }
+  .wheel i { position: absolute; left: 50%; top: 50%; font-style: normal; font-weight: 900; font-size: .8rem; color: #0d0b1a; transform-origin: 0 0; }
   .filters { display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; margin-bottom: 28px; }
   .filters button {
     font-weight: 700; font-size: .9rem;
@@ -262,6 +279,25 @@
         <span>⏱ Total play time <b id="totalTime"></b></span>
       </div>
     </header>
+
+    <section class="freebox">
+      <h3>🎁 FREE STUFF</h3>
+      <div class="free-grid">
+        <div class="free-card">
+          <b>🎁 Daily Reward</b>
+          <small>Claim once a day. Come back 7 days in a row for bigger prizes — day 7 also gives a free skin!</small>
+          <div class="days" id="days"></div>
+          <button class="btn" id="dailyClaim">Claim</button>
+        </div>
+        <div class="free-card">
+          <b>🎡 Free Spin</b>
+          <small>One free spin every day: coins, a free skin, or the 🎰 10-coin jackpot!</small>
+          <div class="wheel-wrap"><div class="wheel" id="wheel"></div></div>
+          <button class="btn" id="spinBtn">Spin!</button>
+          <small id="spinMsg"></small>
+        </div>
+      </div>
+    </section>
 
     <nav class="filters" id="filters"></nav>
     <section class="grid" id="grid"></section>
@@ -621,6 +657,96 @@
 
   // Coming back from a game: pick up anything bought in the game's own shop.
   window.addEventListener("hashchange", () => { save = ArcadeShop.load(); applyLook(); renderWallet(); });
+
+  // ---------------------------------------------------------------- free stuff
+  // 🎁 Daily Reward (7-day streak) and 🎡 a free daily spin. Both reset at local midnight.
+  const dayKey = (d = new Date()) => `${d.getFullYear()}-${d.getMonth() + 1}-${d.getDate()}`;
+  const yesterdayKey = () => { const d = new Date(); d.setDate(d.getDate() - 1); return dayKey(d); };
+  const DAILY = [1, 1, 2, 2, 3, 3, 5]; // coins for streak day 1..7 (day 7 adds a free skin)
+  // A random skin you don't own yet (cheap ones), or null.
+  function freeSkin(sv) {
+    const pool = ["Gun Skins", "Ability Skins", "Backgrounds"].flatMap((c) => SHOP[c])
+      .filter((i) => i.price > 0 && i.price <= 8 && !i.secret && !sv.owned.includes(i.id));
+    return pool.length ? pool[Math.floor(Math.random() * pool.length)] : null;
+  }
+  const fb = (sv) => sv.freebies || {};
+
+  function renderFree() {
+    const sv = ArcadeShop.load(), f = fb(sv), today = dayKey();
+    const claimedToday = f.last === today;
+    const streak = claimedToday || f.last === yesterdayKey() ? (f.streak || 0) : 0; // missed a day → back to 0
+    const nextDay = claimedToday ? null : (streak % 7) + 1;
+    $("days").innerHTML = DAILY.map((c, i) => {
+      const day = i + 1, got = streak % 7 >= day || (claimedToday && streak % 7 === 0 && streak > 0);
+      return `<div class="day ${got ? "got" : ""} ${day === nextDay ? "next" : ""}">Day ${day}<span>${day === 7 ? "🎨" : ""}🪙${c}</span></div>`;
+    }).join("");
+    $("dailyClaim").disabled = claimedToday;
+    $("dailyClaim").textContent = claimedToday ? "✓ Come back tomorrow" : `Claim day ${nextDay}`;
+    const spun = f.spun === today;
+    $("spinBtn").disabled = spun || spinning;
+    $("spinBtn").textContent = spun ? "✓ Spin again tomorrow" : "Spin!";
+  }
+
+  $("dailyClaim").onclick = () => {
+    let msg = "";
+    save = ArcadeShop.update((sv) => {
+      const f = { ...(sv.freebies || {}) }, today = dayKey();
+      if (f.last === today) return;
+      const prev = f.last === yesterdayKey() ? (f.streak || 0) : 0;
+      const day = (prev % 7) + 1;
+      sv.coins += DAILY[day - 1];
+      msg = `🎁 Day ${day}: +🪙 ${DAILY[day - 1]}`;
+      if (day === 7) {
+        const skin = freeSkin(sv);
+        if (skin) { sv.owned = [...sv.owned, skin.id]; msg += ` and the ${skin.name} skin!`; }
+      }
+      f.last = today; f.streak = prev + 1;
+      sv.freebies = f;
+    });
+    if (msg) toast(msg);
+    renderWallet(); renderFree();
+  };
+
+  // Wheel: 8 slices. The prize is picked by weight, then the wheel lands on a slice showing it.
+  const SLICES = [{ c: 1 }, { c: 2 }, { c: 1 }, { c: 3 }, { skin: true }, { c: 1 }, { c: 5 }, { c: 10 }];
+  const PRIZES = [{ c: 1, w: 40 }, { c: 2, w: 22 }, { c: 3, w: 15 }, { skin: true, w: 12 }, { c: 5, w: 8 }, { c: 10, w: 3 }];
+  $("wheel").innerHTML = SLICES.map((sl, i) => {
+    const a = i * 45 + 22.5 - 90; // centre of the slice, 0° = straight up
+    return `<i style="transform: rotate(${a}deg) translate(46px, -8px)">${sl.skin ? "🎨" : sl.c === 10 ? "🎰10" : "🪙" + sl.c}</i>`;
+  }).join("");
+  let spinning = false, wheelTurn = 0;
+  $("spinBtn").onclick = () => {
+    const sv0 = ArcadeShop.load();
+    if (spinning || fb(sv0).spun === dayKey()) return;
+    // Mark today's spin first, so a reload mid-spin can't spin twice.
+    ArcadeShop.update((sv) => { sv.freebies = { ...(sv.freebies || {}), spun: dayKey() }; });
+    let r = Math.random() * PRIZES.reduce((n, p) => n + p.w, 0);
+    let prize = PRIZES.find((p) => (r -= p.w) < 0) || PRIZES[0];
+    if (prize.skin && !freeSkin(sv0)) prize = PRIZES[1]; // owns every cheap skin: 2 coins instead
+    const slots = SLICES.map((sl, i) => (prize.skin ? sl.skin : sl.c === prize.c) ? i : -1).filter((i) => i >= 0);
+    const slot = slots[Math.floor(Math.random() * slots.length)];
+    // Pointer is at the top: turn so the slice's centre ends under it, plus a few full turns.
+    wheelTurn += 360 * 5 + (360 - (slot * 45 + 22.5) - (wheelTurn % 360));
+    spinning = true; renderFree(); $("spinMsg").textContent = "Spinning…";
+    $("wheel").style.transform = `rotate(${wheelTurn}deg)`;
+    setTimeout(() => {
+      let msg = "";
+      save = ArcadeShop.update((sv) => {
+        if (prize.skin) {
+          const skin = freeSkin(sv);
+          if (skin) { sv.owned = [...sv.owned, skin.id]; msg = `🎨 You won the ${skin.name} skin!`; return; }
+          sv.coins += 2; msg = "🪙 +2 coins!"; return;
+        }
+        sv.coins += prize.c;
+        msg = prize.c === 10 ? "🎰 JACKPOT! +🪙 10" : `🪙 +${prize.c} coin${prize.c === 1 ? "" : "s"}!`;
+      });
+      spinning = false;
+      $("spinMsg").textContent = msg; toast(msg);
+      renderWallet(); renderFree();
+    }, 3100);
+  };
+  renderFree();
+  window.addEventListener("hashchange", renderFree);
 
   // ---------------------------------------------------------------- hard quest + admin panel
   // The invisible corner of the shop's 🎁 Codes tab opens the quest. Beating it unlocks the Admin

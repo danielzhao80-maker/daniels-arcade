@@ -25,6 +25,7 @@
   const SHOP = {
     Themes: [
       { id: "galaxy", name: "Galaxy", price: 0, vars: { bg: "#0d0b1a", bg2: "#171331", card: "#1d1840", glow1: "#3a1d6e", glow2: "#0f4d63", accent: "#ffd24a" } },
+      { id: "sunrise", name: "Sunrise", price: 0, vars: { bg: "#1a0f14", bg2: "#2a1820", card: "#35202a", glow1: "#a3452a", glow2: "#c98a3a", accent: "#ffb86b" } },
       { id: "ocean",  name: "Deep Ocean", price: 2, vars: { bg: "#04121f", bg2: "#0a2236", card: "#0e2c45", glow1: "#0b4f7a", glow2: "#0f7a6e", accent: "#4ae3ff" } },
       { id: "forest", name: "Forest", price: 3, vars: { bg: "#08140c", bg2: "#10261a", card: "#143022", glow1: "#1f5a2f", glow2: "#4a5a12", accent: "#8cf07a" } },
       { id: "lava",   name: "Lava", price: 4, vars: { bg: "#170806", bg2: "#2a0f0a", card: "#34130d", glow1: "#8a1f0a", glow2: "#7a4a05", accent: "#ff7a3d" } },
@@ -34,6 +35,8 @@
     ],
     Avatars: [
       { id: "smile", name: "Smile", price: 0, emoji: "🙂" },
+      { id: "dog",   name: "Dog", price: 0, emoji: "🐶" },
+      { id: "frog",  name: "Frog", price: 0, emoji: "🐸" },
       { id: "cat",   name: "Cat", price: 1, emoji: "🐱" },
       { id: "robot", name: "Robot", price: 2, emoji: "🤖" },
       { id: "ninja", name: "Ninja", price: 3, emoji: "🥷" },
@@ -47,6 +50,9 @@
     ],
     Titles: [
       { id: "rookie",  name: "Rookie", price: 0 },
+      { id: "player",  name: "Player One", price: 0 },
+      // Earned (free) by owning every FREE item in the shop.
+      { id: "f2p", name: "👾 Free To Play Monster", price: 0, secret: true, lockText: "Get every FREE item" },
       { id: "gamer",   name: "Gamer", price: 2 },
       { id: "hunter",  name: "Monster Hunter", price: 4 },
       { id: "speller", name: "Spelling Master", price: 4 },
@@ -140,6 +146,7 @@
 
   SHOP["Gun Skins"] = [
     { id: "gun-none", name: "Normal", price: 0 },
+    { id: "gun-classic-blue", name: "Classic Blue", price: 0, skin: { rainbow: false, bullet: "#5aa9ff", glow: "#d6e9ff", trail: "#2a6fd6" } },
     ...GUN_SKINS.map(([name, price, bullet, glow, trail]) => ({
       id: "gun-" + slug(name), name, price,
       skin: bullet === "rainbow" ? { rainbow: true, bullet: "#ff2d55", glow: "#ffffff", trail: "#4ae3ff" } : { rainbow: false, bullet, glow, trail },
@@ -157,6 +164,7 @@
   ];
   SHOP["Ability Skins"] = [
     { id: "ab-none", name: "Normal", price: 0 },
+    { id: "ab-spark", name: "Spark", price: 0, skin: { rainbow: false, primary: "#fff1a8", secondary: "#ff9f43" } },
     ...ABILITY_SKINS.map(([name, price, primary, secondary]) => ({
       id: "ab-" + slug(name), name, price,
       skin: primary === "rainbow" ? { rainbow: true, primary: "#ff2d55", secondary: "#4ae3ff" } : { rainbow: false, primary, secondary },
@@ -165,6 +173,7 @@
   ];
   SHOP["Backgrounds"] = [
     { id: "bg-none", name: "Normal", price: 0 },
+    { id: "bg-clear-sky", name: "Clear Sky", price: 0, skin: { sky: "#8fd3ff", fog: "#cfeeff", ground: "#6b8f4e", light: "#fffbe8" } },
     ...BG_SKINS.map(([name, price, sky, fog, ground, light]) => ({
       id: "bg-" + slug(name), name, price, skin: { sky, fog, ground, light },
     })),
@@ -330,6 +339,9 @@
   // Always re-read before writing: the arcade page and a game inside it both change the save.
   const INF_COINS = 999999999;
   const CHAMPION_STREAK = 10;
+  const DEFAULT_IDS = ["galaxy", "smile", "rookie", "gun-none", "ab-none", "bg-none"];
+  const FREE_ITEMS = () => Object.values(SHOP).flat().filter((i) => i.price === 0 && !i.secret && !DEFAULT_IDS.includes(i.id)).map((i) => i.id);
+  let justF2P = false;
   let justChampion = false;
   // Show the Champion news once, from whoever caused it (a win, or equipping the Shadow skin).
   function announceChampion() {
@@ -348,6 +360,12 @@
     // Admin Panel → ♾️ Infinite Coins: a huge real number (Infinity can't be saved — it comes back
     // as 0), topped up after every change so spending never makes it go down. Shown as ∞.
     if (isInf(save)) save.coins = INF_COINS;
+    // 👾 Free To Play Monster: own every FREE (price 0, not secret, not "Normal") shop item.
+    if (!save.owned.includes("f2p") && FREE_ITEMS().every((id) => save.owned.includes(id))) {
+      save.owned = [...save.owned, "f2p"];
+      save.equipped.title = "f2p";
+      justF2P = true;
+    }
     // 🏆 Champion: 10 Buckshot wins in a row (ever) AND the Shadow gun skin on. Whichever comes
     // last grants it — the 10th win, or putting the skin on later.
     if (!save.owned.includes("champion") && ((save.buckshot && save.buckshot.best) || 0) >= CHAMPION_STREAK
@@ -734,7 +752,7 @@
         const action = on ? `<button class="as-now" disabled>✓ Using</button>`
           : owned ? `<button class="as-use" data-use="${item.id}">Use</button>`
           : item.secret ? `<button class="as-buy" disabled>🔒 ${esc(item.lockText || "All codes")}</button>`
-          : `<button class="as-buy" data-buy="${item.id}" ${save.coins < priceOf(item, save) ? "disabled" : ""}>🪙 ${priceOf(item, save)}</button>`;
+          : `<button class="as-buy" data-buy="${item.id}" ${save.coins < priceOf(item, save) ? "disabled" : ""}>${priceOf(item, save) === 0 ? "🆓 FREE" : "🪙 " + priceOf(item, save)}</button>`;
         return `<div class="as-item ${on ? "on" : ""}">${preview(tab, item)}<b>${esc(item.name)}</b>${action}</div>`;
       }).join("");
     };
@@ -817,7 +835,8 @@
           s.equipped[slot] = useId;
         }
       });
-      if (!announceChampion() && bought) toast(`🎉 You got ${bought.name}!`);
+      if (justF2P) { justF2P = false; toast("👾 FREE TO PLAY MONSTER! You collected every free item — title unlocked!"); }
+      else if (!announceChampion() && bought) toast(`🎉 You got ${bought.name}!`);
       const skins = shareSkins(save);
       try { window.applyArcadeSkins && window.applyArcadeSkins(skins); } catch (err) { console.warn("applyArcadeSkins failed", err); }
       window.dispatchEvent(new CustomEvent("arcade-skins-changed", { detail: skins }));
@@ -849,7 +868,7 @@
       if (document.body) mountBar();
       else document.addEventListener("DOMContentLoaded", mountBar, { once: true });
     },
-    CAPS, daily, playLeft, tradeLeft, bugsLeft, isInf, coinText, CHAMPION_STREAK, announceChampion,
+    CAPS, daily, playLeft, tradeLeft, bugsLeft, isInf, coinText, CHAMPION_STREAK, announceChampion, FREE_ITEMS,
     ACTIVE_SLOTS, activeIds, CODES_TAB, grantSecretReward, CODES, SECRET_ITEMS, abilitiesChanged, redeem, codesFound, codeCount: () => Object.keys(CODES).length,
     abilityLevels: () => ({ ...(load().abilities || {}) }),
     isOpen: () => !!veil,

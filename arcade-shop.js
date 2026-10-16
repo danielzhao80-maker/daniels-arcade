@@ -53,6 +53,9 @@
       { id: "player",  name: "Player One", price: 0 },
       // Earned (free) by owning every FREE item in the shop.
       { id: "f2p", name: "👾 Free To Play Monster", price: 0, secret: true, lockText: "Get every FREE item" },
+      // Play-time milestones (arcade home → 🏅 Milestones).
+      { id: "dedicated", name: "🏅 Dedicated", price: 0, secret: true, lockText: "10 hours played" },
+      { id: "veteran", name: "🏅 Arcade Veteran", price: 0, secret: true, lockText: "24 hours played" },
       { id: "gamer",   name: "Gamer", price: 2 },
       { id: "hunter",  name: "Monster Hunter", price: 4 },
       { id: "speller", name: "Spelling Master", price: 4 },

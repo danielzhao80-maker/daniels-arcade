@@ -156,6 +156,11 @@
   .day.got { background: color-mix(in srgb, var(--accent) 22%, var(--bg2)); border-color: var(--accent); }
   .day.next { box-shadow: 0 0 0 2px var(--accent); }
   .free-card .btn:disabled { opacity: .5; cursor: not-allowed; }
+  .ms { display: grid; grid-template-columns: 70px 1fr auto; gap: 8px; align-items: center; padding: 7px 0; border-top: 1px solid var(--line); font-size: .85rem; text-align: left; }
+  .ms b { font-size: .85rem; }
+  .ms span { color: var(--muted); }
+  .ms .btn { padding: 6px 12px; font-size: .8rem; }
+  .ms.done span { color: var(--accent); font-weight: 800; }
   .wheel-wrap { position: relative; width: 170px; height: 170px; }
   .wheel-wrap::after { content: "▼"; position: absolute; top: -12px; left: 50%; transform: translateX(-50%); color: var(--accent); font-size: 1.3rem; text-shadow: 0 2px 4px rgba(0,0,0,.6); }
   .wheel { width: 100%; height: 100%; border-radius: 50%; border: 4px solid var(--accent); position: relative; transition: transform 3s cubic-bezier(.15,.8,.2,1);
@@ -295,6 +300,11 @@
           <div class="wheel-wrap"><div class="wheel" id="wheel"></div></div>
           <button class="btn" id="spinBtn">Spin!</button>
           <small id="spinMsg"></small>
+        </div>
+        <div class="free-card">
+          <b>🏅 Milestones</b>
+          <small>Free rewards for your total play time in the arcade.</small>
+          <div id="milestones" style="width:100%"></div>
         </div>
       </div>
     </section>
@@ -745,8 +755,45 @@
       renderWallet(); renderFree();
     }, 3100);
   };
+  // 🏅 Play-time milestones: free rewards at total play time thresholds, claimed once each.
+  const MILESTONES = [
+    { id: "m30",  mins: 30,   coins: 3,  label: "🪙 3" },
+    { id: "m60",  mins: 60,   skin: true, label: "🎨 free skin" },
+    { id: "m180", mins: 180,  coins: 10, label: "🪙 10" },
+    { id: "m360", mins: 360,  coins: 10, skin: true, label: "🎨 skin + 🪙 10" },
+    { id: "m600", mins: 600,  title: "dedicated", label: "🏅 Dedicated title" },
+    { id: "m1440", mins: 1440, coins: 25, title: "veteran", label: "🪙 25 + 🏅 Arcade Veteran" },
+  ];
+  const fmtMins = (m) => (m >= 60 ? `${m / 60} hour${m === 60 ? "" : "s"}` : `${m} min`);
+  function renderMilestones() {
+    const sv = ArcadeShop.load(), got = sv.milestones || [], mins = Math.floor((sv.total || 0) / 60);
+    $("milestones").innerHTML = MILESTONES.map((m) => {
+      const done = got.includes(m.id), ready = !done && mins >= m.mins;
+      return `<div class="ms ${done ? "done" : ""}"><b>⏱ ${fmtMins(m.mins)}</b><span>${m.label}</span>
+        ${done ? "<span>✓</span>" : ready ? `<button class="btn" data-ms="${m.id}">Claim</button>` : `<span>${Math.min(mins, m.mins)}/${m.mins}m</span>`}</div>`;
+    }).join("");
+  }
+  $("milestones").addEventListener("click", (e) => {
+    const b = e.target.closest("[data-ms]"); if (!b) return;
+    const m = MILESTONES.find((x) => x.id === b.dataset.ms);
+    let msg = "";
+    save = ArcadeShop.update((sv) => {
+      sv.milestones = sv.milestones || [];
+      if (sv.milestones.includes(m.id) || Math.floor((sv.total || 0) / 60) < m.mins) return;
+      sv.milestones.push(m.id);
+      const parts = [];
+      if (m.coins) { sv.coins += m.coins; parts.push(`+🪙 ${m.coins}`); }
+      if (m.skin) { const sk = freeSkin(sv); if (sk) { sv.owned = [...sv.owned, sk.id]; parts.push(`the ${sk.name} skin`); } else { sv.coins += 3; parts.push("+🪙 3"); } }
+      if (m.title) { sv.owned = [...new Set([...sv.owned, m.title])]; sv.equipped.title = m.title; parts.push(`the ${SHOP.Titles.find((t) => t.id === m.title).name} title`); }
+      msg = `🏅 ${fmtMins(m.mins)} played! ${parts.join(" and ")}`;
+    });
+    if (msg) toast(msg);
+    applyLook(); renderWallet(); renderMilestones();
+  });
+
   renderFree();
-  window.addEventListener("hashchange", renderFree);
+  renderMilestones();
+  window.addEventListener("hashchange", () => { renderFree(); renderMilestones(); });
 
   // ---------------------------------------------------------------- hard quest + admin panel
   // The invisible corner of the shop's 🎁 Codes tab opens the quest. Beating it unlocks the Admin

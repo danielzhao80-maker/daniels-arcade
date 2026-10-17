@@ -196,7 +196,9 @@
   // value = level × step; "{v}" in the text is replaced by it.
   const ABILITY_TAB = "⚡ Abilities";
   const ABILITY_MAX = 5;
-  const abilityCost = (level) => (level + 1) * 2; // 2, 4, 6, 8, 10 coins
+  // 2, 4, 6, 8, 10 coins per level — Monster Attack!'s abilities cost 3× (6, 12, 18, 24, 30).
+  const PRICE_MULT = { "monster-city": 3 };
+  const abilityCost = (level, game) => bump((level + 1) * 2 * (PRICE_MULT[game] || 1));
   const GAME_NAMES = { "monster-city": "👾 Monster Attack!", buckshot: "🔫 Buckshot Roulette", rebuild: "🧟 REBUILD" };
   const ABILITIES = [
     // Monster Attack!
@@ -259,8 +261,11 @@
   const find = (cat, id) => SHOP[cat].find((i) => i.id === id) || SHOP[cat][0];
   // Admin Panel → 🆓 Free Shop makes every price 0.
   const isFree = (save = load()) => !!(save.admin && save.admin.freeShop);
-  const priceOf = (item, save) => (isFree(save) ? 0 : item.price);
-  const costOf = (lv, save) => (isFree(save) ? 0 : abilityCost(lv));
+  // Every price is 5% higher than the number written in the catalog (rounded to whole coins).
+  const PRICE_UP = 1.05;
+  const bump = (n) => (n > 0 ? Math.max(1, Math.round(n * PRICE_UP)) : 0);
+  const priceOf = (item, save) => (isFree(save) ? 0 : bump(item.price));
+  const costOf = (lv, save, game) => (isFree(save) ? 0 : abilityCost(lv, game));
 
   // ---------------------------------------------------------------- codes
   // Each works once per save. Letters are matched without caring about case or spaces.
@@ -535,22 +540,25 @@
 
   // Most coins that can go into this currency right now: wallet, today's trade cap, and how
   // much more the game can hold (currency.room(), in its own units, if it has a limit).
+  // A play coin buys 5% less of a game's money than the game's own rate says.
+  const rateOf = (c) => Math.max(1, Math.round(c.rate / PRICE_UP));
+
   function tradeMax(currency, save) {
     let max = Math.min(save.coins, tradeLeft(currentGame || "arcade", save));
-    if (typeof currency.room === "function") max = Math.min(max, Math.floor(Math.max(0, currency.room()) / currency.rate));
+    if (typeof currency.room === "function") max = Math.min(max, Math.floor(Math.max(0, currency.room()) / rateOf(currency)));
     return Math.max(0, max);
   }
   function renderCurrency(box, save, amount, currency) {
     const max = tradeMax(currency, save);
     const n = Math.max(0, Math.min(max, Math.floor(amount) || 0));
     const traded = CAPS.tradePerDay - tradeLeft(currentGame || "arcade", save);
-    const full = typeof currency.room === "function" && currency.room() < currency.rate;
+    const full = typeof currency.room === "function" && currency.room() < rateOf(currency);
     box.innerHTML = `<div class="as-cur">
-      <div class="rate">🪙 1 play coin = ${esc(currency.emoji)} ${currency.rate.toLocaleString()} ${esc(currency.name)}</div>
+      <div class="rate">🪙 1 play coin = ${esc(currency.emoji)} ${rateOf(currency).toLocaleString()} ${esc(currency.name)}</div>
       ${currency.note ? `<div class="rate">${esc(typeof currency.note === "function" ? currency.note() : currency.note)}</div>` : ""}
       <div class="row">How many coins? <input type="number" min="1" max="${max}" value="${n}" data-amount></div>
       <div class="row quick">${[1, 5, 10].map((q) => `<button data-q="${q}" ${max < q ? "disabled" : ""}>${q}</button>`).join("")}<button data-q="${max}">Max (${max})</button></div>
-      <div class="get">= ${esc(currency.emoji)} ${(n * currency.rate).toLocaleString()}</div>
+      <div class="get">= ${esc(currency.emoji)} ${(n * rateOf(currency)).toLocaleString()}</div>
       <button class="go" data-trade ${n < 1 ? "disabled" : ""}>Trade 🪙 ${n}</button>
       <div class="rate">Today: ${traded} / ${CAPS.tradePerDay} coins traded here</div>
       ${full ? `<div class="rate">You're holding the most ${esc(currency.name)} you can — use some first.</div>`
@@ -575,7 +583,7 @@
         const now = lv ? `<em>${esc(effectText(a, lv))}</em>${isOn ? " · ⚡ ON" : " · off (switch on in the ⚡ bar)"}` : "not learned yet";
         const next = lv < ABILITY_MAX ? `<br>next: ${esc(effectText(a, lv + 1))}` : "";
         const btn = lv >= ABILITY_MAX ? `<button disabled>MAX</button>`
-          : `<button data-lvl="${esc(a.id)}" ${save.coins < costOf(lv, save) ? "disabled" : ""}>${lv ? "Upgrade" : "Learn"} 🪙 ${costOf(lv, save)}</button>`;
+          : `<button data-lvl="${esc(a.id)}" ${save.coins < costOf(lv, save, a.game) ? "disabled" : ""}>${lv ? "Upgrade" : "Learn"} 🪙 ${costOf(lv, save, a.game)}</button>`;
         return `<div class="as-ab"><div class="top"><span class="ico">${a.emoji}</span><b>${esc(a.name)}</b>
           <span class="pips">${Array.from({ length: ABILITY_MAX }, (_, i) => `<i class="${i < lv ? "on" : ""}"></i>`).join("")}</span></div>
           <div class="fx">${now}${next}</div>${btn}</div>`;
@@ -778,8 +786,8 @@
         });
         if (!spent) return render();
         try {
-          currency.grant(spent * currency.rate);
-          toast(`${currency.emoji} +${(spent * currency.rate).toLocaleString()} ${currency.name}!`);
+          currency.grant(spent * rateOf(currency));
+          toast(`${currency.emoji} +${(spent * rateOf(currency)).toLocaleString()} ${currency.name}!`);
         } catch (err) {
           console.warn("currency grant failed, refunding", err);
           update((s) => { s.coins += spent; const d = daily(s); d.trade[currentGame || "arcade"] -= spent; });
@@ -808,8 +816,8 @@
         const save = update((s) => {
           s.abilities = s.abilities || {};
           const lv = abilityLevel(a.id, s);
-          if (a.secret || lv >= abilityMax(a) || s.coins < costOf(lv, s)) return;
-          s.coins -= costOf(lv, s);
+          if (a.secret || lv >= abilityMax(a) || s.coins < costOf(lv, s, a.game)) return;
+          s.coins -= costOf(lv, s, a.game);
           // Read what's switched on BEFORE learning, and save it as the explicit list: otherwise
           // the "first 3 learned" default could let a newly learned ability push one out.
           const on = activeIds(a.game, s);
@@ -853,7 +861,7 @@
       amount = +e.target.value;
       const save = load();
       const n = Math.max(0, Math.min(tradeMax(currency, save), Math.floor(amount) || 0));
-      veil.querySelector(".as-cur .get").textContent = `= ${currency.emoji} ${(n * currency.rate).toLocaleString()}`;
+      veil.querySelector(".as-cur .get").textContent = `= ${currency.emoji} ${(n * rateOf(currency)).toLocaleString()}`;
       const go = veil.querySelector("[data-trade]");
       go.textContent = `Trade 🪙 ${n}`;
       go.disabled = n < 1;

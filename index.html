@@ -266,7 +266,7 @@
       <div class="avatar" data-avatar></div>
       <div><b id="playerName">Daniel</b><small data-title></small></div>
     </div>
-    <div class="wallet" title="You earn 1 coin for every 10 minutes of play">
+    <div class="wallet" title="You earn 1 coin for every 15 minutes of play">
       <span class="coins">🪙 <span data-coins>0</span></span>
       <div class="next"><small data-next></small><div class="bar"><i data-bar></i></div></div>
     </div>
@@ -278,7 +278,7 @@
   <main>
     <header>
       <h1>DANIEL'S ARCADE</h1>
-      <p>Every game I've made, all in one place. Play to earn 🪙 — 1 coin every 10 minutes!</p>
+      <p>Every game I've made, all in one place. Play to earn 🪙 — 1 coin every 15 minutes!</p>
       <div class="stats">
         <span>🎮 <b id="gameCount"></b></span>
         <span>⏱ Total play time <b id="totalTime"></b></span>
@@ -653,7 +653,7 @@
         earned = true;
       }
     });
-    if (earned) toast("🪙 +1 coin! 10 minutes played");
+    if (earned) toast("🪙 +1 coin! 15 minutes played");
     renderWallet();
   }, 1000);
 
@@ -728,11 +728,24 @@
   $("spinBtn").onclick = () => {
     const sv0 = ArcadeShop.load();
     if (spinning || fb(sv0).spun === dayKey()) return;
-    // Mark today's spin first, so a reload mid-spin can't spin twice.
-    ArcadeShop.update((sv) => { sv.freebies = { ...(sv.freebies || {}), spun: dayKey() }; });
     let r = Math.random() * PRIZES.reduce((n, p) => n + p.w, 0);
     let prize = PRIZES.find((p) => (r -= p.w) < 0) || PRIZES[0];
     if (prize.skin && !freeSkin(sv0)) prize = PRIZES[1]; // owns every cheap skin: 2 coins instead
+    // Pay the prize AND mark today's spin in one save, before the wheel even turns — so a reload
+    // mid-spin can neither spin twice nor lose the prize. The wheel just reveals it.
+    let msg = "";
+    save = ArcadeShop.update((sv) => {
+      if ((sv.freebies || {}).spun === dayKey()) return;
+      sv.freebies = { ...(sv.freebies || {}), spun: dayKey() };
+      if (prize.skin) {
+        const skin = freeSkin(sv);
+        if (skin) { sv.owned = [...sv.owned, skin.id]; msg = `🎨 You won the ${skin.name} skin!`; return; }
+        prize = PRIZES[1];
+      }
+      sv.coins += prize.c;
+      msg = prize.c === 10 ? "🎰 JACKPOT! +🪙 10" : `🪙 +${prize.c} coin${prize.c === 1 ? "" : "s"}!`;
+    });
+    if (!msg) return renderFree();
     const slots = SLICES.map((sl, i) => (prize.skin ? sl.skin : sl.c === prize.c) ? i : -1).filter((i) => i >= 0);
     const slot = slots[Math.floor(Math.random() * slots.length)];
     // Pointer is at the top: turn so the slice's centre ends under it, plus a few full turns.
@@ -740,16 +753,6 @@
     spinning = true; renderFree(); $("spinMsg").textContent = "Spinning…";
     $("wheel").style.transform = `rotate(${wheelTurn}deg)`;
     setTimeout(() => {
-      let msg = "";
-      save = ArcadeShop.update((sv) => {
-        if (prize.skin) {
-          const skin = freeSkin(sv);
-          if (skin) { sv.owned = [...sv.owned, skin.id]; msg = `🎨 You won the ${skin.name} skin!`; return; }
-          sv.coins += 2; msg = "🪙 +2 coins!"; return;
-        }
-        sv.coins += prize.c;
-        msg = prize.c === 10 ? "🎰 JACKPOT! +🪙 10" : `🪙 +${prize.c} coin${prize.c === 1 ? "" : "s"}!`;
-      });
       spinning = false;
       $("spinMsg").textContent = msg; toast(msg);
       renderWallet(); renderFree();
@@ -994,7 +997,9 @@
   function unlockAdmin(how) {
     save = ArcadeShop.update((sv) => {
       sv.adminUnlocked = true;
-      if (how === "skip") sv.hardDone = true;
+      // ownerSkip: the panel came from the Owner skip, not the Easy Quest — the start-up
+      // migration below must not lock it again (even when the Medium Quests are done).
+      if (how === "skip") { sv.hardDone = true; sv.ownerSkip = true; }
     });
     document.body.classList.add("is-admin");
     $("questVeil").classList.remove("open");
@@ -1084,7 +1089,7 @@
     }
     if (act === "relock") {
       if (!twice("relock", "Click Re-lock again to lock the Admin Panel.")) return;
-      ArcadeShop.update((sv) => { delete sv.adminUnlocked; delete sv.easyDone; });
+      ArcadeShop.update((sv) => { delete sv.adminUnlocked; delete sv.easyDone; delete sv.ownerSkip; });
       document.body.classList.remove("is-admin");
       $("adminVeil").classList.remove("open");
       return adminChanged("🔒 Admin Panel locked. Finish the Easy Quest (or skip as Owner) to get it back.");
@@ -1148,7 +1153,8 @@
   // snapshot of every arcade and game save in this browser; while logged in it's uploaded
   // whenever it changes. Logging in loads the account's snapshot; logging out clears it here.
   const ACC_KEY = "daniels-arcade-account"; // { name, token } — never part of the snapshot
-  const SYNC_PREFIXES = ["daniels-arcade-v1", "daniels-arcade-skins", "monster_city_", "project-revive-", "buckshot_", "fps_arena_save"];
+  // Monster Attack! keeps its season pass under monster_attack_ (the rest under monster_city_).
+  const SYNC_PREFIXES = ["daniels-arcade-v1", "daniels-arcade-skins", "monster_city_", "monster_attack_", "project-revive-", "buckshot_", "fps_arena_save"];
   const synced = (k) => SYNC_PREFIXES.some((p) => k.startsWith(p));
   const getAcc = () => { try { return JSON.parse(localStorage.getItem(ACC_KEY) || "null"); } catch { return null; } };
   const setAcc = (a) => { try { a ? localStorage.setItem(ACC_KEY, JSON.stringify(a)) : localStorage.removeItem(ACC_KEY); } catch {} };
@@ -1166,10 +1172,14 @@
   }
   async function api(method, route, body) {
     const acc = getAcc();
+    const payload = body ? JSON.stringify(body) : undefined;
+    // keepalive lets a save finish while the page closes, but browsers refuse (TypeError) a
+    // keepalive request whose body is over 64 KB — big saves (custom maps...) go without it.
+    const small = !payload || new TextEncoder().encode(payload).length < 60000;
     const r = await fetch("/api/arcade/" + route, {
-      method, keepalive: true,
+      method, keepalive: small,
       headers: { "Content-Type": "application/json", ...(acc ? { "X-Arcade-Token": acc.token } : {}) },
-      body: body ? JSON.stringify(body) : undefined,
+      body: payload,
     });
     const data = await r.json().catch(() => ({}));
     if (!r.ok) throw Object.assign(new Error(data.error || "Something went wrong."), { status: r.status });
@@ -1254,9 +1264,14 @@
       $("accMsg").textContent = "❌ " + (err.message === "Failed to fetch" ? "Can't reach the arcade server — is Nullp running?" : err.message);
     } finally { $("accGo").disabled = false; }
   });
-  $("accSaveNow").onclick = async () => { toast((await upload(true)) ? "💾 Saved!" : "Couldn't save — is Nullp running?"); };
+  // After a failed upload: if it was a 401, upload() already logged out and said so — don't
+  // cover that message with a wrong "is Nullp running?".
+  $("accSaveNow").onclick = async () => {
+    if (await upload(true)) toast("💾 Saved!");
+    else if (getAcc()) toast("Couldn't save — is Nullp running?");
+  };
   $("accLogout").onclick = async () => {
-    if (!(await upload(true))) return toast("Couldn't save before logging out — try again when Nullp is running.");
+    if (!(await upload(true))) return getAcc() ? toast("Couldn't save before logging out — try again when Nullp is running.") : undefined;
     try { await api("POST", "logout"); } catch {}
     setAcc(null);
     restore({}); // the next person starts fresh here; your progress is in your account
@@ -1331,7 +1346,7 @@
   }
   // Saves from before the Easy Quest: the Medium Quests opened the Admin Panel. Now the Easy
   // Quest does (Owners who skipped keep it — a skip sets hardDone but not mediumDone).
-  if (save.adminUnlocked && save.mediumDone && !save.easyDone) {
+  if (save.adminUnlocked && save.mediumDone && !save.easyDone && !save.ownerSkip) {
     save = ArcadeShop.update((sv) => { delete sv.adminUnlocked; });
   }
   if (save.adminUnlocked) document.body.classList.add("is-admin");

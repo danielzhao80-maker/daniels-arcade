@@ -19,7 +19,7 @@
 
   const KEY = "daniels-arcade-v1";
   const SKINS_KEY = "daniels-arcade-skins";
-  const SECONDS_PER_COIN = 600; // 1 coin per 10 minutes of play
+  const SECONDS_PER_COIN = 900; // 1 coin per 15 minutes of play
 
   // ---------------------------------------------------------------- catalog
   const SHOP = {
@@ -390,7 +390,7 @@
   // Limits that keep the coin economy fair. Daily ones reset at local midnight.
   const CAPS = {
     wallet: Infinity,    // no limit on how many play coins you can hold
-    playPerDay: 24,      // play-time coins per day (4 hours)
+    playPerDay: 24,      // play-time coins per day (6 hours)
     tradePerDay: 20,     // coins traded into ONE game's currency per day
     bugsPerDay: 5,       // bug reports per day
   };
@@ -563,7 +563,7 @@
       <div class="rate">Today: ${traded} / ${CAPS.tradePerDay} coins traded here</div>
       ${full ? `<div class="rate">You're holding the most ${esc(currency.name)} you can — use some first.</div>`
         : traded >= CAPS.tradePerDay ? `<div class="rate">Daily trade cap reached — come back tomorrow.</div>`
-        : save.coins < 1 ? `<div class="rate">No play coins yet — play for 10 minutes from the arcade to earn one.</div>` : ""}
+        : save.coins < 1 ? `<div class="rate">No play coins yet — play for 15 minutes from the arcade to earn one.</div>` : ""}
     </div>`;
   }
 
@@ -728,7 +728,7 @@
     veil.className = "as-veil";
     veil.innerHTML = `<div class="as-box" role="dialog" aria-label="Shop">
       <div class="as-head"><h2>🛒 ${esc(opts.title || (currencies.length ? "SHOP" : "SKIN SHOP"))}</h2><span class="as-coins"></span><button class="as-x" data-close>✕</button></div>
-      <p class="as-sub">${esc(opts.subtitle || "Spend the arcade coins you earn by playing (1 every 10 minutes). Buy it once, keep it forever. Skins work in Monster Attack!, Buckshot Roulette and REBUILD.")}</p>
+      <p class="as-sub">${esc(opts.subtitle || "Spend the arcade coins you earn by playing (1 every 15 minutes). Buy it once, keep it forever. Skins work in Monster Attack!, Buckshot Roulette and REBUILD.")}</p>
       <div class="as-tabs"></div><div class="as-items"></div></div>`;
     document.body.appendChild(veil);
     document.addEventListener("keydown", swallowKeys, true);

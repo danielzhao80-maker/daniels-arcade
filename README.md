@@ -14,7 +14,7 @@ also works, but then Nullp, accounts and some saving features are off.
 
 ## Coins 🪙
 
-- **1 play coin for every 10 minutes** of play inside the arcade.
+- **1 play coin for every 15 minutes** of play inside the arcade.
 - Time only counts while a game is open, the window is in front, and you aren't idle
   (5 minutes with no input pauses it).
 - Up to **24 play-time coins a day**. Codes give coins too. The wallet has no limit.
@@ -64,6 +64,7 @@ show up in the Admin Panel.
 - `index.html` — the arcade page. `arcade-shop.js` — the shared shop; Monster Attack!,
   Buckshot and REBUILD each carry a **copy**. After editing it run:
   `cp arcade-shop.js ../monster-city/ && cp arcade-shop.js ../shooting-game/public/ && cp arcade-shop.js ../rebuild/`
-- Tests: `node tools/test-arcade.js` in `rebuild/` and `shooting-game/`, and the `tools/*.js`
-  tests in `monster-city/`.
+- Tests: `npm install && node tools/test-arcade-page.js` here in `arcade/` (the hub page + shop),
+  `node tools/test-arcade.js` in `rebuild/` and `shooting-game/`, and the `tools/*.js` tests in
+  `monster-city/`.
 - Accounts: `Nullp-AI/arcade-accounts.js`. Nullp auto-start: `~/Library/LaunchAgents/com.daniel.nullp.plist`.

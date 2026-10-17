@@ -1,0 +1,11 @@
+{
+  "name": "daniels-arcade",
+  "private": true,
+  "description": "Daniel's Arcade hub page. package.json exists only for the dev test harness.",
+  "scripts": {
+    "test": "node tools/test-arcade-page.js"
+  },
+  "devDependencies": {
+    "jsdom": "^24.1.3"
+  }
+}

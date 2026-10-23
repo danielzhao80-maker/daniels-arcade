@@ -71,6 +71,9 @@
       { id: "champion", name: "🏆 Champion", price: 0, secret: true, lockText: "Champion" },
       // REBUILD: win a battle after your base dropped to 1 HP.
       { id: "comeback", name: "⚡ Fast Comebacker", price: 0, secret: true, lockText: "Comeback" },
+      // Buckshot (offline): shoot the snow globe on the shelf with a live shell — it also unlocks the
+      // Backrooms in Monster Attack!'s ⭐ Special Maps.
+      { id: "dimension", name: "🌀 Dimension Opener", price: 0, secret: true, lockText: "Break through" },
     ],
   };
 

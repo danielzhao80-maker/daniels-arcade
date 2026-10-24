@@ -270,6 +270,7 @@
       <span class="coins">🪙 <span data-coins>0</span></span>
       <div class="next"><small data-next></small><div class="bar"><i data-bar></i></div></div>
     </div>
+    <button class="btn" id="halloweenBtn" title="Monster Attack!'s Halloween event — candy, the Halloween Pass and the Pumpkin King" style="background:linear-gradient(180deg,#ff8c1a,#d35400);color:#fff;">🎃 Halloween<span id="halloweenCandy"></span></button>
     <button class="btn ghost" id="accountBtn" title="Sign up or log in to save your progress">👤 Log in</button>
     <button class="btn ghost" id="bugBtn" title="Found something broken? Report it">🐞 Bug</button>
     <button class="btn" data-open-shop>🛒 Shop</button>
@@ -559,8 +560,11 @@
   // ---------------------------------------------------------------- game grid
   // Served by Nullp: games live at /games/<slug>/. Opened as a file: use real paths.
   const viaFile = location.protocol === "file:";
+  // openInGame: a screen to open as the game starts (the 🎃 Halloween button asks Monster Attack! for its event menu).
+  let openInGame = null;
   const srcFor = (g) => (viaFile ? "../" + g.file : "../" + encodeURIComponent(g.slug) + "/")
-    + "?arcadeSkins=" + encodeURIComponent(JSON.stringify(gameSkins(ArcadeShop.load())));
+    + "?arcadeSkins=" + encodeURIComponent(JSON.stringify(gameSkins(ArcadeShop.load())))
+    + (openInGame && openInGame.slug === g.slug ? "&open=" + encodeURIComponent(openInGame.screen) : "");
   let currentTag = "All";
 
   function renderGrid() {
@@ -598,6 +602,7 @@
         playing = game;
         $("playTitle").textContent = game.emoji + " " + game.title;
         $("frame").src = srcFor(game);
+        openInGame = null;
         document.body.classList.add("playing");
         setTimeout(() => $("frame").focus(), 300);
       }
@@ -609,6 +614,32 @@
     }
   }
   window.addEventListener("hashchange", route);
+
+  // 🎃 Halloween — the same dates (and the same force switch) as Monster Attack!'s event, which keeps
+  // its candy in this origin's storage, so the button can show it.
+  function isHalloween(d = new Date()) {
+    try {
+      const f = localStorage.getItem("monster_attack_event_force");
+      if (f === "halloween") return true;
+      if (f === "off") return false;
+    } catch {}
+    return d.getMonth() === 9 || (d.getMonth() === 10 && d.getDate() <= 7);
+  }
+  function renderHalloweenBtn() {
+    const on = isHalloween();
+    $("halloweenBtn").style.display = on ? "" : "none";   // (a .btn rule would beat the hidden attribute)
+    let candy = 0;
+    try { candy = parseInt(localStorage.getItem("monster_attack_candy")) || 0; } catch {}
+    $("halloweenCandy").textContent = candy > 0 ? ` 🍬${candy}` : "";
+  }
+  $("halloweenBtn").onclick = () => {
+    openInGame = { slug: "monster-city", screen: "halloween" };
+    if (location.hash === "#play/monster-city") { playing = null; route(); }
+    else location.hash = "#play/monster-city";
+  };
+  renderHalloweenBtn();
+  window.addEventListener("focus", renderHalloweenBtn);
+  window.addEventListener("hashchange", renderHalloweenBtn);
   $("back").onclick = () => { location.hash = ""; };
   $("full").onclick = () => $("frame").requestFullscreen?.();
 

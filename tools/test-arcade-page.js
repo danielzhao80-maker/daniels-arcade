@@ -197,6 +197,23 @@ ok("unknown slug -> home", !r.d.body.classList.contains("playing") && r.id("fram
 r.go("#play/monster-city");
 r.id("back").click(); r.adv(0);
 ok("◀ Arcade -> home", !r.d.body.classList.contains("playing") && r.id("frame").getAttribute("src") === "about:blank");
+// 🎃 Halloween button (T0 is 17 Oct, so the event is on).
+const hb = r.id("halloweenBtn");
+ok("🎃 Halloween button shows during the event", hb && hb.style.display === "");
+r.w.localStorage.setItem("monster_attack_candy", "7"); r.w.dispatchEvent(new r.w.Event("focus"));
+ok("it shows Monster Attack!'s candy", /🍬7/.test(hb.textContent));
+hb.click(); r.adv(0);
+const hsrc = r.id("frame").getAttribute("src");
+ok("clicking it opens Monster Attack! on its Halloween menu", r.d.body.classList.contains("playing") && hsrc.startsWith("../monster-city/?arcadeSkins=") && /&open=halloween$/.test(hsrc));
+r.id("back").click(); r.adv(0);
+r.go("#play/monster-city");
+ok("a normal Monster Attack! visit does not jump to it", !/open=halloween/.test(r.id("frame").getAttribute("src")));
+hb.click(); r.adv(0);
+ok("and the button works while Monster Attack! is already open", /&open=halloween$/.test(r.id("frame").getAttribute("src")));
+r.id("back").click(); r.adv(0);
+r.w.localStorage.setItem("monster_attack_event_force", "off"); r.w.dispatchEvent(new r.w.Event("focus"));
+ok("hidden when the event is off", hb.style.display === "none");
+r.w.localStorage.removeItem("monster_attack_event_force"); r.w.localStorage.removeItem("monster_attack_candy"); r.w.dispatchEvent(new r.w.Event("focus"));
 ok("no errors after routing: " + r.errs.join(" | "), r.errs.length === 0);
 r = boot({ hash: "#play/Pocket-Dice" });
 ok("boot straight into #play/Pocket-Dice", r.d.body.classList.contains("playing") && r.id("frame").getAttribute("src").startsWith("../Pocket-Dice/?arcadeSkins="));

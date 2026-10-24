@@ -145,6 +145,19 @@
   .bug p { white-space: pre-wrap; overflow-wrap: anywhere; }
   body.is-owner .owner-only { display: block; }
   .freebox { max-width: 760px; margin: 0 auto 30px; }
+  /* 🎃 Halloween (only while the event is on — body.halloween) */
+  #halloweenBox { display: none; }
+  body.halloween #halloweenBox { display: block; }
+  #halloweenBox h3 { color: #ff8c1a; }
+  #halloweenBox .free-card { border-color: #ff8c1a; background: linear-gradient(180deg, rgba(90,26,138,.35), rgba(255,140,26,.10)); }
+  #halloweenBox .big { font-size: 1.8rem; font-weight: 900; color: #ff9ff3; }
+  #halloweenBox .hwbar { width: 100%; height: 10px; border-radius: 6px; background: rgba(255,255,255,.12); overflow: hidden; }
+  #halloweenBox .hwbar i { display: block; height: 100%; width: 0; background: linear-gradient(90deg, #ff8c1a, #ff9ff3); }
+  .patch { display: flex; gap: 10px; justify-content: center; }
+  .patch button { font-size: 2rem; background: none; border: 2px dashed #ff8c1a; border-radius: 14px; padding: 4px 10px; cursor: pointer; }
+  .patch button:disabled { opacity: .45; cursor: default; }
+  .spooky { position: fixed; pointer-events: none; z-index: 0; font-size: 1.6rem; opacity: .55; animation: spook 14s linear infinite; }
+  @keyframes spook { 0% { transform: translate(0, 0) rotate(0); } 50% { transform: translate(40px, -30px) rotate(8deg); } 100% { transform: translate(0, 0) rotate(0); } }
   .freebox h3 { font-family: "Press Start 2P", monospace; font-size: .8rem; color: var(--accent); text-align: center; margin-bottom: 12px; }
   .free-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 14px; }
   .free-card { background: var(--card); border: 1px solid var(--line); border-radius: 18px; padding: 16px; display: flex; flex-direction: column; gap: 10px; align-items: center; text-align: center; }
@@ -285,6 +298,33 @@
         <span>⏱ Total play time <b id="totalTime"></b></span>
       </div>
     </header>
+
+    <section class="freebox" id="halloweenBox">
+      <h3>🎃 HALLOWEEN EVENT 🦇</h3>
+      <p style="text-align:center;margin:-6px 0 12px;color:#d6a2ff;font-weight:800;" id="hwDays"></p>
+      <div class="free-grid">
+        <div class="free-card">
+          <b>🍬 Your candy</b>
+          <div class="big" id="hwCandy">0</div>
+          <small id="hwPassText"></small>
+          <div class="hwbar"><i id="hwPassBar"></i></div>
+          <button class="btn" id="hwOpen" style="background:linear-gradient(180deg,#ff8c1a,#d35400);color:#fff;">🎃 Halloween Pass &amp; shop</button>
+          <small>The pass and candy shop are in Monster Attack!. Candy is shared with it.</small>
+        </div>
+        <div class="free-card">
+          <b>🎮 Play for candy</b>
+          <small>Play <b>any</b> arcade game: <b>🍬 +1 candy every 5 minutes</b>. In Monster Attack! monsters, bosses, waves and trick-or-treat doors give even more.</small>
+          <div class="hwbar"><i id="hwPlayBar"></i></div>
+          <small id="hwPlayText"></small>
+        </div>
+        <div class="free-card">
+          <b>🎃 Pumpkin Patch</b>
+          <small>Once a day, pick a pumpkin — there's 2 to 10 candy inside!</small>
+          <div class="patch" id="hwPatch"><button>🎃</button><button>🎃</button><button>🎃</button></div>
+          <small id="hwPatchMsg"></small>
+        </div>
+      </div>
+    </section>
 
     <section class="freebox">
       <h3>🎁 FREE STUFF</h3>
@@ -625,18 +665,77 @@
     } catch {}
     return d.getMonth() === 9 || (d.getMonth() === 10 && d.getDate() <= 7);
   }
+  // Candy lives in Monster Attack!'s keys (same origin): `monster_attack_candy` is the wallet and
+  // `monster_attack_hw_earned_<year>` fills the Halloween Pass. The arcade only ever ADDS candy, by
+  // read-add-write, and Monster Attack! re-reads both before it changes them, so neither overwrites
+  // the other while the game is open.
+  const HW = { CANDY: "monster_attack_candy", earned: () => "monster_attack_hw_earned_" + new Date().getFullYear(),
+               PLAY: "arcade_hw_play", PATCH: "arcade_hw_patch", PER_CANDY: 300, PASS_TOP: 500,
+               PASS: [10, 25, 50, 75, 100, 150, 200, 275, 350, 500] };
+  const hwNum = (k) => { try { return Math.max(0, parseInt(localStorage.getItem(k)) || 0); } catch { return 0; } };
+  function addCandy(n) {
+    try {
+      localStorage.setItem(HW.CANDY, String(hwNum(HW.CANDY) + n));
+      localStorage.setItem(HW.earned(), String(hwNum(HW.earned()) + n));
+    } catch {}
+    renderHalloweenBtn();
+  }
+  const hwToday = () => new Date().toISOString().slice(0, 10);
   function renderHalloweenBtn() {
     const on = isHalloween();
+    document.body.classList.toggle("halloween", on);
     $("halloweenBtn").style.display = on ? "" : "none";   // (a .btn rule would beat the hidden attribute)
-    let candy = 0;
-    try { candy = parseInt(localStorage.getItem("monster_attack_candy")) || 0; } catch {}
+    const candy = hwNum(HW.CANDY), earned = hwNum(HW.earned());
     $("halloweenCandy").textContent = candy > 0 ? ` 🍬${candy}` : "";
+    if (!on) return;
+    const end = new Date(new Date().getFullYear(), 10, 8), days = Math.max(0, Math.ceil((end - new Date()) / 86400000));
+    $("hwDays").textContent = days > 1 ? `Ends in ${days} days` : "Last day!";
+    $("hwCandy").textContent = "🍬 " + candy;
+    const next = HW.PASS.find((t) => earned < t);
+    $("hwPassText").textContent = `Halloween Pass: ${earned} candy collected` + (next ? ` · next reward at ${next}` : " · all unlocked!");
+    $("hwPassBar").style.width = Math.min(100, earned / HW.PASS_TOP * 100) + "%";
+    const p = hwNum(HW.PLAY);
+    $("hwPlayBar").style.width = (p / HW.PER_CANDY * 100) + "%";
+    $("hwPlayText").textContent = `Next candy in ${Math.ceil((HW.PER_CANDY - p) / 60)} min of play`;
+    const picked = (() => { try { return localStorage.getItem(HW.PATCH) === hwToday(); } catch { return true; } })();
+    $("hwPatch").querySelectorAll("button").forEach((b) => (b.disabled = picked));
+    if (picked && !$("hwPatchMsg").textContent) $("hwPatchMsg").textContent = "Picked today — come back tomorrow!";
   }
-  $("halloweenBtn").onclick = () => {
+  // One second of real play (called from the play-time ticker below).
+  function hwPlaySecond() {
+    if (!isHalloween()) return;
+    let p = hwNum(HW.PLAY) + 1;
+    if (p >= HW.PER_CANDY) { p = 0; addCandy(1); toast("🍬 +1 candy! 5 minutes played"); }
+    try { localStorage.setItem(HW.PLAY, String(p)); } catch {}
+  }
+  $("hwPatch").addEventListener("click", (e) => {
+    const b = e.target.closest("button");
+    if (!b || b.disabled || !isHalloween()) return;
+    try { if (localStorage.getItem(HW.PATCH) === hwToday()) return; localStorage.setItem(HW.PATCH, hwToday()); } catch { return; }
+    const n = 2 + Math.floor(Math.random() * 9);
+    addCandy(n);
+    b.textContent = "🍬";
+    $("hwPatchMsg").textContent = `🎃 +${n} candy!`;
+    toast(`🎃 Pumpkin Patch: +${n} candy!`);
+    renderHalloweenBtn();
+  });
+  // A few bats and pumpkins drifting at the edges of the page.
+  function spookyDecor() {
+    if (!isHalloween() || document.querySelector(".spooky")) return;
+    [["🦇", "6%", "18%"], ["🎃", "90%", "26%"], ["🦇", "84%", "62%"], ["👻", "4%", "70%"], ["🕸️", "94%", "88%"]].forEach(([e, x, y], i) => {
+      const d = document.createElement("div");
+      d.className = "spooky"; d.textContent = e; d.style.left = x; d.style.top = y; d.style.animationDelay = (-i * 3) + "s";
+      document.body.appendChild(d);
+    });
+  }
+  const goHalloween = () => {
     openInGame = { slug: "monster-city", screen: "halloween" };
     if (location.hash === "#play/monster-city") { playing = null; route(); }
     else location.hash = "#play/monster-city";
   };
+  $("halloweenBtn").onclick = goHalloween;
+  $("hwOpen").onclick = goHalloween;
+  spookyDecor();
   renderHalloweenBtn();
   window.addEventListener("focus", renderHalloweenBtn);
   window.addEventListener("hashchange", renderHalloweenBtn);
@@ -670,6 +769,7 @@
       if (playing) { save = ArcadeShop.load(); renderWallet(); }
       return;
     }
+    hwPlaySecond();   // 🎃 candy for play time while Halloween is on
     let earned = false;
     save = ArcadeShop.update((sv) => {
       sv.total++;

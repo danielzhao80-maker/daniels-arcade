@@ -214,6 +214,26 @@ r.id("back").click(); r.adv(0);
 r.w.localStorage.setItem("monster_attack_event_force", "off"); r.w.dispatchEvent(new r.w.Event("focus"));
 ok("hidden when the event is off", hb.style.display === "none");
 r.w.localStorage.removeItem("monster_attack_event_force"); r.w.localStorage.removeItem("monster_attack_candy"); r.w.dispatchEvent(new r.w.Event("focus"));
+ok("🎃 the Halloween section shows during the event", r.d.body.classList.contains("halloween") && /Ends in \d+ days/.test(r.id("hwDays").textContent));
+ok("🎃 bats and pumpkins drift around the page", r.$$(".spooky").length === 5);
+// Pumpkin patch: once a day, 2-10 candy.
+r.w.localStorage.removeItem("arcade_hw_patch"); r.w.localStorage.setItem("monster_attack_candy", "0"); r.w.localStorage.setItem("monster_attack_hw_earned_2026", "0");
+r.w.dispatchEvent(new r.w.Event("focus"));
+const pumpkins = r.$$("#hwPatch button");
+ok("🎃 3 pumpkins to pick from", pumpkins.length === 3 && pumpkins.every((b) => !b.disabled));
+pumpkins[1].click();
+const gotC = +r.w.localStorage.getItem("monster_attack_candy");
+ok("🎃 picking one gives 2-10 candy (" + gotC + ")", gotC >= 2 && gotC <= 10 && +r.w.localStorage.getItem("monster_attack_hw_earned_2026") === gotC && /candy/.test(r.id("hwPatchMsg").textContent));
+ok("🎃 then the patch is done for today", r.$$("#hwPatch button").every((b) => b.disabled));
+pumpkins[0].click();
+ok("🎃 a second pick gives nothing", +r.w.localStorage.getItem("monster_attack_candy") === gotC);
+ok("🎃 the section shows the candy and pass progress", r.id("hwCandy").textContent === "🍬 " + gotC && /Halloween Pass: \d+ candy collected/.test(r.id("hwPassText").textContent));
+r.id("hwOpen").click(); r.adv(0);
+ok("🎃 its button opens Monster Attack!'s Halloween menu", /&open=halloween$/.test(r.id("frame").getAttribute("src")));
+r.id("back").click(); r.adv(0);
+r.w.localStorage.setItem("monster_attack_event_force", "off"); r.w.dispatchEvent(new r.w.Event("focus"));
+ok("🎃 the section hides after the event", !r.d.body.classList.contains("halloween"));
+r.w.localStorage.removeItem("monster_attack_event_force"); r.w.dispatchEvent(new r.w.Event("focus"));
 ok("no errors after routing: " + r.errs.join(" | "), r.errs.length === 0);
 r = boot({ hash: "#play/Pocket-Dice" });
 ok("boot straight into #play/Pocket-Dice", r.d.body.classList.contains("playing") && r.id("frame").getAttribute("src").startsWith("../Pocket-Dice/?arcadeSkins="));
@@ -259,6 +279,10 @@ r.input(); r.adv(1);
 s = r.save();
 ok("900 s -> 1 coin, progress 0, daily play 1", s.coins === 1 && s.progress === 0 && s.daily.play === 1 && s.daily.day === dk(r.st.now));
 ok("coin toast says 15 minutes", r.toast() === "🪙 +1 coin! 15 minutes played");
+// 🎃 Halloween (T0 = 17 Oct): the same 900 s of play also earned candy — 1 every 5 minutes.
+ok("🎃 900 s of play -> 3 candy, in Monster Attack!'s keys", r.w.localStorage.getItem("monster_attack_candy") === "3"
+   && r.w.localStorage.getItem("monster_attack_hw_earned_2026") === "3" && r.w.localStorage.getItem("arcade_hw_play") === "0");
+
 ok("wallet: 1 coin, next coin in 15m", r.$("[data-coins]").textContent === "1" && r.$("[data-next]").textContent === "next coin in 15m");
 play(450);
 ok("half way: bar 50%, next coin in 8m", r.$("[data-bar]").style.width === "50%" && r.$("[data-next]").textContent === "next coin in 8m");

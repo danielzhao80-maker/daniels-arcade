@@ -47,6 +47,10 @@
       { id: "agent", name: "Mystery Secret Agent Merchant", price: 0, emoji: "🕵️", secret: true },
       { id: "royalcrown", name: "Owner Crown", price: 0, emoji: "🫅", secret: true, lockText: "Owner only" },
       { id: "oracle", name: "Astral Oracle", price: 0, emoji: "🔮", secret: true, lockText: "Medium Quest" },
+      // 🎃 Halloween Pass rewards (Monster Attack!'s Halloween menu) — tiers 15, 32 and 50.
+      { id: "hw-ghost", name: "Little Ghost", price: 0, emoji: "👻", secret: true, lockText: "Halloween Pass 15" },
+      { id: "hw-vampire", name: "Vampire", price: 0, emoji: "🧛", secret: true, lockText: "Halloween Pass 32" },
+      { id: "hw-pumpkinking", name: "Pumpkin King", price: 0, emoji: "🎃", secret: true, lockText: "Halloween Pass 50" },
     ],
     Titles: [
       { id: "rookie",  name: "Rookie", price: 0 },
@@ -74,8 +78,11 @@
       // Buckshot (offline): shoot the snow globe on the shelf with a live shell — it also unlocks the
       // Backrooms in Monster Attack!'s ⭐ Special Maps.
       { id: "dimension", name: "🌀 Dimension Opener", price: 0, secret: true, lockText: "Break through" },
-      // 🎃 Monster Attack!'s Halloween event: bought with candy in its 🎃 Halloween menu.
-      { id: "pumpkin", name: "🎃 Pumpkin King", price: 0, secret: true, lockText: "Halloween" },
+      // 🎃 Halloween Pass rewards (Monster Attack!'s Halloween menu) — tiers 8, 20, 38 and 50.
+      { id: "hw-sweettooth", name: "🍬 Sweet Tooth", price: 0, secret: true, lockText: "Halloween Pass 8" },
+      { id: "hw-ghosthunter", name: "👻 Ghost Hunter", price: 0, secret: true, lockText: "Halloween Pass 20" },
+      { id: "hw-night", name: "🦇 Creature of the Night", price: 0, secret: true, lockText: "Halloween Pass 38" },
+      { id: "pumpkin", name: "🎃 Pumpkin King", price: 0, secret: true, lockText: "Halloween Pass 50" },
     ],
   };
 
@@ -159,8 +166,8 @@
       id: "gun-" + slug(name), name, price,
       skin: bullet === "rainbow" ? { rainbow: true, bullet: "#ff2d55", glow: "#ffffff", trail: "#4ae3ff" } : { rainbow: false, bullet, glow, trail },
     })),
-    // 🎃 Halloween (Monster Attack!'s candy shop): orange shots with a purple trail.
-    { id: "gun-jack-o-lantern", name: "Jack-o'-Lantern", price: 0, secret: true, lockText: "Halloween",
+    // 🎃 Halloween Pass tier 22: orange shots with a purple trail.
+    { id: "gun-jack-o-lantern", name: "Jack-o'-Lantern", price: 0, secret: true, lockText: "Halloween Pass 22",
       skin: { rainbow: false, bullet: "#ff7f00", glow: "#ffd8a8", trail: "#7b2fbe" } },
     // Secret: its shots flick through 5 code colours (see the skin cycler below).
     { id: "gun-codebreaker", name: "Code Breaker", price: 0, secret: true, cycleMs: 900,
@@ -189,6 +196,13 @@
       id: "bg-" + slug(name), name, price, skin: { sky, fog, ground, light },
     })),
     // Secret: every background, one after another.
+    // 🎃 Halloween Pass rewards — tiers 12, 28 and 50 (the best: a huge orange moon over a dark field).
+    { id: "bg-haunted-night", name: "Haunted Night", price: 0, secret: true, lockText: "Halloween Pass 12",
+      skin: { sky: "#2a0f4a", fog: "#3a1a5a", ground: "#1a1424", light: "#b38cff" } },
+    { id: "bg-graveyard-fog", name: "Graveyard Fog", price: 0, secret: true, lockText: "Halloween Pass 28",
+      skin: { sky: "#1e2a24", fog: "#4f6a58", ground: "#232b22", light: "#9effc2" } },
+    { id: "bg-pumpkin-moon", name: "Pumpkin Moon", price: 0, secret: true, lockText: "Halloween Pass 50",
+      skin: { sky: "#ff7a1a", fog: "#5a1a6a", ground: "#140a14", light: "#ffb347" } },
     { id: "bg-everything", name: "Every Background", price: 0, secret: true, cycleMs: 8000,
       skin: { sky: BG_SKINS[0][2], fog: BG_SKINS[0][3], ground: BG_SKINS[0][4], light: BG_SKINS[0][5] },
       cycle: BG_SKINS.map(([, , sky, fog, ground, light]) => ({ sky, fog, ground, light })) },

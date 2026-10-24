@@ -670,8 +670,9 @@
   // read-add-write, and Monster Attack! re-reads both before it changes them, so neither overwrites
   // the other while the game is open.
   const HW = { CANDY: "monster_attack_candy", earned: () => "monster_attack_hw_earned_" + new Date().getFullYear(),
-               PLAY: "arcade_hw_play", PATCH: "arcade_hw_patch", PER_CANDY: 300, PASS_TOP: 500,
-               PASS: [10, 25, 50, 75, 100, 150, 200, 275, 350, 500] };
+               PLAY: "arcade_hw_play", PATCH: "arcade_hw_patch", PER_CANDY: 300, PASS_TOP: 1000,
+               // The 50 Halloween Pass tiers — same formula as Monster Attack!'s HW_PASS (10n + n²/5).
+               PASS: Array.from({ length: 50 }, (_, i) => 10 * (i + 1) + Math.floor((i + 1) * (i + 1) / 5)) };
   const hwNum = (k) => { try { return Math.max(0, parseInt(localStorage.getItem(k)) || 0); } catch { return 0; } };
   function addCandy(n) {
     try {
@@ -692,7 +693,8 @@
     $("hwDays").textContent = days > 1 ? `Ends in ${days} days` : "Last day!";
     $("hwCandy").textContent = "🍬 " + candy;
     const next = HW.PASS.find((t) => earned < t);
-    $("hwPassText").textContent = `Halloween Pass: ${earned} candy collected` + (next ? ` · next reward at ${next}` : " · all unlocked!");
+    const tier = HW.PASS.filter((t) => earned >= t).length;
+    $("hwPassText").textContent = `Halloween Pass: tier ${tier}/50 · ${earned} candy` + (next ? ` · next at ${next}` : " · all unlocked!") + " — the best rewards are at tier 50!";
     $("hwPassBar").style.width = Math.min(100, earned / HW.PASS_TOP * 100) + "%";
     const p = hwNum(HW.PLAY);
     $("hwPlayBar").style.width = (p / HW.PER_CANDY * 100) + "%";

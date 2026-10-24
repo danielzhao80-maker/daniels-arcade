@@ -227,12 +227,20 @@ ok("🎃 picking one gives 2-10 candy (" + gotC + ")", gotC >= 2 && gotC <= 10 &
 ok("🎃 then the patch is done for today", r.$$("#hwPatch button").every((b) => b.disabled));
 pumpkins[0].click();
 ok("🎃 a second pick gives nothing", +r.w.localStorage.getItem("monster_attack_candy") === gotC);
-ok("🎃 the section shows the candy and pass progress", r.id("hwCandy").textContent === "🍬 " + gotC && /Halloween Pass: \d+ candy collected/.test(r.id("hwPassText").textContent));
+ok("🎃 the section shows the candy and pass progress", r.id("hwCandy").textContent === "🍬 " + gotC && /Halloween Pass: tier \d+\/50/.test(r.id("hwPassText").textContent));
 r.id("hwOpen").click(); r.adv(0);
 ok("🎃 its button opens Monster Attack!'s Halloween menu", /&open=halloween$/.test(r.id("frame").getAttribute("src")));
 r.id("back").click(); r.adv(0);
 r.w.localStorage.setItem("monster_attack_event_force", "off"); r.w.dispatchEvent(new r.w.Event("focus"));
 ok("🎃 the section hides after the event", !r.d.body.classList.contains("halloween"));
+// 🎃 The Halloween Pass items are in the shop, secret (the pass gives them; they cannot be bought).
+const hwItems = { Titles: ["hw-sweettooth", "hw-ghosthunter", "hw-night", "pumpkin"], Avatars: ["hw-ghost", "hw-vampire", "hw-pumpkinking"],
+                  Backgrounds: ["bg-haunted-night", "bg-graveyard-fog", "bg-pumpkin-moon"], "Gun Skins": ["gun-jack-o-lantern"] };
+ok("🎃 4 titles, 3 avatars, 3 backgrounds and a gun skin for the event, all secret",
+   Object.entries(hwItems).every(([cat, ids]) => ids.every((id) => { const it = S0.SHOP[cat].find((i) => i.id === id); return it && it.secret && /Halloween Pass/.test(it.lockText); })));
+ok("🎃 the avatars have faces and the backgrounds have colours",
+   hwItems.Avatars.every((id) => S0.SHOP.Avatars.find((i) => i.id === id).emoji) && hwItems.Backgrounds.every((id) => S0.SHOP.Backgrounds.find((i) => i.id === id).skin.sky));
+ok("🎃 the pass counts 50 tiers, 1000 candy for the last", /tier \d+\/50/.test(r.id("hwPassText").textContent));
 r.w.localStorage.removeItem("monster_attack_event_force"); r.w.dispatchEvent(new r.w.Event("focus"));
 ok("no errors after routing: " + r.errs.join(" | "), r.errs.length === 0);
 r = boot({ hash: "#play/Pocket-Dice" });

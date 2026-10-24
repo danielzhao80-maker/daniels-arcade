@@ -74,6 +74,8 @@
       // Buckshot (offline): shoot the snow globe on the shelf with a live shell — it also unlocks the
       // Backrooms in Monster Attack!'s ⭐ Special Maps.
       { id: "dimension", name: "🌀 Dimension Opener", price: 0, secret: true, lockText: "Break through" },
+      // 🎃 Monster Attack!'s Halloween event: bought with candy in its 🎃 Halloween menu.
+      { id: "pumpkin", name: "🎃 Pumpkin King", price: 0, secret: true, lockText: "Halloween" },
     ],
   };
 
@@ -157,6 +159,9 @@
       id: "gun-" + slug(name), name, price,
       skin: bullet === "rainbow" ? { rainbow: true, bullet: "#ff2d55", glow: "#ffffff", trail: "#4ae3ff" } : { rainbow: false, bullet, glow, trail },
     })),
+    // 🎃 Halloween (Monster Attack!'s candy shop): orange shots with a purple trail.
+    { id: "gun-jack-o-lantern", name: "Jack-o'-Lantern", price: 0, secret: true, lockText: "Halloween",
+      skin: { rainbow: false, bullet: "#ff7f00", glow: "#ffd8a8", trail: "#7b2fbe" } },
     // Secret: its shots flick through 5 code colours (see the skin cycler below).
     { id: "gun-codebreaker", name: "Code Breaker", price: 0, secret: true, cycleMs: 900,
       skin: { rainbow: false, bullet: "#00ff88", glow: "#d4ffe8", trail: "#00a85a" },

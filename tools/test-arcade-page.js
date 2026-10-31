@@ -214,7 +214,7 @@ r.id("back").click(); r.adv(0);
 r.w.localStorage.setItem("monster_attack_event_force", "off"); r.w.dispatchEvent(new r.w.Event("focus"));
 ok("hidden when the event is off", hb.style.display === "none");
 r.w.localStorage.removeItem("monster_attack_event_force"); r.w.localStorage.removeItem("monster_attack_candy"); r.w.dispatchEvent(new r.w.Event("focus"));
-ok("🎃 the Halloween section shows during the event", r.d.body.classList.contains("halloween") && /Ends in \d+ days/.test(r.id("hwDays").textContent));
+ok("🎃 the Halloween section shows during the event, with no countdown to its end", r.d.body.classList.contains("halloween") && !/Ends in|Last day/.test(r.id("halloweenBox").textContent));
 ok("🎃 bats and pumpkins drift around the page", r.$$(".spooky").length === 5);
 // Pumpkin patch: once a day, 2-10 candy.
 r.w.localStorage.removeItem("arcade_hw_patch"); r.w.localStorage.setItem("monster_attack_candy", "0"); r.w.localStorage.setItem("monster_attack_hw_earned_2026", "0");

@@ -304,7 +304,7 @@
   function howToGet(item) {
     if (HOW_TO_GET[item.id]) return HOW_TO_GET[item.id];
     const hw = /^Halloween Pass (\d+)$/.exec(item.lockText || "");
-    if (hw) return `🎃 Halloween Pass tier ${hw[1]}: collect candy during the Halloween event (1 Oct – 7 Nov) and claim it in Monster Attack! → 🎃 Halloween.`;
+    if (hw) return `🎃 Halloween Pass tier ${hw[1]}: collect candy during the Halloween event and claim it in Monster Attack! → 🎃 Halloween.`;
     return item.lockText ? `Unlock: ${item.lockText}.` : "A secret — keep exploring!";
   }
 

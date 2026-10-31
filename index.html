@@ -311,7 +311,6 @@
 
     <section class="freebox" id="halloweenBox">
       <h3>🎃 HALLOWEEN EVENT 🦇</h3>
-      <p style="text-align:center;margin:-6px 0 12px;color:#d6a2ff;font-weight:800;" id="hwDays"></p>
       <div class="free-grid">
         <div class="free-card">
           <b>🍬 Your candy</b>
@@ -722,8 +721,7 @@
     const candy = hwNum(HW.CANDY), earned = hwNum(HW.earned());
     $("halloweenCandy").textContent = candy > 0 ? ` 🍬${candy}` : "";
     if (!on) return;
-    const end = new Date(new Date().getFullYear(), 10, 8), days = Math.max(0, Math.ceil((end - new Date()) / 86400000));
-    $("hwDays").textContent = days > 1 ? `Ends in ${days} days` : "Last day!";
+    // (no "ends in N days" countdown — asked for)
     $("hwCandy").textContent = "🍬 " + candy;
     const next = HW.PASS.find((t) => earned < t);
     const tier = HW.PASS.filter((t) => earned >= t).length;

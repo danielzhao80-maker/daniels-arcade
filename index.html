@@ -60,6 +60,16 @@
     width: 42px; height: 42px; border-radius: 12px; display: grid; place-items: center;
     font-size: 1.6rem; background: var(--bg2); border: 1px solid var(--line);
   }
+  .avatar { position: relative; overflow: visible; }
+  .avatar .pumpkin-av { width: 40px; height: 40px; }
+  .avatar.custom { cursor: pointer; }
+  .avatar.custom::after { content: "✏️"; position: absolute; right: -6px; bottom: -6px; font-size: .7rem; background: var(--card); border-radius: 50%; padding: 1px; }
+  .pk-preview { width: 150px; height: 150px; margin: 0 auto 10px; background: radial-gradient(circle, rgba(255,140,26,.25), transparent 70%); border-radius: 50%; }
+  .pk-row { margin: 8px 0; }
+  .pk-row h5 { margin: 0 0 6px; font-size: .85rem; color: var(--accent); }
+  .pk-opts { display: flex; flex-wrap: wrap; gap: 6px; }
+  .pk-opts button { border: 2px solid var(--line); background: var(--bg2); color: inherit; border-radius: 10px; padding: 5px 9px; font-weight: 800; cursor: pointer; font-size: .8rem; }
+  .pk-opts button.on { border-color: #ff8c1a; background: rgba(255,140,26,.22); }
   .player b { display: block; font-weight: 900; }
   .player small { color: var(--accent); font-weight: 700; font-size: .78rem; }
   .wallet {
@@ -375,6 +385,15 @@
   <iframe id="frame" allow="fullscreen; microphone; camera; autoplay; gamepad" allowfullscreen></iframe>
 </div>
 
+<div class="panel-veil" id="pumpkinVeil">
+  <div class="panel" role="dialog" aria-label="Customise your Pumpkin King">
+    <header><h2>🎃 MAKE YOUR PUMPKIN KING</h2><button class="btn ghost" data-close>✕</button></header>
+    <div class="pk-preview" id="pkPreview"></div>
+    <div id="pkRows"></div>
+    <p style="text-align:center;opacity:.75;font-size:.8rem;">Your Pumpkin King is saved with your arcade progress (and your account).</p>
+  </div>
+</div>
+
 <div class="panel-veil" id="questVeil">
   <div class="panel" role="dialog" aria-label="Quests">
     <header><h2>🔐 QUESTS</h2><button class="btn ghost" data-close>✕</button></header>
@@ -593,7 +612,12 @@
   function applyLook() {
     const theme = find("Themes", save.equipped.theme);
     for (const [k, v] of Object.entries(theme.vars)) document.documentElement.style.setProperty("--" + k, v);
-    document.querySelectorAll("[data-avatar]").forEach((e) => (e.textContent = find("Avatars", save.equipped.avatar).emoji));
+    const custom = !!find("Avatars", save.equipped.avatar).custom;
+    document.querySelectorAll("[data-avatar]").forEach((e) => {
+      e.innerHTML = ArcadeShop.avatarHTML(save.equipped.avatar, save);
+      e.classList.toggle("custom", custom);
+      e.title = custom ? "Click to customise your Pumpkin King" : "";
+    });
     document.querySelectorAll("[data-title]").forEach((e) => (e.textContent = find("Titles", save.equipped.title).name));
   }
 
@@ -1011,6 +1035,26 @@
   const isOwner = (sv) => sv.owned.includes("owner");
 
   function openVeil(id) { $(id).classList.add("open"); }
+
+  // 🎃 The customisable Pumpkin King avatar (Halloween Pass tier 50). Click it in the top bar.
+  const PK_TITLES = { color: "🎨 Colour", glow: "🕯️ Glow", face: "😀 Face", hat: "🎩 Hat", extra: "✨ Buddy" };
+  function renderPumpkinMaker() {
+    const look = ArcadeShop.pumpkinLook(save);
+    $("pkPreview").innerHTML = ArcadeShop.pumpkinSVG(look);
+    $("pkRows").innerHTML = Object.entries(ArcadeShop.PUMPKIN_PARTS).map(([part, opts]) => `
+      <div class="pk-row"><h5>${PK_TITLES[part]}</h5><div class="pk-opts">${opts.map(([id, label, col]) =>
+        `<button data-pk-part="${part}" data-pk="${id}" class="${look[part] === id ? "on" : ""}"${col ? ` style="box-shadow:inset 0 -4px 0 ${col}"` : ""}>${label}</button>`).join("")}</div></div>`).join("");
+  }
+  $("pkRows").addEventListener("click", (e) => {
+    const b = e.target.closest("[data-pk]");
+    if (!b) return;
+    save = ArcadeShop.setAvatarCustom(b.dataset.pkPart, b.dataset.pk) || save;
+    renderPumpkinMaker(); applyLook();
+  });
+  document.querySelectorAll("[data-avatar]").forEach((el) => el.addEventListener("click", () => {
+    if (!find("Avatars", save.equipped.avatar).custom) return;
+    renderPumpkinMaker(); openVeil("pumpkinVeil");
+  }));
   document.querySelectorAll(".panel-veil").forEach((v) => v.addEventListener("click", (e) => {
     if (e.target === v || e.target.closest("[data-close]")) v.classList.remove("open");
   }));

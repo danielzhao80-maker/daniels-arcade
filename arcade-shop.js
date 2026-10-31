@@ -50,7 +50,8 @@
       // 🎃 Halloween Pass rewards (Monster Attack!'s Halloween menu) — tiers 15, 32 and 50.
       { id: "hw-ghost", name: "Little Ghost", price: 0, emoji: "👻", secret: true, lockText: "Halloween Pass 15" },
       { id: "hw-vampire", name: "Vampire", price: 0, emoji: "🧛", secret: true, lockText: "Halloween Pass 32" },
-      { id: "hw-pumpkinking", name: "Pumpkin King", price: 0, emoji: "🎃", secret: true, lockText: "Halloween Pass 50" },
+      // Customisable: drawn from save.avatarCustom (see PUMPKIN_PARTS / avatarHTML) — click it in the arcade top bar.
+      { id: "hw-pumpkinking", name: "Pumpkin King (make your own!)", price: 0, emoji: "🎃", custom: "pumpkin", secret: true, lockText: "Halloween Pass 50" },
     ],
     Titles: [
       { id: "rookie",  name: "Rookie", price: 0 },
@@ -281,6 +282,67 @@
   }
   const effectText = (a, level) => (a.secret ? a.text : a.text.replace("{v}", level * a.step));
   const find = (cat, id) => SHOP[cat].find((i) => i.id === id) || SHOP[cat][0];
+
+  // ---------------------------------------------------------------- custom avatar
+  // The Pumpkin King avatar is built from parts the player picks (save.avatarCustom). Each part is a
+  // list of [id, label, value]; the first of each is the default.
+  const PUMPKIN_PARTS = {
+    color: [["orange", "🟠 Orange", "#ff7a1a"], ["white", "⚪ Ghost White", "#ece6d6"], ["green", "🟢 Green", "#5fae3e"],
+            ["purple", "🟣 Purple", "#8e44ad"], ["black", "⚫ Black", "#2b2b30"], ["gold", "🟡 Gold", "#f1c40f"],
+            ["blue", "🔵 Blue", "#3b7dd8"], ["pink", "🩷 Pink", "#ff6bcb"]],
+    glow:  [["candle", "🕯️ Candle", "#ffd23a"], ["toxic", "☢️ Toxic", "#7dff4a"], ["spooky", "🔮 Spooky", "#c77dff"],
+            ["blood", "🩸 Red", "#ff3b3b"], ["ice", "❄️ Ice", "#5ee7ff"]],
+    face:  [["happy", "😀 Happy"], ["scary", "😈 Scary"], ["silly", "🤪 Silly"], ["sleepy", "😴 Sleepy"], ["cool", "😎 Cool"]],
+    hat:   [["none", "No hat"], ["witch", "🧙 Witch hat"], ["crown", "👑 Crown"], ["tophat", "🎩 Top hat"],
+            ["horns", "😈 Horns"], ["halo", "😇 Halo"]],
+    extra: [["none", "Nothing"], ["bat", "🦇 Bat"], ["spider", "🕷️ Spider"], ["candy", "🍬 Candy"], ["moon", "🌙 Moon"], ["ghost", "👻 Ghost"]],
+  };
+  function pumpkinLook(save) {
+    const c = (save && save.avatarCustom) || {};
+    const out = {};
+    for (const k of Object.keys(PUMPKIN_PARTS)) out[k] = PUMPKIN_PARTS[k].some((p) => p[0] === c[k]) ? c[k] : PUMPKIN_PARTS[k][0][0];
+    return out;
+  }
+  const _part = (k, id) => PUMPKIN_PARTS[k].find((p) => p[0] === id) || PUMPKIN_PARTS[k][0];
+  function shade(hex, f) {   // darker (f<1) or lighter (f>1) version of a #rrggbb colour
+    const n = parseInt(hex.slice(1), 16), ch = (v) => Math.max(0, Math.min(255, Math.round(v * f)));
+    return "#" + [n >> 16, (n >> 8) & 255, n & 255].map((v) => ch(v).toString(16).padStart(2, "0")).join("");
+  }
+  /** An <svg> of the pumpkin with these parts. */
+  function pumpkinSVG(look) {
+    const L = Object.assign(pumpkinLook(null), look || {});
+    const body = _part("color", L.color)[2], dark = shade(body, 0.72), g = _part("glow", L.glow)[2];
+    const faces = {
+      happy:  `<path d="M33 48 l7 -10 l7 10 z M53 48 l7 -10 l7 10 z" fill="${g}"/><path d="M30 60 q20 18 40 0 l-5 2 l-3 5 l-4 -4 l-4 5 l-4 -5 l-4 4 l-3 -5 z" fill="${g}"/>`,
+      scary:  `<path d="M31 41 l16 6 l-13 5 z M69 41 l-16 6 l13 5 z" fill="${g}"/><path d="M28 60 l7 4 l5 -6 l5 7 l5 -7 l5 7 l5 -7 l5 6 l7 -4 l-8 13 l-26 0 z" fill="${g}"/>`,
+      silly:  `<circle cx="38" cy="45" r="7" fill="${g}"/><circle cx="62" cy="44" r="4.5" fill="${g}"/><path d="M34 60 q16 14 32 0 z" fill="${g}"/><path d="M52 64 q4 9 9 2 z" fill="#ff5a8a"/>`,
+      sleepy: `<path d="M31 46 q7 6 14 0 M55 46 q7 6 14 0" stroke="${g}" stroke-width="3.5" fill="none" stroke-linecap="round"/><ellipse cx="50" cy="65" rx="5" ry="4" fill="${g}"/><text x="70" y="34" font-size="11" fill="${g}" font-weight="900">z</text>`,
+      cool:   `<rect x="27" y="39" width="46" height="11" rx="5" fill="#111"/><rect x="31" y="41" width="15" height="7" rx="3" fill="${g}" opacity=".55"/><rect x="54" y="41" width="15" height="7" rx="3" fill="${g}" opacity=".55"/><path d="M38 64 q12 6 24 -3" stroke="${g}" stroke-width="4" fill="none" stroke-linecap="round"/>`,
+    };
+    const hats = {
+      none: `<path d="M48 22 q2 -9 8 -12" stroke="#4e7a1e" stroke-width="5" fill="none" stroke-linecap="round"/>`,
+      witch: `<ellipse cx="50" cy="25" rx="30" ry="5" fill="#2a1a3a"/><path d="M36 24 l18 -24 l8 24 z" fill="#2a1a3a"/><rect x="38" y="19" width="22" height="4" fill="#8e44ad"/>`,
+      crown: `<path d="M32 26 l0 -14 l9 8 l9 -12 l9 12 l9 -8 l0 14 z" fill="#f1c40f" stroke="#b7950b" stroke-width="1.5"/><circle cx="50" cy="16" r="2.5" fill="#e74c3c"/>`,
+      tophat: `<rect x="34" y="5" width="32" height="19" rx="2" fill="#1d1d22"/><ellipse cx="50" cy="25" rx="24" ry="4" fill="#1d1d22"/><rect x="34" y="18" width="32" height="4" fill="#c0392b"/>`,
+      horns: `<path d="M30 26 q-8 -10 -4 -20 q6 10 12 16 z M70 26 q8 -10 4 -20 q-6 10 -12 16 z" fill="#c0392b"/><path d="M48 22 q2 -9 8 -12" stroke="#4e7a1e" stroke-width="5" fill="none" stroke-linecap="round"/>`,
+      halo: `<ellipse cx="50" cy="9" rx="17" ry="5" fill="none" stroke="#ffe066" stroke-width="3.5"/><path d="M48 22 q2 -9 8 -12" stroke="#4e7a1e" stroke-width="5" fill="none" stroke-linecap="round"/>`,
+    };
+    const extras = { none: "", bat: "🦇", spider: "🕷️", candy: "🍬", moon: "🌙", ghost: "👻" };
+    const ex = extras[L.extra] ? `<text x="78" y="30" font-size="20" text-anchor="middle">${extras[L.extra]}</text>` : "";
+    return `<svg class="pumpkin-av" viewBox="0 0 100 100" width="100%" height="100%" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Pumpkin King avatar">`
+      + `<ellipse cx="34" cy="58" rx="20" ry="30" fill="${dark}"/><ellipse cx="66" cy="58" rx="20" ry="30" fill="${dark}"/>`
+      + `<ellipse cx="50" cy="58" rx="26" ry="32" fill="${body}"/><ellipse cx="42" cy="44" rx="6" ry="12" fill="#fff" opacity=".18"/>`
+      + (faces[L.face] || faces.happy) + (hats[L.hat] || hats.none) + ex + `</svg>`;   // "none", horns and halo keep the stem
+  }
+  /** What to put inside an avatar box: the picture for a custom avatar, otherwise its emoji. */
+  function avatarHTML(id, save) {
+    const it = find("Avatars", id);
+    return it.custom === "pumpkin" ? pumpkinSVG(pumpkinLook(save)) : it.emoji;
+  }
+  function setAvatarCustom(part, id) {
+    if (!PUMPKIN_PARTS[part] || !PUMPKIN_PARTS[part].some((p) => p[0] === id)) return null;
+    return update((s) => { s.avatarCustom = Object.assign(pumpkinLook(s), { [part]: id }); });
+  }
   // Admin Panel → 🆓 Free Shop makes every price 0.
   const isFree = (save = load()) => !!(save.admin && save.admin.freeShop);
   // Every price is 5% higher than the number written in the catalog (rounded to whole coins).
@@ -547,7 +609,7 @@
       const v = item.vars;
       return `<div class="as-sw" style="background:linear-gradient(135deg, ${v.glow1}, ${v.bg} 60%, ${v.glow2});border:2px solid ${v.accent}"></div>`;
     }
-    if (cat === "Avatars") return `<div class="as-sw">${item.emoji}</div>`;
+    if (cat === "Avatars") return `<div class="as-sw">${item.custom === "pumpkin" ? pumpkinSVG(pumpkinLook(load())) : item.emoji}</div>`;
     return `<div class="as-sw" style="font-size:.85rem;font-weight:900;color:var(--as-coin)">${esc(item.name)}</div>`;
   }
 
@@ -895,6 +957,7 @@
   window.ArcadeShop = {
     SHOP, SLOT, SKIN_TABS, SECONDS_PER_COIN, RAINBOW,
     find, load, update, gameSkins, shareSkins, open, close, toast, registerCurrency,
+    PUMPKIN_PARTS, pumpkinLook, pumpkinSVG, avatarHTML, setAvatarCustom,
     ABILITIES, ABILITY_TAB, ABILITY_MAX, abilityLevel, abilityValue,
     setGame: (g) => {
       currentGame = g;

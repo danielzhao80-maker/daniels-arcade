@@ -922,6 +922,32 @@ for (let k = 0; k < 20; k++) { r.st.now = 8000 * (2000 + k) + 100; const b = GS(
 ok("Every Background shows all 20 backgrounds, 8 s each", cyc && seen.size === 20);
 ok("no errors: " + r.errs.join(" | "), r.errs.length === 0);
 
+// ---------------------------------------------------------------- 🎃 custom Pumpkin King avatar
+r = boot({ seed: { [KEY]: withDefaults({ owned: [...DEFAULT_OWNED, "hw-pumpkinking"], equipped: { avatar: "smile" } }) } });
+const av = r.$("[data-avatar]");
+ok("🎃 a normal avatar is just its emoji", av.textContent === "🙂" || av.textContent.length <= 4);
+av.click();
+ok("🎃 clicking a normal avatar opens nothing", !r.id("pumpkinVeil").classList.contains("open"));
+r.setSave((x) => { x.equipped.avatar = "hw-pumpkinking"; }); r.w.dispatchEvent(new r.w.Event("hashchange")); r.adv(0);
+ok("🎃 the Pumpkin King avatar is drawn as a picture", !!av.querySelector("svg.pumpkin-av") && av.classList.contains("custom"));
+ok("🎃 default look: orange, candle glow, happy", av.innerHTML.includes("#ff7a1a") && av.innerHTML.includes("#ffd23a"));
+av.click();
+ok("🎃 clicking it opens the pumpkin maker", r.id("pumpkinVeil").classList.contains("open") && !!r.id("pkPreview").querySelector("svg"));
+const parts = S0.PUMPKIN_PARTS;
+ok("🎃 5 things to choose: colour, glow, face, hat, buddy", Object.keys(parts).join() === "color,glow,face,hat,extra"
+   && r.$$("#pkRows .pk-row").length === 5 && r.$$("#pkRows [data-pk]").length === Object.values(parts).reduce((a, p) => a + p.length, 0));
+const pick = (part, id) => r.$$(`#pkRows [data-pk-part="${part}"]`).find((b) => b.dataset.pk === id).click();
+pick("color", "purple"); pick("glow", "toxic"); pick("face", "scary"); pick("hat", "witch"); pick("extra", "bat");
+ok("🎃 choices are saved", JSON.stringify(r.save().avatarCustom) === JSON.stringify({ color: "purple", glow: "toxic", face: "scary", hat: "witch", extra: "bat" }));
+ok("🎃 the top-bar avatar changes at once", av.innerHTML.includes("#8e44ad") && av.innerHTML.includes("#7dff4a") && av.innerHTML.includes("🦇"));
+ok("🎃 the picked buttons light up", r.$$("#pkRows .on").map((b) => b.dataset.pk).join() === "purple,toxic,scary,witch,bat");
+ok("🎃 every combination draws", Object.values(parts.face).every(([f]) => Object.values(parts.hat).every(([h]) => /<svg[\s\S]*<\/svg>$/.test(S0.pumpkinSVG({ face: f, hat: h })))));
+ok("🎃 nonsense in the save falls back to the defaults", JSON.stringify(S0.pumpkinLook({ avatarCustom: { color: "nope", hat: 42 } })) === JSON.stringify({ color: "orange", glow: "candle", face: "happy", hat: "none", extra: "none" }));
+ok("🎃 an unknown choice is refused", S0.setAvatarCustom("color", "rainbow-unicorn") === null && r.save().avatarCustom.color === "purple");
+r = boot({ seed: { [KEY]: JSON.parse(r.w.localStorage.getItem(KEY)) } });
+ok("🎃 it is still your pumpkin after a reload", r.$("[data-avatar]").innerHTML.includes("#8e44ad") && r.$("[data-avatar]").innerHTML.includes("🦇"));
+ok("no errors in the pumpkin maker: " + r.errs.join(" | "), r.errs.length === 0);
+
 console.log(`\n${pass} checks passed, ${fail} failed`);
 console.log(fail ? `ARCADE PAGE FAIL (${fail})` : "ARCADE PAGE PASS");
 process.exit(fail ? 1 : 0);

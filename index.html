@@ -474,6 +474,15 @@
     <div class="bug-list" id="bugList"></div>
     <div class="admin-row" style="margin-top:8px"><button class="btn ghost" data-admin="clearbugs">🧽 Delete all reports</button></div>
 
+    <h4>🎃 Halloween &amp; Backrooms</h4>
+    <div class="admin-grid">
+      <button data-admin="candy100">🍬 +100 candy<small>Monster Attack!'s event candy</small></button>
+      <button data-admin="candy1000">🍬 +1000 candy<small>Enough for the whole Halloween Pass</small></button>
+      <button data-admin="hwitems">👻 Halloween items<small>Every event title, avatar, background and gun skin</small></button>
+      <button data-admin="floors">🌀 All Backrooms floors<small>Floors 0–20 in Monster Attack!'s ⭐ Special Maps</small></button>
+    </div>
+    <p style="opacity:.75;font-size:.8rem;margin:4px 0 0">Tip: in a Monster Attack! game, press <b>U</b> for the same unlocks (like <b>G</b> for God Survival).</p>
+
     <h4>🎟️ Codes &amp; quest</h4>
     <div class="admin-grid">
       <button data-admin="allcodes">🎟️ Find all codes<small>Also gives the Secret Agent pack</small></button>
@@ -1320,6 +1329,17 @@
         case "maxab": for (const a of ArcadeShop.ABILITIES) sv.abilities[a.id] = a.secret ? 1 : ArcadeShop.ABILITY_MAX; msg.t = "⚡ All abilities maxed"; break;
         case "clearab": sv.abilities = {}; sv.active = {}; msg.t = "🧽 All abilities cleared"; break;
         case "time": sv.total += 3600; msg.t = "⏱ +1 hour of play time"; break;
+        // 🎃 Candy lives in Monster Attack!'s keys, not the arcade save (see addCandy).
+        case "candy100": addCandy(100); msg.t = "🍬 +100 candy"; break;
+        case "candy1000": addCandy(1000); msg.t = "🍬 +1000 candy"; break;
+        case "hwitems": {
+          const hw = Object.values(SHOP).flat().filter((i) => /^Halloween Pass/.test(i.lockText || ""));
+          sv.owned = [...new Set([...sv.owned, ...hw.map((i) => i.id)])]; msg.t = `👻 ${hw.length} Halloween items unlocked`; break;
+        }
+        case "floors": {
+          const floors = ["backrooms", "backrooms2", ...Array.from({ length: 19 }, (_, i) => "brfloor" + (i + 2))];
+          sv.specialMaps = [...new Set([...(sv.specialMaps || []), ...floors])]; msg.t = "🌀 All 21 Backrooms floors unlocked"; break;
+        }
         case "resetcodes": sv.redeemed = []; msg.t = "♻️ Codes reset — use them again"; break;
         case "medium": sv.mediumUnlocked = true; msg.t = "🔮 Medium Quests unlocked"; break;
         case "royal":

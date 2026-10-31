@@ -609,6 +609,15 @@ ok("∞ off restores the old coins", r.save().coins === 123 && !r.save().admin.i
 T("infCoins"); ok("∞ toggle on", r.save().coins === INF && r.save().coinsBeforeInf === 123);
 setCoins("7"); ok("set coins while ∞ -> normal 7", r.save().coins === 7 && !r.save().admin.infCoins);
 A("coins10"); A("coins100"); ok("+10 +100", r.save().coins === 117);
+// 🎃 Halloween & Backrooms admin buttons
+r.w.localStorage.setItem("monster_attack_candy", "5"); r.w.localStorage.removeItem("monster_attack_hw_earned_" + new Date(r.st.now).getFullYear());
+A("candy100"); A("candy1000");
+ok("admin: +100 and +1000 candy (wallet and pass)", r.w.localStorage.getItem("monster_attack_candy") === "1105"
+   && r.w.localStorage.getItem("monster_attack_hw_earned_" + new Date(r.st.now).getFullYear()) === "1100" && /candy/.test(r.toast()));
+A("hwitems");
+ok("admin: every Halloween title, avatar, background and gun skin", ["hw-sweettooth", "hw-ghosthunter", "hw-night", "pumpkin", "hw-ghost", "hw-vampire", "hw-pumpkinking", "bg-haunted-night", "bg-graveyard-fog", "bg-pumpkin-moon", "gun-jack-o-lantern"].every((id) => r.save().owned.includes(id)));
+A("floors");
+ok("admin: all 21 Backrooms floors", r.save().specialMaps.length === 21 && r.save().specialMaps.includes("backrooms") && r.save().specialMaps.includes("brfloor20"));
 r.$('[data-boost="5"]').click();
 ok("coin speed ×5", r.save().admin.coinBoost === 5 && r.$('[data-boost="5"]').classList.contains("on") && !r.$('[data-boost="1"]').classList.contains("on"));
 r.$('[data-boost="1"]').click(); ok("coin speed ×1", r.save().admin.coinBoost === 1);

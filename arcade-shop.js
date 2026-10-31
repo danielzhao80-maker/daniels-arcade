@@ -337,6 +337,12 @@
   // Every OTHER avatar can be dressed up too: a background, a frame, a hat and a buddy around its
   // own face. Each avatar keeps its own look (save.avatarCustoms[id]).
   const AVATAR_PARTS = {
+    // colour: recolours the avatar itself (a hue shift on its face); pose: flips or tilts it.
+    color: [["none", "Normal"], ["red", "🔴 Red", "hue-rotate(320deg) saturate(1.4)"], ["blue", "🔵 Blue", "hue-rotate(190deg)"],
+            ["green", "🟢 Green", "hue-rotate(90deg)"], ["purple", "🟣 Purple", "hue-rotate(250deg)"], ["gold", "🟡 Gold", "sepia(1) saturate(3) hue-rotate(5deg)"],
+            ["ghost", "👻 Ghostly", "grayscale(1) brightness(1.4) opacity(.8)"], ["shadow", "⚫ Shadow", "brightness(.25)"]],
+    pose:  [["none", "Normal"], ["flip", "↔️ Flip", "translate(100 0) scale(-1 1)"], ["tiltl", "↖️ Tilt left", "rotate(-14 50 55)"],
+            ["tiltr", "↗️ Tilt right", "rotate(14 50 55)"], ["upside", "🙃 Upside down", "rotate(180 50 55)"]],
     bg:    [["none", "None"], ["sunset", "🌅 Sunset", ["#ff9a5a", "#ff4a8a"]], ["ocean", "🌊 Ocean", ["#4ae3ff", "#2a6fd6"]],
             ["forest", "🌲 Forest", ["#7dff4a", "#2e7d32"]], ["galaxy", "🌌 Galaxy", ["#b36bff", "#14082e"]],
             ["candy", "🍭 Candy", ["#ffb3e6", "#a0e7ff"]], ["fire", "🔥 Fire", ["#ffd24a", "#d63031"]], ["gold", "🏆 Gold", ["#fff3b0", "#c98a00"]]],
@@ -346,6 +352,7 @@
             ["grad", "🎓 Grad cap", "🎓"], ["party", "🥳 Party", "🎉"], ["helmet", "⛑️ Helmet", "⛑️"], ["bow", "🎀 Bow", "🎀"]],
     buddy: [["none", "None"], ["star", "⭐ Star", "⭐"], ["heart", "❤️ Heart", "❤️"], ["fire", "🔥 Fire", "🔥"], ["zap", "⚡ Zap", "⚡"],
             ["gem", "💎 Gem", "💎"], ["paw", "🐾 Paw", "🐾"], ["bat", "🦇 Bat", "🦇"]],
+    effect: [["none", "None"], ["glow", "🌟 Glow"], ["sparkles", "✨ Sparkles"], ["shadow", "🌑 Shadow"], ["hearts", "💕 Hearts"]],
   };
   function avatarLook(save, id) {
     const c = (save && save.avatarCustoms && save.avatarCustoms[id]) || {};
@@ -356,7 +363,8 @@
   const _apart = (k, id) => AVATAR_PARTS[k].find((p) => p[0] === id) || AVATAR_PARTS[k][0];
   /** An <svg> of an emoji avatar dressed in these parts. */
   function avatarSVG(emoji, look) {
-    const L = Object.assign({ bg: "none", frame: "none", hat: "none", buddy: "none" }, look || {});
+    const L = Object.assign({ color: "none", pose: "none", bg: "none", frame: "none", hat: "none", buddy: "none", effect: "none" }, look || {});
+    const hue = _apart("color", L.color)[2], pose = _apart("pose", L.pose)[2];
     const uid = "av" + Math.random().toString(36).slice(2, 8);
     const bg = _apart("bg", L.bg)[2], fr = _apart("frame", L.frame)[2], hat = _apart("hat", L.hat)[2], bud = _apart("buddy", L.buddy)[2];
     let defs = "";
@@ -366,7 +374,11 @@
       + (defs ? `<defs>${defs}</defs>` : "")
       + (bg ? `<rect x="4" y="4" width="92" height="92" rx="24" fill="url(#${uid}b)"/>` : "")
       + (fr ? `<rect x="5" y="5" width="90" height="90" rx="24" fill="none" stroke="${fr === "rainbow" ? `url(#${uid}f)` : fr}" stroke-width="7"/>` : "")
-      + `<text x="50" y="${hat ? 70 : 66}" font-size="${hat ? 50 : 56}" text-anchor="middle" dominant-baseline="middle">${emoji}</text>`
+      + (L.effect === "glow" ? `<circle cx="50" cy="${hat ? 66 : 62}" r="30" fill="#fff6a8" opacity=".55" style="filter:blur(6px)"/>` : "")
+      + (L.effect === "shadow" ? `<ellipse cx="50" cy="90" rx="26" ry="6" fill="#000" opacity=".45"/>` : "")
+      + `<g${pose ? ` transform="${pose}"` : ""}${hue ? ` style="filter:${hue}"` : ""}><text x="50" y="${hat ? 70 : 66}" font-size="${hat ? 50 : 56}" text-anchor="middle" dominant-baseline="middle">${emoji}</text></g>`
+      + (L.effect === "sparkles" ? `<text x="18" y="22" font-size="16">✨</text><text x="80" y="48" font-size="13">✨</text><text x="14" y="78" font-size="12">✨</text>` : "")
+      + (L.effect === "hearts" ? `<text x="16" y="26" font-size="15">💕</text><text x="78" y="22" font-size="13">💗</text>` : "")
       + (hat ? `<text x="50" y="24" font-size="30" text-anchor="middle" dominant-baseline="middle">${hat}</text>` : "")
       + (bud ? `<text x="82" y="84" font-size="24" text-anchor="middle" dominant-baseline="middle">${bud}</text>` : "")
       + `</svg>`;

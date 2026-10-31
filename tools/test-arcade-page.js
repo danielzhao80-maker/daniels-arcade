@@ -953,10 +953,12 @@ ok("🎨 every avatar is clickable", av2.classList.contains("custom"));
 av2.click();
 ok("🎨 clicking the Cat opens the avatar maker for the Cat", r.id("avatarVeil").classList.contains("open") && /CAT/.test(r.id("pkTitle").textContent));
 const AP = S0.AVATAR_PARTS;
-ok("🎨 4 things to choose: background, frame, hat, buddy", Object.keys(AP).join() === "bg,frame,hat,buddy" && r.$$("#pkRows .pk-row").length === 4);
+ok("🎨 7 things to choose: colour, pose, background, frame, hat, buddy, effect", Object.keys(AP).join() === "color,pose,bg,frame,hat,buddy,effect" && r.$$("#pkRows .pk-row").length === 7);
 const pick2 = (part, id) => r.$$(`#pkRows [data-pk-part="${part}"]`).find((b) => b.dataset.pk === id).click();
 pick2("bg", "galaxy"); pick2("frame", "rainbow"); pick2("hat", "crown"); pick2("buddy", "star");
-ok("🎨 the Cat's look is saved", JSON.stringify(r.save().avatarCustoms.cat) === JSON.stringify({ bg: "galaxy", frame: "rainbow", hat: "crown", buddy: "star" }));
+pick2("color", "blue"); pick2("pose", "flip"); pick2("effect", "sparkles");
+ok("🎨 the Cat's look is saved", JSON.stringify(r.save().avatarCustoms.cat) === JSON.stringify({ color: "blue", pose: "flip", bg: "galaxy", frame: "rainbow", hat: "crown", buddy: "star", effect: "sparkles" }));
+ok("🎨 the Cat itself is recoloured and flipped", /hue-rotate\(190deg\)/.test(av2.innerHTML) && /scale\(-1 1\)/.test(av2.innerHTML) && /✨/.test(av2.innerHTML));
 ok("🎨 the top bar shows the dressed-up Cat", !!av2.querySelector("svg.custom-av") && /🐱/.test(av2.innerHTML) && /👑/.test(av2.innerHTML) && /⭐/.test(av2.innerHTML) && /#b36bff/.test(av2.innerHTML));
 r.setSave((x) => { x.equipped.avatar = "robot"; }); r.w.dispatchEvent(new r.w.Event("hashchange")); r.adv(0);
 ok("🎨 each avatar keeps its own look (the Robot is still plain)", !av2.querySelector("svg") && /🤖/.test(av2.textContent));
@@ -965,7 +967,7 @@ ok("🎨 dressing the Robot does not change the Cat", r.save().avatarCustoms.rob
 pick2("hat", "none");
 ok("🎨 taking everything off makes it plain again", !av2.querySelector("svg"));
 ok("🎨 nonsense is refused", S0.setAvatarPart("cat", "hat", "banana") === null && S0.setAvatarPart("hw-pumpkinking", "hat", "crown") === null);
-ok("🎨 every avatar can be drawn", S0.SHOP.Avatars.every((a) => /<svg[\s\S]*<\/svg>$|^\S+$/.test(S0.avatarHTML(a.id, { avatarCustoms: { [a.id]: { bg: "fire", frame: "gold", hat: "party", buddy: "zap" } } }))));
+ok("🎨 every avatar can be drawn", S0.SHOP.Avatars.every((a) => /<svg[\s\S]*<\/svg>$|^\S+$/.test(S0.avatarHTML(a.id, { avatarCustoms: { [a.id]: { color: "gold", pose: "tiltl", bg: "fire", frame: "gold", hat: "party", buddy: "zap", effect: "glow" } } }))));
 ok("no errors in the avatar maker: " + r.errs.join(" | "), r.errs.length === 0);
 
 console.log(`\n${pass} checks passed, ${fail} failed`);

@@ -198,41 +198,41 @@ r.go("#play/monster-city");
 r.id("back").click(); r.adv(0);
 ok("◀ Arcade -> home", !r.d.body.classList.contains("playing") && r.id("frame").getAttribute("src") === "about:blank");
 // 🎃 Halloween button (T0 is 17 Oct, so the event is on).
-const hb = r.id("halloweenBtn");
+const hb = r.id("eventBtn");
 ok("🎃 Halloween button shows during the event", hb && hb.style.display === "");
 r.w.localStorage.setItem("monster_attack_candy", "7"); r.w.dispatchEvent(new r.w.Event("focus"));
 ok("it shows Monster Attack!'s candy", /🍬7/.test(hb.textContent));
 hb.click(); r.adv(0);
 const hsrc = r.id("frame").getAttribute("src");
-ok("clicking it opens Monster Attack! on its Halloween menu", r.d.body.classList.contains("playing") && hsrc.startsWith("../monster-city/?arcadeSkins=") && /&open=halloween$/.test(hsrc));
+ok("clicking it opens Monster Attack! on its Halloween menu", r.d.body.classList.contains("playing") && hsrc.startsWith("../monster-city/?arcadeSkins=") && /&open=event$/.test(hsrc));
 r.id("back").click(); r.adv(0);
 r.go("#play/monster-city");
-ok("a normal Monster Attack! visit does not jump to it", !/open=halloween/.test(r.id("frame").getAttribute("src")));
+ok("a normal Monster Attack! visit does not jump to it", !/open=event/.test(r.id("frame").getAttribute("src")));
 hb.click(); r.adv(0);
-ok("and the button works while Monster Attack! is already open", /&open=halloween$/.test(r.id("frame").getAttribute("src")));
+ok("and the button works while Monster Attack! is already open", /&open=event$/.test(r.id("frame").getAttribute("src")));
 r.id("back").click(); r.adv(0);
 r.w.localStorage.setItem("monster_attack_event_force", "off"); r.w.dispatchEvent(new r.w.Event("focus"));
 ok("hidden when the event is off", hb.style.display === "none");
 r.w.localStorage.removeItem("monster_attack_event_force"); r.w.localStorage.removeItem("monster_attack_candy"); r.w.dispatchEvent(new r.w.Event("focus"));
-ok("🎃 the Halloween section shows during the event, with no countdown to its end", r.d.body.classList.contains("halloween") && !/Ends in|Last day/.test(r.id("halloweenBox").textContent));
+ok("🎃 the Halloween section shows during the event, with no countdown to its end", r.d.body.classList.contains("event-on") && !/Ends in|Last day/.test(r.id("eventBox").textContent));
 ok("🎃 bats and pumpkins drift around the page", r.$$(".spooky").length === 5);
 // Pumpkin patch: once a day, 2-10 candy.
 r.w.localStorage.removeItem("arcade_hw_patch"); r.w.localStorage.setItem("monster_attack_candy", "0"); r.w.localStorage.setItem("monster_attack_hw_earned_2026", "0");
 r.w.dispatchEvent(new r.w.Event("focus"));
-const pumpkins = r.$$("#hwPatch button");
+const pumpkins = r.$$("#evPick button");
 ok("🎃 3 pumpkins to pick from", pumpkins.length === 3 && pumpkins.every((b) => !b.disabled));
 pumpkins[1].click();
 const gotC = +r.w.localStorage.getItem("monster_attack_candy");
-ok("🎃 picking one gives 2-10 candy (" + gotC + ")", gotC >= 2 && gotC <= 10 && +r.w.localStorage.getItem("monster_attack_hw_earned_2026") === gotC && /candy/.test(r.id("hwPatchMsg").textContent));
-ok("🎃 then the patch is done for today", r.$$("#hwPatch button").every((b) => b.disabled));
+ok("🎃 picking one gives 2-10 candy (" + gotC + ")", gotC >= 2 && gotC <= 10 && +r.w.localStorage.getItem("monster_attack_hw_earned_2026") === gotC && /candy/.test(r.id("evPickMsg").textContent));
+ok("🎃 then the patch is done for today", r.$$("#evPick button").every((b) => b.disabled));
 pumpkins[0].click();
 ok("🎃 a second pick gives nothing", +r.w.localStorage.getItem("monster_attack_candy") === gotC);
-ok("🎃 the section shows the candy and pass progress", r.id("hwCandy").textContent === "🍬 " + gotC && /Halloween Pass: tier \d+\/50/.test(r.id("hwPassText").textContent));
-r.id("hwOpen").click(); r.adv(0);
-ok("🎃 its button opens Monster Attack!'s Halloween menu", /&open=halloween$/.test(r.id("frame").getAttribute("src")));
+ok("🎃 the section shows the candy and pass progress", r.id("evCur").textContent === "🍬 " + gotC && /Halloween Pass: tier \d+\/50/.test(r.id("evPassText").textContent));
+r.id("evOpen").click(); r.adv(0);
+ok("🎃 its button opens Monster Attack!'s Halloween menu", /&open=event$/.test(r.id("frame").getAttribute("src")));
 r.id("back").click(); r.adv(0);
 r.w.localStorage.setItem("monster_attack_event_force", "off"); r.w.dispatchEvent(new r.w.Event("focus"));
-ok("🎃 the section hides after the event", !r.d.body.classList.contains("halloween"));
+ok("🎃 the section hides after the event", !r.d.body.classList.contains("event-on"));
 // 🎃 The Halloween Pass items are in the shop, secret (the pass gives them; they cannot be bought).
 const hwItems = { Titles: ["hw-sweettooth", "hw-ghosthunter", "hw-night", "pumpkin"], Avatars: ["hw-ghost", "hw-vampire", "hw-pumpkinking"],
                   Backgrounds: ["bg-haunted-night", "bg-graveyard-fog", "bg-pumpkin-moon"], "Gun Skins": ["gun-jack-o-lantern"] };
@@ -240,7 +240,24 @@ ok("🎃 4 titles, 3 avatars, 3 backgrounds and a gun skin for the event, all se
    Object.entries(hwItems).every(([cat, ids]) => ids.every((id) => { const it = S0.SHOP[cat].find((i) => i.id === id); return it && it.secret && /Halloween Pass/.test(it.lockText); })));
 ok("🎃 the avatars have faces and the backgrounds have colours",
    hwItems.Avatars.every((id) => S0.SHOP.Avatars.find((i) => i.id === id).emoji) && hwItems.Backgrounds.every((id) => S0.SHOP.Backgrounds.find((i) => i.id === id).skin.sky));
-ok("🎃 the pass counts 50 tiers, 1000 candy for the last", /tier \d+\/50/.test(r.id("hwPassText").textContent));
+ok("🎃 the pass counts 50 tiers, 1000 candy for the last", /tier \d+\/50/.test(r.id("evPassText").textContent));
+// 🎄 Christmas uses the same section, button and daily pick — with its own look and its own keys.
+r.w.localStorage.setItem("monster_attack_event_force", "christmas"); r.w.localStorage.removeItem("arcade_xm_presents");
+r.w.localStorage.setItem("monster_attack_snowflakes", "0"); r.w.localStorage.setItem("monster_attack_hw_earned_2026", "0");
+r.w.dispatchEvent(new r.w.Event("focus"));
+ok("🎄 Christmas: the button and section switch over", r.id("eventBtnLabel").textContent === "🎄 Christmas" && /CHRISTMAS EVENT/.test(r.id("evTitle").textContent)
+   && /snowflakes/.test(r.id("evCurName").textContent) && r.id("evPickName").textContent === "🎁 Present Pile");
+ok("🎄 Christmas decorations replace the Halloween ones", r.$$(".spooky").map((d) => d.textContent).join("") === "❄️🎄❄️⛄⭐");
+r.$$("#evPick button")[0].click();
+const snow = +r.w.localStorage.getItem("monster_attack_snowflakes");
+ok("🎄 opening a present gives 2-10 snowflakes, not candy (" + snow + ")", snow >= 2 && snow <= 10 && +r.w.localStorage.getItem("monster_attack_xm_earned_2026") === snow
+   && r.w.localStorage.getItem("monster_attack_hw_earned_2026") === "0");
+const xmItems = { Titles: ["xm-helper", "xm-snowballer", "xm-reindeer", "santa"], Avatars: ["xm-penguin", "xm-snowman", "xm-santa"],
+                  Backgrounds: ["bg-snowy-night", "bg-northern-lights", "bg-christmas-eve"], "Gun Skins": ["gun-candy-cane"] };
+ok("🎄 4 titles, 3 avatars, 3 backgrounds and a gun skin for Christmas, all secret, all saying how to get them",
+   Object.entries(xmItems).every(([cat, ids]) => ids.every((id) => { const it = S0.SHOP[cat].find((i) => i.id === id); return it && it.secret && /^Christmas Pass \d+$/.test(it.lockText) && /Christmas Pass tier/.test(S0.howToGet(it)); })));
+ok("🎄 January still counts as last December's event", (() => { const y = (d) => (d.getMonth() === 0 ? d.getFullYear() - 1 : d.getFullYear()); return y(new Date(2027, 0, 5)) === 2026; })());
+r.w.localStorage.removeItem("monster_attack_event_force"); r.w.dispatchEvent(new r.w.Event("focus"));
 r.w.localStorage.removeItem("monster_attack_event_force"); r.w.dispatchEvent(new r.w.Event("focus"));
 ok("no errors after routing: " + r.errs.join(" | "), r.errs.length === 0);
 r = boot({ hash: "#play/Pocket-Dice" });
@@ -611,10 +628,11 @@ setCoins("7"); ok("set coins while ∞ -> normal 7", r.save().coins === 7 && !r.
 A("coins10"); A("coins100"); ok("+10 +100", r.save().coins === 117);
 // 🎃 Halloween & Backrooms admin buttons
 r.w.localStorage.setItem("monster_attack_candy", "5"); r.w.localStorage.removeItem("monster_attack_hw_earned_" + new Date(r.st.now).getFullYear());
-A("candy100"); A("candy1000");
+A("cur100"); A("cur1000");
 ok("admin: +100 and +1000 candy (wallet and pass)", r.w.localStorage.getItem("monster_attack_candy") === "1105"
    && r.w.localStorage.getItem("monster_attack_hw_earned_" + new Date(r.st.now).getFullYear()) === "1100" && /candy/.test(r.toast()));
-A("hwitems");
+A("eventitems");
+ok("admin: every Christmas item too", ["xm-helper", "santa", "xm-santa", "bg-christmas-eve", "gun-candy-cane"].every((id) => r.save().owned.includes(id)));
 ok("admin: every Halloween title, avatar, background and gun skin", ["hw-sweettooth", "hw-ghosthunter", "hw-night", "pumpkin", "hw-ghost", "hw-vampire", "hw-pumpkinking", "bg-haunted-night", "bg-graveyard-fog", "bg-pumpkin-moon", "gun-jack-o-lantern"].every((id) => r.save().owned.includes(id)));
 A("floors");
 ok("admin: all 21 Backrooms floors", r.save().specialMaps.length === 21 && r.save().specialMaps.includes("backrooms") && r.save().specialMaps.includes("brfloor20"));

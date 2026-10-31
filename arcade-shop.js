@@ -52,6 +52,10 @@
       { id: "hw-vampire", name: "Vampire", price: 0, emoji: "🧛", secret: true, lockText: "Halloween Pass 32" },
       // Customisable: drawn from save.avatarCustom (see PUMPKIN_PARTS / avatarHTML) — click it in the arcade top bar.
       { id: "hw-pumpkinking", name: "Pumpkin King (make your own!)", price: 0, emoji: "🎃", custom: "pumpkin", secret: true, lockText: "Halloween Pass 50" },
+      // 🎄 Christmas Pass rewards — tiers 15, 32 and 50.
+      { id: "xm-penguin", name: "Penguin", price: 0, emoji: "🐧", secret: true, lockText: "Christmas Pass 15" },
+      { id: "xm-snowman", name: "Snowman", price: 0, emoji: "⛄", secret: true, lockText: "Christmas Pass 32" },
+      { id: "xm-santa", name: "Santa", price: 0, emoji: "🎅", secret: true, lockText: "Christmas Pass 50" },
     ],
     Titles: [
       { id: "rookie",  name: "Rookie", price: 0 },
@@ -84,6 +88,11 @@
       { id: "hw-ghosthunter", name: "👻 Ghost Hunter", price: 0, secret: true, lockText: "Halloween Pass 20" },
       { id: "hw-night", name: "🦇 Creature of the Night", price: 0, secret: true, lockText: "Halloween Pass 38" },
       { id: "pumpkin", name: "🎃 Pumpkin King", price: 0, secret: true, lockText: "Halloween Pass 50" },
+      // 🎄 Christmas Pass rewards — tiers 8, 20, 38 and 50.
+      { id: "xm-helper", name: "🧝 Santa's Helper", price: 0, secret: true, lockText: "Christmas Pass 8" },
+      { id: "xm-snowballer", name: "⛄ Snowball Champ", price: 0, secret: true, lockText: "Christmas Pass 20" },
+      { id: "xm-reindeer", name: "🦌 Reindeer Rider", price: 0, secret: true, lockText: "Christmas Pass 38" },
+      { id: "santa", name: "🎅 Santa Claus", price: 0, secret: true, lockText: "Christmas Pass 50" },
     ],
   };
 
@@ -170,6 +179,9 @@
     // 🎃 Halloween Pass tier 22: orange shots with a purple trail.
     { id: "gun-jack-o-lantern", name: "Jack-o'-Lantern", price: 0, secret: true, lockText: "Halloween Pass 22",
       skin: { rainbow: false, bullet: "#ff7f00", glow: "#ffd8a8", trail: "#7b2fbe" } },
+    // 🎄 Christmas Pass tier 22: red-and-white shots with a green trail.
+    { id: "gun-candy-cane", name: "Candy Cane", price: 0, secret: true, lockText: "Christmas Pass 22",
+      skin: { rainbow: false, bullet: "#ff3b3b", glow: "#ffffff", trail: "#2ecc71" } },
     // Secret: its shots flick through 5 code colours (see the skin cycler below).
     { id: "gun-codebreaker", name: "Code Breaker", price: 0, secret: true, cycleMs: 900,
       skin: { rainbow: false, bullet: "#00ff88", glow: "#d4ffe8", trail: "#00a85a" },
@@ -204,6 +216,13 @@
       skin: { sky: "#1e2a24", fog: "#4f6a58", ground: "#232b22", light: "#9effc2" } },
     { id: "bg-pumpkin-moon", name: "Pumpkin Moon", price: 0, secret: true, lockText: "Halloween Pass 50",
       skin: { sky: "#ff7a1a", fog: "#5a1a6a", ground: "#140a14", light: "#ffb347" } },
+    // 🎄 Christmas Pass rewards — tiers 12, 28 and 50 (the best: a warm Christmas Eve with snow).
+    { id: "bg-snowy-night", name: "Snowy Night", price: 0, secret: true, lockText: "Christmas Pass 12",
+      skin: { sky: "#1b2a4a", fog: "#c9d8f0", ground: "#eef4ff", light: "#b8d4ff" } },
+    { id: "bg-northern-lights", name: "Northern Lights", price: 0, secret: true, lockText: "Christmas Pass 28",
+      skin: { sky: "#0b2a3a", fog: "#1f8a70", ground: "#dfeef5", light: "#7dffcf" } },
+    { id: "bg-christmas-eve", name: "Christmas Eve", price: 0, secret: true, lockText: "Christmas Pass 50",
+      skin: { sky: "#2a0f1e", fog: "#c0392b", ground: "#f5fbff", light: "#ffd27a" } },
     { id: "bg-everything", name: "Every Background", price: 0, secret: true, cycleMs: 8000,
       skin: { sky: BG_SKINS[0][2], fog: BG_SKINS[0][3], ground: BG_SKINS[0][4], light: BG_SKINS[0][5] },
       cycle: BG_SKINS.map(([, , sky, fog, ground, light]) => ({ sky, fog, ground, light })) },
@@ -303,8 +322,10 @@
   };
   function howToGet(item) {
     if (HOW_TO_GET[item.id]) return HOW_TO_GET[item.id];
-    const hw = /^Halloween Pass (\d+)$/.exec(item.lockText || "");
-    if (hw) return `🎃 Halloween Pass tier ${hw[1]}: collect candy during the Halloween event and claim it in Monster Attack! → 🎃 Halloween.`;
+    const ev = /^(Halloween|Christmas) Pass (\d+)$/.exec(item.lockText || "");
+    if (ev) return ev[1] === "Halloween"
+      ? `🎃 Halloween Pass tier ${ev[2]}: collect candy during the Halloween event and claim it in Monster Attack! → 🎃 Halloween.`
+      : `🎄 Christmas Pass tier ${ev[2]}: collect snowflakes during the Christmas event and claim it in Monster Attack! → 🎄 Christmas.`;
     return item.lockText ? `Unlock: ${item.lockText}.` : "A secret — keep exploring!";
   }
 

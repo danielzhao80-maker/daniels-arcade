@@ -155,14 +155,15 @@
   .bug p { white-space: pre-wrap; overflow-wrap: anywhere; }
   body.is-owner .owner-only { display: block; }
   .freebox { max-width: 760px; margin: 0 auto 30px; }
-  /* 🎃 Halloween (only while the event is on — body.halloween) */
-  #halloweenBox { display: none; }
-  body.halloween #halloweenBox { display: block; }
-  #halloweenBox h3 { color: #ff8c1a; }
-  #halloweenBox .free-card { border-color: #ff8c1a; background: linear-gradient(180deg, rgba(90,26,138,.35), rgba(255,140,26,.10)); }
-  #halloweenBox .big { font-size: 1.8rem; font-weight: 900; color: #ff9ff3; }
-  #halloweenBox .hwbar { width: 100%; height: 10px; border-radius: 6px; background: rgba(255,255,255,.12); overflow: hidden; }
-  #halloweenBox .hwbar i { display: block; height: 100%; width: 0; background: linear-gradient(90deg, #ff8c1a, #ff9ff3); }
+  /* 🎉 Seasonal event (only while one is on — body.event-on); colours come from the event (--ev-*) */
+  #eventBox { display: none; }
+  body.event-on #eventBox { display: block; }
+  #eventBox h3 { color: var(--ev-main, #ff8c1a); }
+  #eventBox .free-card { border-color: var(--ev-main, #ff8c1a); background: linear-gradient(180deg, var(--ev-soft, rgba(90,26,138,.35)), rgba(255,255,255,.04)); }
+  #eventBox .big { font-size: 1.8rem; font-weight: 900; color: var(--ev-cur, #ff9ff3); }
+  #eventBox .hwbar { width: 100%; height: 10px; border-radius: 6px; background: rgba(255,255,255,.12); overflow: hidden; }
+  #eventBox .hwbar i { display: block; height: 100%; width: 0; background: linear-gradient(90deg, var(--ev-main, #ff8c1a), var(--ev-cur, #ff9ff3)); }
+  .ev-btn { background: linear-gradient(180deg, var(--ev-main, #ff8c1a), var(--ev-dark, #d35400)) !important; color: #fff !important; }
   .patch { display: flex; gap: 10px; justify-content: center; }
   .patch button { font-size: 2rem; background: none; border: 2px dashed #ff8c1a; border-radius: 14px; padding: 4px 10px; cursor: pointer; }
   .patch button:disabled { opacity: .45; cursor: default; }
@@ -293,7 +294,7 @@
       <span class="coins">🪙 <span data-coins>0</span></span>
       <div class="next"><small data-next></small><div class="bar"><i data-bar></i></div></div>
     </div>
-    <button class="btn" id="halloweenBtn" title="Monster Attack!'s Halloween event — candy, the Halloween Pass and the Pumpkin King" style="background:linear-gradient(180deg,#ff8c1a,#d35400);color:#fff;">🎃 Halloween<span id="halloweenCandy"></span></button>
+    <button class="btn ev-btn" id="eventBtn" title="Monster Attack!'s seasonal event — its pass, shop and boss"><span id="eventBtnLabel">🎃 Halloween</span><span id="eventCurBadge"></span></button>
     <button class="btn ghost" id="accountBtn" title="Sign up or log in to save your progress">👤 Log in</button>
     <button class="btn ghost" id="bugBtn" title="Found something broken? Report it">🐞 Bug</button>
     <button class="btn" data-open-shop>🛒 Shop</button>
@@ -309,28 +310,28 @@
       </div>
     </header>
 
-    <section class="freebox" id="halloweenBox">
-      <h3>🎃 HALLOWEEN EVENT 🦇</h3>
+    <section class="freebox" id="eventBox">
+      <h3 id="evTitle">🎃 HALLOWEEN EVENT 🦇</h3>
       <div class="free-grid">
         <div class="free-card">
-          <b>🍬 Your candy</b>
-          <div class="big" id="hwCandy">0</div>
-          <small id="hwPassText"></small>
-          <div class="hwbar"><i id="hwPassBar"></i></div>
-          <button class="btn" id="hwOpen" style="background:linear-gradient(180deg,#ff8c1a,#d35400);color:#fff;">🎃 Halloween Pass &amp; shop</button>
-          <small>The pass and candy shop are in Monster Attack!. Candy is shared with it.</small>
+          <b id="evCurName">🍬 Your candy</b>
+          <div class="big" id="evCur">0</div>
+          <small id="evPassText"></small>
+          <div class="hwbar"><i id="evPassBar"></i></div>
+          <button class="btn ev-btn" id="evOpen">🎃 Halloween Pass &amp; shop</button>
+          <small id="evShared"></small>
         </div>
         <div class="free-card">
-          <b>🎮 Play for candy</b>
-          <small>Play <b>any</b> arcade game: <b>🍬 +1 candy every 5 minutes</b>. In Monster Attack! monsters, bosses, waves and trick-or-treat doors give even more.</small>
-          <div class="hwbar"><i id="hwPlayBar"></i></div>
-          <small id="hwPlayText"></small>
+          <b id="evPlayName">🎮 Play for candy</b>
+          <small id="evPlayHow"></small>
+          <div class="hwbar"><i id="evPlayBar"></i></div>
+          <small id="evPlayText"></small>
         </div>
         <div class="free-card">
-          <b>🎃 Pumpkin Patch</b>
-          <small>Once a day, pick a pumpkin — there's 2 to 10 candy inside!</small>
-          <div class="patch" id="hwPatch"><button>🎃</button><button>🎃</button><button>🎃</button></div>
-          <small id="hwPatchMsg"></small>
+          <b id="evPickName">🎃 Pumpkin Patch</b>
+          <small id="evPickHow"></small>
+          <div class="patch" id="evPick"><button>🎃</button><button>🎃</button><button>🎃</button></div>
+          <small id="evPickMsg"></small>
         </div>
       </div>
     </section>
@@ -473,11 +474,11 @@
     <div class="bug-list" id="bugList"></div>
     <div class="admin-row" style="margin-top:8px"><button class="btn ghost" data-admin="clearbugs">🧽 Delete all reports</button></div>
 
-    <h4>🎃 Halloween &amp; Backrooms</h4>
+    <h4>🎉 Events &amp; Backrooms</h4>
     <div class="admin-grid">
-      <button data-admin="candy100">🍬 +100 candy<small>Monster Attack!'s event candy</small></button>
-      <button data-admin="candy1000">🍬 +1000 candy<small>Enough for the whole Halloween Pass</small></button>
-      <button data-admin="hwitems">👻 Halloween items<small>Every event title, avatar, background and gun skin</small></button>
+      <button data-admin="cur100">🎉 +100 event currency<small>Candy / snowflakes for the event that is on (Halloween otherwise)</small></button>
+      <button data-admin="cur1000">🎉 +1000 event currency<small>Enough for a whole event pass</small></button>
+      <button data-admin="eventitems">🎁 All event items<small>Every Halloween and Christmas title, avatar, background and gun skin</small></button>
       <button data-admin="floors">🌀 All Backrooms floors<small>Floors 0–20 in Monster Attack!'s ⭐ Special Maps</small></button>
     </div>
     <p style="opacity:.75;font-size:.8rem;margin:4px 0 0">Tip: in a Monster Attack! game, press <b>U</b> for the same unlocks (like <b>G</b> for God Survival).</p>
@@ -632,7 +633,7 @@
   // ---------------------------------------------------------------- game grid
   // Served by Nullp: games live at /games/<slug>/. Opened as a file: use real paths.
   const viaFile = location.protocol === "file:";
-  // openInGame: a screen to open as the game starts (the 🎃 Halloween button asks Monster Attack! for its event menu).
+  // openInGame: a screen to open as the game starts (the event button asks Monster Attack! for its event menu).
   let openInGame = null;
   const srcFor = (g) => (viaFile ? "../" + g.file : "../" + encodeURIComponent(g.slug) + "/")
     + "?arcadeSkins=" + encodeURIComponent(JSON.stringify(gameSkins(ArcadeShop.load())))
@@ -687,91 +688,113 @@
   }
   window.addEventListener("hashchange", route);
 
-  // 🎃 Halloween — the same dates (and the same force switch) as Monster Attack!'s event, which keeps
-  // its candy in this origin's storage, so the button can show it.
-  function isHalloween(d = new Date()) {
+  // 🎉 Seasonal events — the same dates (and the same force switch, monster_attack_event_force) as
+  // Monster Attack!'s EVENTS, which keep their currency in this origin's storage, so the arcade can
+  // show it and add to it. The arcade only ever ADDS, by read-add-write, and Monster Attack! re-reads
+  // before it changes anything, so neither overwrites the other while the game is open.
+  const EVENTS = {
+    halloween: { id: "halloween", name: "Halloween", emoji: "🎃", side: "🦇", cur: "candy", curEmoji: "🍬",
+      on: (d) => d.getMonth() === 9 || (d.getMonth() === 10 && d.getDate() <= 7), year: (d) => d.getFullYear(),
+      wallet: "monster_attack_candy", earned: "monster_attack_hw_earned_", play: "arcade_hw_play", pick: "arcade_hw_patch",
+      pickName: "🎃 Pumpkin Patch", pickHow: "Once a day, pick a pumpkin — there's 2 to 10 candy inside!", pickEmoji: "🎃", pickVerb: "Pumpkin Patch",
+      giftWord: "trick-or-treat doors", colors: { main: "#ff8c1a", dark: "#d35400", soft: "rgba(90,26,138,.35)", cur: "#ff9ff3" },
+      decor: [["🦇", "6%", "18%"], ["🎃", "90%", "26%"], ["🦇", "84%", "62%"], ["👻", "4%", "70%"], ["🕸️", "94%", "88%"]] },
+    christmas: { id: "christmas", name: "Christmas", emoji: "🎄", side: "⛄", cur: "snowflakes", curEmoji: "❄️",
+      on: (d) => d.getMonth() === 11 || (d.getMonth() === 0 && d.getDate() <= 7), year: (d) => d.getMonth() === 0 ? d.getFullYear() - 1 : d.getFullYear(),
+      wallet: "monster_attack_snowflakes", earned: "monster_attack_xm_earned_", play: "arcade_xm_play", pick: "arcade_xm_presents",
+      pickName: "🎁 Present Pile", pickHow: "Once a day, open a present — there's 2 to 10 snowflakes inside!", pickEmoji: "🎁", pickVerb: "Present Pile",
+      giftWord: "presents", colors: { main: "#e74c3c", dark: "#a93226", soft: "rgba(20,90,50,.40)", cur: "#9fe3ff" },
+      decor: [["❄️", "6%", "18%"], ["🎄", "90%", "26%"], ["❄️", "84%", "62%"], ["⛄", "4%", "70%"], ["⭐", "94%", "88%"]] },
+  };
+  function activeEvent(d = new Date()) {
     try {
       const f = localStorage.getItem("monster_attack_event_force");
-      if (f === "halloween") return true;
-      if (f === "off") return false;
+      if (f === "off") return null;
+      if (f && EVENTS[f]) return EVENTS[f];
     } catch {}
-    return d.getMonth() === 9 || (d.getMonth() === 10 && d.getDate() <= 7);
+    return Object.values(EVENTS).find((e) => e.on(d)) || null;
   }
-  // Candy lives in Monster Attack!'s keys (same origin): `monster_attack_candy` is the wallet and
-  // `monster_attack_hw_earned_<year>` fills the Halloween Pass. The arcade only ever ADDS candy, by
-  // read-add-write, and Monster Attack! re-reads both before it changes them, so neither overwrites
-  // the other while the game is open.
-  const HW = { CANDY: "monster_attack_candy", earned: () => "monster_attack_hw_earned_" + new Date().getFullYear(),
-               PLAY: "arcade_hw_play", PATCH: "arcade_hw_patch", PER_CANDY: 300, PASS_TOP: 1000,
-               // The 50 Halloween Pass tiers — same formula as Monster Attack!'s HW_PASS (10n + n²/5).
+  const EV = { PER: 300, PASS_TOP: 1000,
+               // The 50 pass tiers — same formula as Monster Attack!'s makePass (10n + n²/5).
                PASS: Array.from({ length: 50 }, (_, i) => 10 * (i + 1) + Math.floor((i + 1) * (i + 1) / 5)) };
-  const hwNum = (k) => { try { return Math.max(0, parseInt(localStorage.getItem(k)) || 0); } catch { return 0; } };
-  function addCandy(n) {
+  const evNum = (k) => { try { return Math.max(0, parseInt(localStorage.getItem(k)) || 0); } catch { return 0; } };
+  const earnedKey = (ev) => ev.earned + ev.year(new Date());
+  function addEventCur(n, ev = activeEvent()) {
+    if (!ev) return;
     try {
-      localStorage.setItem(HW.CANDY, String(hwNum(HW.CANDY) + n));
-      localStorage.setItem(HW.earned(), String(hwNum(HW.earned()) + n));
+      localStorage.setItem(ev.wallet, String(evNum(ev.wallet) + n));
+      localStorage.setItem(earnedKey(ev), String(evNum(earnedKey(ev)) + n));
     } catch {}
-    renderHalloweenBtn();
+    renderEvent();
   }
-  const hwToday = () => new Date().toISOString().slice(0, 10);
-  function renderHalloweenBtn() {
-    const on = isHalloween();
-    document.body.classList.toggle("halloween", on);
-    $("halloweenBtn").style.display = on ? "" : "none";   // (a .btn rule would beat the hidden attribute)
-    const candy = hwNum(HW.CANDY), earned = hwNum(HW.earned());
-    $("halloweenCandy").textContent = candy > 0 ? ` 🍬${candy}` : "";
-    if (!on) return;
+  const evToday = () => new Date().toISOString().slice(0, 10);
+  let decorFor = null;
+  function renderEvent() {
+    const ev = activeEvent();
+    document.body.classList.toggle("event-on", !!ev);
+    $("eventBtn").style.display = ev ? "" : "none";   // (a .btn rule would beat the hidden attribute)
+    if (decorFor !== (ev && ev.id)) {   // swap the drifting decorations when the event changes
+      document.querySelectorAll(".spooky").forEach((d) => d.remove());
+      decorFor = ev && ev.id;
+      if (ev) ev.decor.forEach(([e, x, y], i) => {
+        const d = document.createElement("div");
+        d.className = "spooky"; d.textContent = e; d.style.left = x; d.style.top = y; d.style.animationDelay = (-i * 3) + "s";
+        document.body.appendChild(d);
+      });
+    }
+    if (!ev) return;
+    for (const [k, v] of Object.entries(ev.colors)) document.documentElement.style.setProperty("--ev-" + k, v);
+    const cur = evNum(ev.wallet), earned = evNum(earnedKey(ev)), Cur = ev.cur[0].toUpperCase() + ev.cur.slice(1);
+    $("eventBtnLabel").textContent = `${ev.emoji} ${ev.name}`;
+    $("eventCurBadge").textContent = cur > 0 ? ` ${ev.curEmoji}${cur}` : "";
     // (no "ends in N days" countdown — asked for)
-    $("hwCandy").textContent = "🍬 " + candy;
-    const next = HW.PASS.find((t) => earned < t);
-    const tier = HW.PASS.filter((t) => earned >= t).length;
-    $("hwPassText").textContent = `Halloween Pass: tier ${tier}/50 · ${earned} candy` + (next ? ` · next at ${next}` : " · all unlocked!") + " — the best rewards are at tier 50!";
-    $("hwPassBar").style.width = Math.min(100, earned / HW.PASS_TOP * 100) + "%";
-    const p = hwNum(HW.PLAY);
-    $("hwPlayBar").style.width = (p / HW.PER_CANDY * 100) + "%";
-    $("hwPlayText").textContent = `Next candy in ${Math.ceil((HW.PER_CANDY - p) / 60)} min of play`;
-    const picked = (() => { try { return localStorage.getItem(HW.PATCH) === hwToday(); } catch { return true; } })();
-    $("hwPatch").querySelectorAll("button").forEach((b) => (b.disabled = picked));
-    if (picked && !$("hwPatchMsg").textContent) $("hwPatchMsg").textContent = "Picked today — come back tomorrow!";
+    $("evTitle").textContent = `${ev.emoji} ${ev.name.toUpperCase()} EVENT ${ev.side}`;
+    $("evCurName").textContent = `${ev.curEmoji} Your ${ev.cur}`;
+    $("evCur").textContent = `${ev.curEmoji} ${cur}`;
+    const next = EV.PASS.find((t) => earned < t), tier = EV.PASS.filter((t) => earned >= t).length;
+    $("evPassText").textContent = `${ev.name} Pass: tier ${tier}/50 · ${earned} ${ev.cur}` + (next ? ` · next at ${next}` : " · all unlocked!") + " — the best rewards are at tier 50!";
+    $("evPassBar").style.width = Math.min(100, earned / EV.PASS_TOP * 100) + "%";
+    $("evOpen").textContent = `${ev.emoji} ${ev.name} Pass & shop`;
+    $("evShared").textContent = `The pass and shop are in Monster Attack!. ${Cur} are shared with it.`;
+    $("evPlayName").textContent = `🎮 Play for ${ev.cur}`;
+    $("evPlayHow").innerHTML = `Play <b>any</b> arcade game: <b>${ev.curEmoji} +1 every 5 minutes</b>. In Monster Attack! monsters, bosses, waves and ${ev.giftWord} give even more.`;
+    const p = evNum(ev.play);
+    $("evPlayBar").style.width = (p / EV.PER * 100) + "%";
+    $("evPlayText").textContent = `Next ${ev.curEmoji} in ${Math.ceil((EV.PER - p) / 60)} min of play`;
+    $("evPickName").textContent = ev.pickName;
+    $("evPickHow").textContent = ev.pickHow;
+    const picked = (() => { try { return localStorage.getItem(ev.pick) === evToday(); } catch { return true; } })();
+    $("evPick").querySelectorAll("button").forEach((b) => { b.disabled = picked; if (!picked) b.textContent = ev.pickEmoji; });
+    if (picked && !$("evPickMsg").textContent) $("evPickMsg").textContent = "Done today — come back tomorrow!";
   }
   // One second of real play (called from the play-time ticker below).
-  function hwPlaySecond() {
-    if (!isHalloween()) return;
-    let p = hwNum(HW.PLAY) + 1;
-    if (p >= HW.PER_CANDY) { p = 0; addCandy(1); toast("🍬 +1 candy! 5 minutes played"); }
-    try { localStorage.setItem(HW.PLAY, String(p)); } catch {}
+  function evPlaySecond() {
+    const ev = activeEvent(); if (!ev) return;
+    let p = evNum(ev.play) + 1;
+    if (p >= EV.PER) { p = 0; addEventCur(1, ev); toast(`${ev.curEmoji} +1 ${ev.cur === "candy" ? "candy" : ev.cur.replace(/s$/, "")}! 5 minutes played`); }
+    try { localStorage.setItem(ev.play, String(p)); } catch {}
   }
-  $("hwPatch").addEventListener("click", (e) => {
-    const b = e.target.closest("button");
-    if (!b || b.disabled || !isHalloween()) return;
-    try { if (localStorage.getItem(HW.PATCH) === hwToday()) return; localStorage.setItem(HW.PATCH, hwToday()); } catch { return; }
+  $("evPick").addEventListener("click", (e) => {
+    const b = e.target.closest("button"), ev = activeEvent();
+    if (!b || b.disabled || !ev) return;
+    try { if (localStorage.getItem(ev.pick) === evToday()) return; localStorage.setItem(ev.pick, evToday()); } catch { return; }
     const n = 2 + Math.floor(Math.random() * 9);
-    addCandy(n);
-    b.textContent = "🍬";
-    $("hwPatchMsg").textContent = `🎃 +${n} candy!`;
-    toast(`🎃 Pumpkin Patch: +${n} candy!`);
-    renderHalloweenBtn();
+    addEventCur(n, ev);
+    b.textContent = ev.curEmoji;
+    $("evPickMsg").textContent = `${ev.emoji} +${n} ${ev.cur}!`;
+    toast(`${ev.emoji} ${ev.pickVerb}: +${n} ${ev.cur}!`);
+    renderEvent();
   });
-  // A few bats and pumpkins drifting at the edges of the page.
-  function spookyDecor() {
-    if (!isHalloween() || document.querySelector(".spooky")) return;
-    [["🦇", "6%", "18%"], ["🎃", "90%", "26%"], ["🦇", "84%", "62%"], ["👻", "4%", "70%"], ["🕸️", "94%", "88%"]].forEach(([e, x, y], i) => {
-      const d = document.createElement("div");
-      d.className = "spooky"; d.textContent = e; d.style.left = x; d.style.top = y; d.style.animationDelay = (-i * 3) + "s";
-      document.body.appendChild(d);
-    });
-  }
-  const goHalloween = () => {
-    openInGame = { slug: "monster-city", screen: "halloween" };
+  const goEvent = () => {
+    openInGame = { slug: "monster-city", screen: "event" };
     if (location.hash === "#play/monster-city") { playing = null; route(); }
     else location.hash = "#play/monster-city";
   };
-  $("halloweenBtn").onclick = goHalloween;
-  $("hwOpen").onclick = goHalloween;
-  spookyDecor();
-  renderHalloweenBtn();
-  window.addEventListener("focus", renderHalloweenBtn);
-  window.addEventListener("hashchange", renderHalloweenBtn);
+  $("eventBtn").onclick = goEvent;
+  $("evOpen").onclick = goEvent;
+  renderEvent();
+  window.addEventListener("focus", renderEvent);
+  window.addEventListener("hashchange", renderEvent);
   $("back").onclick = () => { location.hash = ""; };
   $("full").onclick = () => $("frame").requestFullscreen?.();
 
@@ -802,7 +825,7 @@
       if (playing) { save = ArcadeShop.load(); renderWallet(); }
       return;
     }
-    hwPlaySecond();   // 🎃 candy for play time while Halloween is on
+    evPlaySecond();   // 🎉 event currency for play time while an event is on
     let earned = false;
     save = ArcadeShop.update((sv) => {
       sv.total++;
@@ -1327,12 +1350,14 @@
         case "maxab": for (const a of ArcadeShop.ABILITIES) sv.abilities[a.id] = a.secret ? 1 : ArcadeShop.ABILITY_MAX; msg.t = "⚡ All abilities maxed"; break;
         case "clearab": sv.abilities = {}; sv.active = {}; msg.t = "🧽 All abilities cleared"; break;
         case "time": sv.total += 3600; msg.t = "⏱ +1 hour of play time"; break;
-        // 🎃 Candy lives in Monster Attack!'s keys, not the arcade save (see addCandy).
-        case "candy100": addCandy(100); msg.t = "🍬 +100 candy"; break;
-        case "candy1000": addCandy(1000); msg.t = "🍬 +1000 candy"; break;
-        case "hwitems": {
-          const hw = Object.values(SHOP).flat().filter((i) => /^Halloween Pass/.test(i.lockText || ""));
-          sv.owned = [...new Set([...sv.owned, ...hw.map((i) => i.id)])]; msg.t = `👻 ${hw.length} Halloween items unlocked`; break;
+        // 🎉 Event currency lives in Monster Attack!'s keys, not the arcade save (see addEventCur).
+        case "cur100": case "cur1000": {
+          const ev = activeEvent() || EVENTS.halloween, n = act === "cur100" ? 100 : 1000;
+          addEventCur(n, ev); msg.t = `${ev.curEmoji} +${n} ${ev.cur}`; break;
+        }
+        case "eventitems": {
+          const items = Object.values(SHOP).flat().filter((i) => /^(Halloween|Christmas) Pass/.test(i.lockText || ""));
+          sv.owned = [...new Set([...sv.owned, ...items.map((i) => i.id)])]; msg.t = `🎁 ${items.length} event items unlocked`; break;
         }
         case "floors": {
           const floors = ["backrooms", "backrooms2", ...Array.from({ length: 19 }, (_, i) => "brfloor" + (i + 2))];

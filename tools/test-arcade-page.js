@@ -925,14 +925,12 @@ ok("no errors: " + r.errs.join(" | "), r.errs.length === 0);
 // ---------------------------------------------------------------- 🎃 custom Pumpkin King avatar
 r = boot({ seed: { [KEY]: withDefaults({ owned: [...DEFAULT_OWNED, "hw-pumpkinking"], equipped: { avatar: "smile" } }) } });
 const av = r.$("[data-avatar]");
-ok("🎃 a normal avatar is just its emoji", av.textContent === "🙂" || av.textContent.length <= 4);
-av.click();
-ok("🎃 clicking a normal avatar opens nothing", !r.id("pumpkinVeil").classList.contains("open"));
+ok("an untouched avatar is just its emoji", !av.querySelector("svg") && av.textContent.length <= 4);
 r.setSave((x) => { x.equipped.avatar = "hw-pumpkinking"; }); r.w.dispatchEvent(new r.w.Event("hashchange")); r.adv(0);
 ok("🎃 the Pumpkin King avatar is drawn as a picture", !!av.querySelector("svg.pumpkin-av") && av.classList.contains("custom"));
 ok("🎃 default look: orange, candle glow, happy", av.innerHTML.includes("#ff7a1a") && av.innerHTML.includes("#ffd23a"));
 av.click();
-ok("🎃 clicking it opens the pumpkin maker", r.id("pumpkinVeil").classList.contains("open") && !!r.id("pkPreview").querySelector("svg"));
+ok("🎃 clicking it opens the pumpkin maker", r.id("avatarVeil").classList.contains("open") && !!r.id("pkPreview").querySelector("svg"));
 const parts = S0.PUMPKIN_PARTS;
 ok("🎃 5 things to choose: colour, glow, face, hat, buddy", Object.keys(parts).join() === "color,glow,face,hat,extra"
    && r.$$("#pkRows .pk-row").length === 5 && r.$$("#pkRows [data-pk]").length === Object.values(parts).reduce((a, p) => a + p.length, 0));
@@ -947,6 +945,28 @@ ok("🎃 an unknown choice is refused", S0.setAvatarCustom("color", "rainbow-uni
 r = boot({ seed: { [KEY]: JSON.parse(r.w.localStorage.getItem(KEY)) } });
 ok("🎃 it is still your pumpkin after a reload", r.$("[data-avatar]").innerHTML.includes("#8e44ad") && r.$("[data-avatar]").innerHTML.includes("🦇"));
 ok("no errors in the pumpkin maker: " + r.errs.join(" | "), r.errs.length === 0);
+
+// ---------------------------------------------------------------- 🎨 every other avatar can be customised too
+r = boot({ seed: { [KEY]: withDefaults({ owned: [...DEFAULT_OWNED, "cat", "robot"], equipped: { avatar: "cat" } }) } });
+const av2 = r.$("[data-avatar]");
+ok("🎨 every avatar is clickable", av2.classList.contains("custom"));
+av2.click();
+ok("🎨 clicking the Cat opens the avatar maker for the Cat", r.id("avatarVeil").classList.contains("open") && /CAT/.test(r.id("pkTitle").textContent));
+const AP = S0.AVATAR_PARTS;
+ok("🎨 4 things to choose: background, frame, hat, buddy", Object.keys(AP).join() === "bg,frame,hat,buddy" && r.$$("#pkRows .pk-row").length === 4);
+const pick2 = (part, id) => r.$$(`#pkRows [data-pk-part="${part}"]`).find((b) => b.dataset.pk === id).click();
+pick2("bg", "galaxy"); pick2("frame", "rainbow"); pick2("hat", "crown"); pick2("buddy", "star");
+ok("🎨 the Cat's look is saved", JSON.stringify(r.save().avatarCustoms.cat) === JSON.stringify({ bg: "galaxy", frame: "rainbow", hat: "crown", buddy: "star" }));
+ok("🎨 the top bar shows the dressed-up Cat", !!av2.querySelector("svg.custom-av") && /🐱/.test(av2.innerHTML) && /👑/.test(av2.innerHTML) && /⭐/.test(av2.innerHTML) && /#b36bff/.test(av2.innerHTML));
+r.setSave((x) => { x.equipped.avatar = "robot"; }); r.w.dispatchEvent(new r.w.Event("hashchange")); r.adv(0);
+ok("🎨 each avatar keeps its own look (the Robot is still plain)", !av2.querySelector("svg") && /🤖/.test(av2.textContent));
+av2.click(); pick2("hat", "tophat");
+ok("🎨 dressing the Robot does not change the Cat", r.save().avatarCustoms.robot.hat === "tophat" && r.save().avatarCustoms.cat.hat === "crown");
+pick2("hat", "none");
+ok("🎨 taking everything off makes it plain again", !av2.querySelector("svg"));
+ok("🎨 nonsense is refused", S0.setAvatarPart("cat", "hat", "banana") === null && S0.setAvatarPart("hw-pumpkinking", "hat", "crown") === null);
+ok("🎨 every avatar can be drawn", S0.SHOP.Avatars.every((a) => /<svg[\s\S]*<\/svg>$|^\S+$/.test(S0.avatarHTML(a.id, { avatarCustoms: { [a.id]: { bg: "fire", frame: "gold", hat: "party", buddy: "zap" } } }))));
+ok("no errors in the avatar maker: " + r.errs.join(" | "), r.errs.length === 0);
 
 console.log(`\n${pass} checks passed, ${fail} failed`);
 console.log(fail ? `ARCADE PAGE FAIL (${fail})` : "ARCADE PAGE PASS");

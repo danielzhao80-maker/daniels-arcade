@@ -334,10 +334,57 @@
       + `<ellipse cx="50" cy="58" rx="26" ry="32" fill="${body}"/><ellipse cx="42" cy="44" rx="6" ry="12" fill="#fff" opacity=".18"/>`
       + (faces[L.face] || faces.happy) + (hats[L.hat] || hats.none) + ex + `</svg>`;   // "none", horns and halo keep the stem
   }
-  /** What to put inside an avatar box: the picture for a custom avatar, otherwise its emoji. */
+  // Every OTHER avatar can be dressed up too: a background, a frame, a hat and a buddy around its
+  // own face. Each avatar keeps its own look (save.avatarCustoms[id]).
+  const AVATAR_PARTS = {
+    bg:    [["none", "None"], ["sunset", "🌅 Sunset", ["#ff9a5a", "#ff4a8a"]], ["ocean", "🌊 Ocean", ["#4ae3ff", "#2a6fd6"]],
+            ["forest", "🌲 Forest", ["#7dff4a", "#2e7d32"]], ["galaxy", "🌌 Galaxy", ["#b36bff", "#14082e"]],
+            ["candy", "🍭 Candy", ["#ffb3e6", "#a0e7ff"]], ["fire", "🔥 Fire", ["#ffd24a", "#d63031"]], ["gold", "🏆 Gold", ["#fff3b0", "#c98a00"]]],
+    frame: [["none", "None"], ["white", "⚪ White", "#ffffff"], ["gold", "🟡 Gold", "#f1c40f"], ["neon", "💚 Neon", "#39ff14"],
+            ["red", "🔴 Red", "#ff2d55"], ["rainbow", "🌈 Rainbow", "rainbow"]],
+    hat:   [["none", "None"], ["crown", "👑 Crown", "👑"], ["tophat", "🎩 Top hat", "🎩"], ["cap", "🧢 Cap", "🧢"],
+            ["grad", "🎓 Grad cap", "🎓"], ["party", "🥳 Party", "🎉"], ["helmet", "⛑️ Helmet", "⛑️"], ["bow", "🎀 Bow", "🎀"]],
+    buddy: [["none", "None"], ["star", "⭐ Star", "⭐"], ["heart", "❤️ Heart", "❤️"], ["fire", "🔥 Fire", "🔥"], ["zap", "⚡ Zap", "⚡"],
+            ["gem", "💎 Gem", "💎"], ["paw", "🐾 Paw", "🐾"], ["bat", "🦇 Bat", "🦇"]],
+  };
+  function avatarLook(save, id) {
+    const c = (save && save.avatarCustoms && save.avatarCustoms[id]) || {};
+    const out = {};
+    for (const k of Object.keys(AVATAR_PARTS)) out[k] = AVATAR_PARTS[k].some((p) => p[0] === c[k]) ? c[k] : "none";
+    return out;
+  }
+  const _apart = (k, id) => AVATAR_PARTS[k].find((p) => p[0] === id) || AVATAR_PARTS[k][0];
+  /** An <svg> of an emoji avatar dressed in these parts. */
+  function avatarSVG(emoji, look) {
+    const L = Object.assign({ bg: "none", frame: "none", hat: "none", buddy: "none" }, look || {});
+    const uid = "av" + Math.random().toString(36).slice(2, 8);
+    const bg = _apart("bg", L.bg)[2], fr = _apart("frame", L.frame)[2], hat = _apart("hat", L.hat)[2], bud = _apart("buddy", L.buddy)[2];
+    let defs = "";
+    if (bg) defs += `<radialGradient id="${uid}b" cx="50%" cy="40%" r="70%"><stop offset="0" stop-color="${bg[0]}"/><stop offset="1" stop-color="${bg[1]}"/></radialGradient>`;
+    if (fr === "rainbow") defs += `<linearGradient id="${uid}f" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#ff2d55"/><stop offset=".25" stop-color="#ffd24a"/><stop offset=".5" stop-color="#7dff4a"/><stop offset=".75" stop-color="#4ae3ff"/><stop offset="1" stop-color="#b36bff"/></linearGradient>`;
+    return `<svg class="custom-av" viewBox="0 0 100 100" width="100%" height="100%" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Avatar">`
+      + (defs ? `<defs>${defs}</defs>` : "")
+      + (bg ? `<rect x="4" y="4" width="92" height="92" rx="24" fill="url(#${uid}b)"/>` : "")
+      + (fr ? `<rect x="5" y="5" width="90" height="90" rx="24" fill="none" stroke="${fr === "rainbow" ? `url(#${uid}f)` : fr}" stroke-width="7"/>` : "")
+      + `<text x="50" y="${hat ? 70 : 66}" font-size="${hat ? 50 : 56}" text-anchor="middle" dominant-baseline="middle">${emoji}</text>`
+      + (hat ? `<text x="50" y="24" font-size="30" text-anchor="middle" dominant-baseline="middle">${hat}</text>` : "")
+      + (bud ? `<text x="82" y="84" font-size="24" text-anchor="middle" dominant-baseline="middle">${bud}</text>` : "")
+      + `</svg>`;
+  }
+  /** What to put inside an avatar box: the pumpkin picture, a dressed-up avatar, or (untouched) just its emoji. */
   function avatarHTML(id, save) {
     const it = find("Avatars", id);
-    return it.custom === "pumpkin" ? pumpkinSVG(pumpkinLook(save)) : it.emoji;
+    if (it.custom === "pumpkin") return pumpkinSVG(pumpkinLook(save));
+    const look = avatarLook(save, it.id);
+    return Object.values(look).every((v) => v === "none") ? it.emoji : avatarSVG(it.emoji, look);
+  }
+  function setAvatarPart(id, part, value) {
+    if (!AVATAR_PARTS[part] || !AVATAR_PARTS[part].some((p) => p[0] === value)) return null;
+    if (find("Avatars", id).id !== id || find("Avatars", id).custom) return null;
+    return update((s) => {
+      s.avatarCustoms = s.avatarCustoms || {};
+      s.avatarCustoms[id] = Object.assign(avatarLook(s, id), { [part]: value });
+    });
   }
   function setAvatarCustom(part, id) {
     if (!PUMPKIN_PARTS[part] || !PUMPKIN_PARTS[part].some((p) => p[0] === id)) return null;
@@ -609,7 +656,7 @@
       const v = item.vars;
       return `<div class="as-sw" style="background:linear-gradient(135deg, ${v.glow1}, ${v.bg} 60%, ${v.glow2});border:2px solid ${v.accent}"></div>`;
     }
-    if (cat === "Avatars") return `<div class="as-sw">${item.custom === "pumpkin" ? pumpkinSVG(pumpkinLook(load())) : item.emoji}</div>`;
+    if (cat === "Avatars") return `<div class="as-sw">${avatarHTML(item.id, load())}</div>`;
     return `<div class="as-sw" style="font-size:.85rem;font-weight:900;color:var(--as-coin)">${esc(item.name)}</div>`;
   }
 
@@ -958,6 +1005,7 @@
     SHOP, SLOT, SKIN_TABS, SECONDS_PER_COIN, RAINBOW,
     find, load, update, gameSkins, shareSkins, open, close, toast, registerCurrency,
     PUMPKIN_PARTS, pumpkinLook, pumpkinSVG, avatarHTML, setAvatarCustom,
+    AVATAR_PARTS, avatarLook, avatarSVG, setAvatarPart,
     ABILITIES, ABILITY_TAB, ABILITY_MAX, abilityLevel, abilityValue,
     setGame: (g) => {
       currentGame = g;

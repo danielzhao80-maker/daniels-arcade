@@ -283,6 +283,31 @@
   const effectText = (a, level) => (a.secret ? a.text : a.text.replace("{v}", level * a.step));
   const find = (cat, id) => SHOP[cat].find((i) => i.id === id) || SHOP[cat][0];
 
+  // How to get each item you cannot buy — shown on its card in the shop, so a locked item never
+  // leaves you guessing. Halloween Pass items are worked out from their lockText.
+  const ALL_CODES = "Find all 30 codes (type them in 🛒 Shop → 🎁 Codes). Finding every one gives the whole 🕵️ Secret Agent pack.";
+  const OWNER_ONLY = "Only the arcade's Owner has this.";
+  const ADMIN = "Finish the Hard, Medium and Easy quests to open the 🛠️ Admin Panel, then turn it on there. (The quests hide in the bottom-left corner of 🛒 Shop → 🎁 Codes.)";
+  const MEDIUM = "Finish the Medium Quest: find the invisible secret near where you start in Monster Attack!'s 🔮 Astral Temple world.";
+  const HOW_TO_GET = {
+    royal: OWNER_ONLY, royalcrown: OWNER_ONLY, owner: OWNER_ONLY,
+    agent: ALL_CODES, "gun-codebreaker": ALL_CODES, "ab-agent": ALL_CODES, "bg-everything": ALL_CODES,
+    oracle: MEDIUM, astral: MEDIUM, admin: ADMIN, vip: ADMIN,
+    f2p: "Own every 🆓 FREE item in the shop — it unlocks by itself.",
+    dedicated: "Play for 10 hours in the arcade (see 🏅 Milestones on the home page).",
+    veteran: "Play for 24 hours in the arcade (see 🏅 Milestones on the home page).",
+    revenge: "Get killed by the ☠️ Reaper boss in Monster Attack!, then beat the Reaper in your very next match.",
+    champion: "Win Buckshot Roulette 10 times in a row, then wear the Shadow gun skin.",
+    comeback: "Win a REBUILD battle after your base has dropped to 1 HP.",
+    dimension: "In Buckshot Roulette (offline), shoot the snow globe on the shelf with a live shell.",
+  };
+  function howToGet(item) {
+    if (HOW_TO_GET[item.id]) return HOW_TO_GET[item.id];
+    const hw = /^Halloween Pass (\d+)$/.exec(item.lockText || "");
+    if (hw) return `🎃 Halloween Pass tier ${hw[1]}: collect candy during the Halloween event (1 Oct – 7 Nov) and claim it in Monster Attack! → 🎃 Halloween.`;
+    return item.lockText ? `Unlock: ${item.lockText}.` : "A secret — keep exploring!";
+  }
+
   // ---------------------------------------------------------------- custom avatar
   // The Pumpkin King avatar is built from parts the player picks (save.avatarCustom). Each part is a
   // list of [id, label, value]; the first of each is the default.
@@ -584,6 +609,8 @@
   .as-item{background:var(--as-card);border:1px solid var(--as-line);border-radius:16px;padding:12px;display:flex;flex-direction:column;align-items:center;gap:8px;text-align:center}
   .as-item.on{border-color:var(--as-coin);box-shadow:0 0 0 1px var(--as-coin) inset}
   .as-item b{font-weight:900;font-size:.95rem}
+  .as-how{font-size:.72rem;line-height:1.3;opacity:.85;color:var(--as-coin)}
+  .as-how b{font-size:.72rem;font-weight:900}
   .as-sw{width:100%;height:54px;border-radius:10px;display:grid;place-items:center;font-size:2rem;background:var(--as-bg2);position:relative}
   .as-sw.gun{display:flex;align-items:center;justify-content:center;gap:6px;font-size:1.6rem}
   .as-sw.gun i{width:56px;height:6px;border-radius:999px;background:var(--b);box-shadow:0 0 10px var(--g)}
@@ -905,7 +932,7 @@
         const on = save.equipped[slot] === item.id;
         const action = on ? `<button class="as-now" disabled>✓ Using</button>`
           : owned ? `<button class="as-use" data-use="${item.id}">Use</button>`
-          : item.secret ? `<button class="as-buy" disabled>🔒 ${esc(item.lockText || "All codes")}</button>`
+          : item.secret ? `<small class="as-how"><b>How to get it:</b> ${esc(howToGet(item))}</small><button class="as-buy" disabled>🔒 Locked</button>`
           : `<button class="as-buy" data-buy="${item.id}" ${save.coins < priceOf(item, save) ? "disabled" : ""}>${priceOf(item, save) === 0 ? "🆓 FREE" : "🪙 " + priceOf(item, save)}</button>`;
         return `<div class="as-item ${on ? "on" : ""}">${preview(tab, item)}<b>${esc(item.name)}</b>${action}</div>`;
       }).join("");
@@ -1016,7 +1043,7 @@
   window.ArcadeShop = {
     SHOP, SLOT, SKIN_TABS, SECONDS_PER_COIN, RAINBOW,
     find, load, update, gameSkins, shareSkins, open, close, toast, registerCurrency,
-    PUMPKIN_PARTS, pumpkinLook, pumpkinSVG, avatarHTML, setAvatarCustom,
+    howToGet, PUMPKIN_PARTS, pumpkinLook, pumpkinSVG, avatarHTML, setAvatarCustom,
     AVATAR_PARTS, avatarLook, avatarSVG, setAvatarPart,
     ABILITIES, ABILITY_TAB, ABILITY_MAX, abilityLevel, abilityValue,
     setGame: (g) => {

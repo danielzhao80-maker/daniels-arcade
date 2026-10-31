@@ -333,7 +333,7 @@ ok("arcade shop tabs (no trade tab)", JSON.stringify(r.tabs()) === JSON.stringif
 const expectBtn = (it, sv, slot) => {
   if (sv.equipped && sv.equipped[slot] === it.id) return "✓ Using";
   if ((sv.owned || DEFAULT_OWNED).includes(it.id)) return "Use";
-  if (it.secret) return "🔒 " + (it.lockText || "All codes");
+  if (it.secret) return "🔒 Locked";
   return bump(it.price) === 0 ? "🆓 FREE" : "🪙 " + bump(it.price);
 };
 for (const t of ARC_TABS) {
@@ -344,6 +344,12 @@ for (const t of ARC_TABS) {
     const bad = S0.SHOP[t].filter((it) => r.itemBtn(it.name).textContent !== expectBtn(it, sv, S0.SLOT[t]));
     ok(`${t}: every button/price (+5%) right ${bad.map((b) => b.id + "=" + r.itemBtn(b.name).textContent).join(",")}`, bad.length === 0);
     ok(`${t}: secret items locked`, S0.SHOP[t].filter((i) => i.secret).every((i) => r.itemBtn(i.name).disabled));
+    // Every locked item says how to get it — a real sentence, not just "Locked".
+    const noHow = S0.SHOP[t].filter((i) => i.secret && !(sv.owned || DEFAULT_OWNED).includes(i.id)).filter((i) => {
+      const card = r.itemBtn(i.name).closest(".as-item"), how = card && card.querySelector(".as-how");
+      return !how || how.textContent.length < 30 || /secret — keep exploring/.test(how.textContent);
+    });
+    ok(`${t}: every locked item says how to get it ${noHow.map((i) => i.id).join(",")}`, noHow.length === 0);
   }
 }
 r.tab("⚡ Abilities");

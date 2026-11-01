@@ -1,4 +1,6 @@
 .DS_Store
 node_modules/
 # Local shortcuts to this Mac's three arcade versions (real / Christmas preview / normal preview)
-Arcade [123] - *.webloc
+Arcade 1 - *.html
+Arcade 2 - *.html
+Arcade 3 - *.html

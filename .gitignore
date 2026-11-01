@@ -1,3 +1,4 @@
 .DS_Store
 node_modules/
-Arcade - All 3 Events.app/
+# Local shortcuts to this Mac's three arcade versions (real / Christmas preview / normal preview)
+Arcade [123] - *.html

@@ -1311,7 +1311,9 @@
     }
     if (act === "clearbugs") {
       if (!twice("clearbugs", "Click again to delete every bug report.")) return;
-      saveBugs([]); renderBugs(); return toast("🧽 Bug reports deleted");
+      saveBugs([]);
+      (viaFile ? Promise.resolve() : fetch("/api/arcade/bugs", { method: "DELETE" }).catch(() => {})).then(renderBugs);
+      return toast("🧽 Bug reports deleted");
     }
     if (act === "allcodes") {
       ArcadeShop.update((sv) => { sv.redeemed = [...new Set([...(sv.redeemed || []), ...Object.keys(ArcadeShop.CODES)])]; });
@@ -1512,9 +1514,35 @@
   // ---------------------------------------------------------------- bugs
   // Reports live in their own key so a big list never slows the main save down.
   // Crashes inside a game are caught too (same origin only) and saved as automatic reports.
+  // Bug reports are SENT to the arcade server (Nullp: /api/arcade/bugs), so they reach the Admin Panel
+  // from any browser or address on this computer. This local list is only the outbox: reports that
+  // could not be sent yet (server off, or the arcade opened as a plain file). Every send retries it.
   const BUGS_KEY = "daniels-arcade-bugs";
   const loadBugs = () => { try { return JSON.parse(localStorage.getItem(BUGS_KEY) || "[]"); } catch { return []; } };
   const saveBugs = (list) => { try { localStorage.setItem(BUGS_KEY, JSON.stringify(list.slice(-100))); } catch {} };
+
+  const bugId = (b) => b.at + "|" + b.game + "|" + b.text;
+  let sendingBugs = null;
+  function sendBugs() {
+    if (viaFile) return Promise.resolve(false);           // no server behind a plain file
+    if (sendingBugs) return sendingBugs.then(() => sendBugs());   // one already running: go again after it (it may have missed this report)
+    sendingBugs = (async () => {
+      const sent = new Set();
+      for (const b of loadBugs()) {
+        try {
+          const r = await fetch("/api/arcade/bugs", { method: "POST", headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ game: b.game, text: b.text, auto: !!b.auto, from: b.from || "" }) });
+          if (r.ok || r.status === 400) sent.add(bugId(b));   // 400 = a report the server will never take: drop it
+        } catch { break; }                                  // server unreachable: try again later
+      }
+      // Re-read: a report may have been added while we were sending.
+      if (sent.size) saveBugs(loadBugs().filter((b) => !sent.has(bugId(b))));
+      return loadBugs().length === 0;
+    })().finally(() => { sendingBugs = null; });
+    return sendingBugs;
+  }
+  window.addEventListener("focus", () => { sendBugs(); });
+  sendBugs();   // reports typed before this existed (or while the server was off) go now
 
   $("bugGame").innerHTML = [`<option value="arcade">🕹️ The arcade itself</option>`,
     ...GAMES.map((g) => `<option value="${esc(g.slug)}">${g.emoji} ${esc(g.title)}</option>`)].join("");
@@ -1528,11 +1556,13 @@
     const text = $("bugText").value.trim();
     if (text.length < 10) return toast("Tell us a bit more (at least 10 letters).");
     if (ArcadeShop.bugsLeft() <= 0) return toast(`That's ${ArcadeShop.CAPS.bugsPerDay} reports today — thanks! Send more tomorrow.`);
-    saveBugs([...loadBugs(), { at: Date.now(), game: $("bugGame").value, text }]);
+    const from = (getAcc() && getAcc().name) || "";
+    saveBugs([...loadBugs(), { at: Date.now(), game: $("bugGame").value, text, from }]);
     save = ArcadeShop.update((sv) => { sv.bugsReported = (sv.bugsReported || 0) + 1; ArcadeShop.daily(sv).bugs++; });
     $("bugText").value = "";
     $("bugVeil").classList.remove("open");
     toast("🐞 Thanks! Bug reported.");
+    sendBugs().then((allSent) => { if (!allSent && !viaFile) toast("🐞 Saved — it will be sent when the arcade server is on."); });
   });
 
   function logAutoBug(game, msg) {
@@ -1540,6 +1570,7 @@
     // The same crash over and over is one bug.
     if (list.some((b) => b.auto && b.game === game && b.text === msg)) return;
     saveBugs([...list, { at: Date.now(), game, text: msg, auto: true }]);
+    sendBugs();
   }
   $("frame").addEventListener("load", () => {
     const game = playing && playing.slug;
@@ -1552,18 +1583,26 @@
     } catch { /* opened as a file: the browser won't let us look inside */ }
   });
 
-  function renderBugs() {
+  // The Admin Panel's list: everything the server has, plus anything still waiting in this browser's outbox.
+  async function renderBugs() {
+    await sendBugs();
+    let server = [];
+    if (!viaFile) try { const r = await fetch("/api/arcade/bugs"); if (r.ok) server = ((await r.json()) || {}).bugs || []; } catch {}
     const name = (slug) => slug === "arcade" ? "🕹️ Arcade" : (GAMES.find((g) => g.slug === slug) || { title: slug }).title;
-    const list = loadBugs().map((b, i) => ({ ...b, i })).reverse();
+    const list = [...server.map((b) => ({ ...b, del: "s:" + b.id })),
+                  ...loadBugs().map((b, i) => ({ ...b, del: "l:" + i, waiting: true }))].sort((a, b) => b.at - a.at);
     $("bugList").innerHTML = list.length ? list.map((b) => `<div class="bug ${b.auto ? "auto" : ""}">
-        <div class="meta">${b.auto ? "🤖 caught automatically" : "🐞 reported"} · ${esc(name(b.game))} · ${new Date(b.at).toLocaleString()}
-          <button data-delbug="${b.i}" title="Delete">✕</button></div><p>${esc(b.text)}</p></div>`).join("")
+        <div class="meta">${b.auto ? "🤖 caught automatically" : "🐞 reported"}${b.from ? " by " + esc(b.from) : ""} · ${esc(name(b.game))} · ${new Date(b.at).toLocaleString()}${b.waiting ? " · ⏳ not sent yet" : ""}
+          <button data-delbug="${b.del}" title="Delete">✕</button></div><p>${esc(b.text)}</p></div>`).join("")
       : `<p class="sub" style="margin:0">No bug reports yet.</p>`;
   }
-  $("bugList").addEventListener("click", (e) => {
+  $("bugList").addEventListener("click", async (e) => {
     const b = e.target.closest("[data-delbug]");
     if (!b) return;
-    const list = loadBugs(); list.splice(+b.dataset.delbug, 1); saveBugs(list); renderBugs();
+    const [where, key] = [b.dataset.delbug.slice(0, 1), b.dataset.delbug.slice(2)];
+    if (where === "s") { try { await fetch("/api/arcade/bugs/" + encodeURIComponent(key), { method: "DELETE" }); } catch {} }
+    else { const list = loadBugs(); list.splice(+key, 1); saveBugs(list); }
+    renderBugs();
   });
 
   // ---------------------------------------------------------------- start

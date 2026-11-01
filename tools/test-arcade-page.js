@@ -682,13 +682,14 @@ A("resetcodes"); ok("reset codes", r.save().redeemed.length === 0 && r.save().se
 A("medium"); ok("unlock medium", r.save().mediumUnlocked === true);
 // bugs list
 r.w.localStorage.setItem(BUGS_KEY, JSON.stringify([{ at: 1, game: "rebuild", text: "first" }, { at: 2, game: "arcade", text: "second" }, { at: 3, game: "monster-city", text: "third", auto: true }]));
-r.w.arcadeSecret(); r.id("questAdmin").click();
+r.w.arcadeSecret(); r.id("questAdmin").click(); await flush(20);   // the list now waits for the server (here: none)
 ok("bug list: newest first", JSON.stringify(r.$$("#bugList .bug p").map((p) => p.textContent)) === JSON.stringify(["third", "second", "first"]));
 ok("bug list: auto label", /caught automatically/.test(r.$$("#bugList .bug")[0].textContent) && r.$$("#bugList .bug")[0].classList.contains("auto"));
-r.$('[data-delbug="1"]').click();
+r.$('[data-delbug="l:1"]').click(); await flush(20);
+ok("bug list: waiting reports say so", /not sent yet/.test(r.id("bugList").textContent));
 ok("delete one bug", JSON.stringify(JSON.parse(r.w.localStorage.getItem(BUGS_KEY)).map((b) => b.text)) === JSON.stringify(["first", "third"]) && r.$$("#bugList .bug").length === 2);
 A("clearbugs"); ok("delete all needs a 2nd click", JSON.parse(r.w.localStorage.getItem(BUGS_KEY)).length === 2);
-A("clearbugs"); ok("delete all", JSON.parse(r.w.localStorage.getItem(BUGS_KEY)).length === 0 && /No bug reports/.test(r.id("bugList").textContent));
+A("clearbugs"); await flush(20); ok("delete all", JSON.parse(r.w.localStorage.getItem(BUGS_KEY)).length === 0 && /No bug reports/.test(r.id("bugList").textContent));
 // relock
 A("relock"); ok("relock: 1st click only warns", r.save().adminUnlocked === true && /again/.test(r.toast()));
 r.adv(4); A("relock"); ok("relock: clicks 4 s apart don't count", r.save().adminUnlocked === true);
@@ -838,7 +839,43 @@ const pr = new fw.Event("unhandledrejection"); pr.reason = new Error("load faile
 let autos = JSON.parse(r.w.localStorage.getItem(BUGS_KEY)).filter((b) => b.auto);
 ok("auto bugs: de-duplicated", autos.length === 3 && autos[0].text === "x is not defined (index.html:42)" && autos[0].game === "rebuild");
 ok("auto bugs: promise rejection", autos[2].text === "Promise: load failed");
+
 ok("auto bugs don't count for the quest/cap", r.save().bugsReported === 6);
+
+// ---------------------------------------------------------------- reports are SENT to the server
+{
+  const inbox = []; let down = false, nextId = 1;
+  const server = (u, init) => {
+    if (u === "/api/arcade/bugs" || u.startsWith("/api/arcade/bugs/")) {
+      if (down) throw new TypeError("Failed to fetch");
+      const m = (init && init.method) || "GET";
+      if (m === "POST") { const b = init.body; inbox.push({ id: "b" + nextId++, at: T0, ...b }); return { status: 200, data: { ok: true } }; }
+      if (m === "GET") return { status: 200, data: { bugs: inbox.slice() } };
+      if (m === "DELETE") { if (u === "/api/arcade/bugs") inbox.length = 0; else { const id = u.split("/").pop(); const i = inbox.findIndex((x) => x.id === id); if (i > -1) inbox.splice(i, 1); } return { status: 200, data: { ok: true } }; }
+    }
+    return defaultFetch(u, init);
+  };
+  r = boot({ seed: { [KEY]: {}, [ACC_KEY]: { name: "TestKid", token: "t" } }, fetch: server });
+  r.id("bugBtn").click(); r.id("bugText").value = "The shop button does nothing"; r.submit(r.id("bugForm")); await flush(20);
+  ok("send: the report reaches the server", inbox.length === 1 && inbox[0].text === "The shop button does nothing" && inbox[0].game === "arcade" && inbox[0].from === "TestKid");
+  ok("send: nothing left waiting in this browser", JSON.parse(r.w.localStorage.getItem(BUGS_KEY) || "[]").length === 0);
+  down = true;
+  r.id("bugBtn").click(); r.id("bugText").value = "Sent while the server was off"; r.submit(r.id("bugForm")); await flush(20);
+  ok("send: server off -> kept, and you are told", JSON.parse(r.w.localStorage.getItem(BUGS_KEY)).length === 1 && inbox.length === 1 && /sent when the arcade server is on/.test(r.toast()));
+  down = false; r.w.dispatchEvent(new r.w.Event("focus")); await flush(20);
+  ok("send: it goes as soon as the server is back", inbox.length === 2 && JSON.parse(r.w.localStorage.getItem(BUGS_KEY)).length === 0);
+  // A report typed in another browser/address is already on the server: the Admin Panel shows it.
+  inbox.push({ id: "other", at: T0 + 5, game: "monster-city", text: "From the other tab", auto: false, from: "" });
+  r.setSave((x) => { x.adminUnlocked = x.hardDone = x.mediumDone = x.easyDone = true; }); r = r.reboot(); await flush(20);
+  r.w.arcadeSecret(); r.id("questAdmin").click(); await flush(30);
+  ok("admin: shows every report from the server, newest first", JSON.stringify(r.$$("#bugList .bug p").map((p) => p.textContent)) === JSON.stringify(["From the other tab", "The shop button does nothing", "Sent while the server was off"])
+     && /by TestKid/.test(r.id("bugList").textContent));
+  r.$('[data-delbug="s:other"]').click(); await flush(30);
+  ok("admin: deleting removes it from the server", !inbox.some((x) => x.id === "other") && r.$$("#bugList .bug").length === 2);
+  r.$('[data-admin="clearbugs"]').click(); r.$('[data-admin="clearbugs"]').click(); await flush(30);
+  ok("admin: delete all clears the server too", inbox.length === 0 && /No bug reports/.test(r.id("bugList").textContent));
+  ok("no errors while sending: " + r.errs.join(" | "), r.errs.length === 0);
+}
 ok("no errors: " + r.errs.join(" | "), r.errs.length === 0);
 
 // ================================================================== 9. accounts

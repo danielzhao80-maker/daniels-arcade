@@ -549,21 +549,21 @@
   // slug = folder name next to this one; file = path to index.html inside it
   const GAMES = [
     {
-      slug: "monster-city", file: "monster-city/index.html",
+      slug: "monster-city", pages: "monster-attack/", file: "monster-city/index.html",
       title: "Monster Attack!", emoji: "👾",
       desc: "Top-down shooter in an abandoned city. Roll for one of 20 classes and survive waves of monstrosities.",
       tags: ["Action", "Shooter"],
       art: "linear-gradient(135deg, #5b1a3a, #c2344f)", glow: "#ff5f7e",
     },
     {
-      slug: "rebuild", file: "rebuild/index.html",
+      slug: "rebuild", pages: "rebuild/", file: "rebuild/index.html",
       title: "REBUILD", emoji: "🧟",
       desc: "Spell words to summon units and hold the bunker against a zombie apocalypse. 10 chapters, 50 levels.",
       tags: ["Strategy", "Spelling", "Story"],
       art: "linear-gradient(135deg, #1b3b2a, #3e8e4f)", glow: "#6ee07f",
     },
     {
-      slug: "shooting-game", file: "shooting-game/public/index.html",
+      slug: "shooting-game", pages: "buckshot-roulette/public/", file: "shooting-game/public/index.html",
       title: "Buckshot Roulette", emoji: "🔫",
       desc: "3D first-person showdown. Play offline against a bot or go 1v1 online with a friend.",
       tags: ["Action", "3D", "Multiplayer"],
@@ -571,14 +571,14 @@
       note: "Online mode needs its server: npm start in shooting-game",
     },
     {
-      slug: "Pocket-Dice", file: "Pocket-Dice/index.html",
+      slug: "Pocket-Dice", pages: "track-run/", file: "Pocket-Dice/index.html",
       title: "Track Run", emoji: "🎲",
       desc: "Race up your lane of hidden cards. Roll to advance, dodge explodes, and use power cards to sabotage enemies.",
       tags: ["Board", "Multiplayer"],
       art: "linear-gradient(135deg, #0d3220, #1a8e5a)", glow: "#4ae3a5",
     },
     {
-      slug: "english-program", file: "english-program/index.html",
+      slug: "english-program", pages: "learn-english/", file: "english-program/index.html",
       title: "Learn English", emoji: "📚",
       desc: "爸爸学英语 — learn English step by step with fun lessons and practice.",
       tags: ["Learning"],
@@ -631,11 +631,26 @@
   }
 
   // ---------------------------------------------------------------- game grid
-  // Served by Nullp: games live at /games/<slug>/. Opened as a file: use real paths.
+  // Served by Nullp: games live at /games/<slug>/. Opened as a file: use real paths. Online (GitHub
+  // Pages, <user>.github.io/<repo>/) every game is its own repo's site — `pages` is its path there.
   const viaFile = location.protocol === "file:";
+  const onPages = /\.github\.io$/.test(location.hostname);
+  // Accounts, the bug inbox and the Discord check need Nullp on the home computer.
+  const hasServer = !viaFile && !onPages;
+  // A link can choose the seasonal event: ?event=christmas / halloween / off, or ?event=auto for the
+  // calendar. It is remembered (Monster Attack! reads the same switch) and taken out of the address.
+  try {
+    const u = new URL(location.href), want = u.searchParams.get("event");
+    if (want) {
+      if (["christmas", "halloween", "off"].includes(want)) localStorage.setItem("monster_attack_event_force", want);
+      else if (want === "auto") localStorage.removeItem("monster_attack_event_force");
+      u.searchParams.delete("event");
+      history.replaceState(history.state, "", u.pathname + u.search + u.hash);
+    }
+  } catch {}
   // openInGame: a screen to open as the game starts (the event button asks Monster Attack! for its event menu).
   let openInGame = null;
-  const srcFor = (g) => (viaFile ? "../" + g.file : "../" + encodeURIComponent(g.slug) + "/")
+  const srcFor = (g) => (viaFile ? "../" + g.file : onPages ? "../" + g.pages : "../" + encodeURIComponent(g.slug) + "/")
     + "?arcadeSkins=" + encodeURIComponent(JSON.stringify(gameSkins(ArcadeShop.load())))
     + (openInGame && openInGame.slug === g.slug ? "&open=" + encodeURIComponent(openInGame.screen) : "");
   let currentTag = "All";
@@ -999,7 +1014,7 @@
   // { valid: true|false|null(unknown), expiresAt }. Unknown (offline, plain file) never blocks.
   let discordStatus = { valid: null, expiresAt: null };
   async function checkDiscordInvite() {
-    if (!DISCORD.invite || location.protocol === "file:") return;
+    if (!DISCORD.invite || !hasServer) return;
     try {
       const r = await fetch("/api/arcade/discord?invite=" + encodeURIComponent(DISCORD.invite));
       if (r.ok) discordStatus = await r.json();
@@ -1312,7 +1327,7 @@
     if (act === "clearbugs") {
       if (!twice("clearbugs", "Click again to delete every bug report.")) return;
       saveBugs([]);
-      (viaFile ? Promise.resolve() : fetch("/api/arcade/bugs", { method: "DELETE" }).catch(() => {})).then(renderBugs);
+      (!hasServer ? Promise.resolve() : fetch("/api/arcade/bugs", { method: "DELETE" }).catch(() => {})).then(renderBugs);
       return toast("🧽 Bug reports deleted");
     }
     if (act === "allcodes") {
@@ -1456,6 +1471,7 @@
     }
   }
   $("accountBtn").onclick = () => {
+    if (onPages) return toast("Accounts only work on the home arcade (on Daniel's computer or its Wi-Fi). Your progress is saved on this device.");
     if (location.protocol === "file:") return toast("Accounts need the arcade opened through Nullp (localhost:4173).");
     renderAccount(); if (!getAcc()) setAccMode(accMode); openVeil("accountVeil");
     setTimeout(() => (getAcc() ? null : $("accName").focus()), 0);
@@ -1524,7 +1540,7 @@
   const bugId = (b) => b.at + "|" + b.game + "|" + b.text;
   let sendingBugs = null;
   function sendBugs() {
-    if (viaFile) return Promise.resolve(false);           // no server behind a plain file
+    if (!hasServer) return Promise.resolve(false);        // no server behind a plain file or GitHub Pages
     if (sendingBugs) return sendingBugs.then(() => sendBugs());   // one already running: go again after it (it may have missed this report)
     sendingBugs = (async () => {
       const sent = new Set();
@@ -1562,7 +1578,10 @@
     $("bugText").value = "";
     $("bugVeil").classList.remove("open");
     toast("🐞 Thanks! Bug reported.");
-    sendBugs().then((allSent) => { if (!allSent && !viaFile) toast("🐞 Saved — it will be sent when the arcade server is on."); });
+    sendBugs().then((allSent) => {
+      if (onPages) toast("🐞 Thanks! It's saved on this device (online, reports can't reach Daniel's computer).");
+      else if (!allSent && !viaFile) toast("🐞 Saved — it will be sent when the arcade server is on.");
+    });
   });
 
   function logAutoBug(game, msg) {
@@ -1587,7 +1606,7 @@
   async function renderBugs() {
     await sendBugs();
     let server = [];
-    if (!viaFile) try { const r = await fetch("/api/arcade/bugs"); if (r.ok) server = ((await r.json()) || {}).bugs || []; } catch {}
+    if (hasServer) try { const r = await fetch("/api/arcade/bugs"); if (r.ok) server = ((await r.json()) || {}).bugs || []; } catch {}
     const name = (slug) => slug === "arcade" ? "🕹️ Arcade" : (GAMES.find((g) => g.slug === slug) || { title: slug }).title;
     const list = [...server.map((b) => ({ ...b, del: "s:" + b.id })),
                   ...loadBugs().map((b, i) => ({ ...b, del: "l:" + i, waiting: true }))].sort((a, b) => b.at - a.at);

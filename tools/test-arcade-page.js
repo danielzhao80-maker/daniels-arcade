@@ -269,6 +269,28 @@ ok("file: accounts need Nullp (toast, no veil)", /Nullp/.test(r.toast()) && !r.i
 r.w.arcadeSecret(); r.adv(0);
 ok("file: no Discord fetch", r.st.fetches.length === 0);
 ok("file: no errors: " + r.errs.join(" | "), r.errs.length === 0);
+// Online (GitHub Pages): every game is its own repo's site, and the home-computer features step aside.
+r = boot({ url: "https://danielzhao80-maker.github.io/daniels-arcade/#play/monster-city" });
+ok("online: Monster Attack! from its own site (../monster-attack/)", r.id("frame").getAttribute("src").startsWith("../monster-attack/?arcadeSkins="));
+const pagesPath = { "rebuild": "../rebuild/", "shooting-game": "../buckshot-roulette/public/", "Pocket-Dice": "../track-run/", "english-program": "../learn-english/" };
+ok("online: every game maps to its repo's site", Object.entries(pagesPath).every(([slug, path]) => { r.go("#play/" + slug); return r.id("frame").getAttribute("src").startsWith(path + "?arcadeSkins="); }));
+r.go(""); r.id("accountBtn").click();
+ok("online: accounts say they only work at home", /home arcade/.test(r.toast()) && !r.id("accountVeil").classList.contains("open"));
+r.id("bugBtn").click(); r.id("bugText").value = "Something broke online"; r.submit(r.id("bugForm")); await flush(10);
+ok("online: a bug report is kept on the device, and says so", /saved on this device/.test(r.toast()) && JSON.parse(r.w.localStorage.getItem(BUGS_KEY)).length === 1);
+r.w.arcadeSecret(); r.adv(0);
+ok("online: no calls to the home server at all", r.st.fetches.length === 0);
+ok("online: no errors: " + r.errs.join(" | "), r.errs.length === 0);
+// A link can choose the event.
+r = boot({ url: "http://192.168.1.16:4173/games/arcade/?event=christmas" });
+ok("link ?event=christmas: Christmas, remembered, and taken out of the address", r.w.localStorage.getItem("monster_attack_event_force") === "christmas"
+   && r.id("eventBtnLabel").textContent === "🎄 Christmas" && !/event=/.test(r.w.location.href));
+r = boot({ url: "http://192.168.1.16:4173/games/arcade/?event=off", seed: { monster_attack_event_force: "christmas" } });
+ok("link ?event=off: no event", r.w.localStorage.getItem("monster_attack_event_force") === "off" && !r.d.body.classList.contains("event-on"));
+r = boot({ url: "http://192.168.1.16:4173/games/arcade/?event=auto", seed: { monster_attack_event_force: "christmas" } });
+ok("link ?event=auto: back to the calendar", r.w.localStorage.getItem("monster_attack_event_force") === null && r.id("eventBtnLabel").textContent === "🎃 Halloween");
+r = boot({ url: "http://192.168.1.16:4173/games/arcade/?event=banana" });
+ok("link ?event=nonsense: ignored", r.w.localStorage.getItem("monster_attack_event_force") === null);
 
 // ================================================================== 2. play timer
 sect("2. play timer");

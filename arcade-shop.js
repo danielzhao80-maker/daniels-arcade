@@ -1061,7 +1061,50 @@
     render();
   }
 
+  // ---------------------------------------------------------------- 🎃 Halloween candy (other games)
+  // Monster Attack! runs the Halloween event; REBUILD, Track Run and Buckshot only add (or, against
+  // the Grim Reaper, take) candy. Same keys, same dates and same force switch as its EVENTS.
+  // Telling Nullp anything about "treats" during the event sets the treat boost: +10% candy per win.
+  const halloween = {
+    on(d = new Date()) {
+      try {
+        const f = localStorage.getItem("monster_attack_event_force");
+        if (f === "off") return false;
+        if (f) return f === "halloween";
+      } catch {}
+      return d.getMonth() === 9 || (d.getMonth() === 10 && d.getDate() <= 7);
+    },
+    year: () => new Date().getFullYear(),
+    num(k) { try { return Math.max(0, parseInt(localStorage.getItem(k)) || 0); } catch { return 0; } },
+    candy() { return this.num("monster_attack_candy"); },
+    treatBoost() { try { return localStorage.getItem("monster_attack_hw_treat_" + this.year()) === "1"; } catch { return false; } },
+    /** Add n candy (or take it away, if n < 0 — never below 0). Taking does not lower pass progress. Returns the change. */
+    addCandy(n) {
+      if (!this.on() || !n) return 0;
+      const have = this.candy(), next = Math.max(0, have + Math.round(n));
+      try {
+        localStorage.setItem("monster_attack_candy", String(next));
+        if (n > 0) { const k = "monster_attack_hw_earned_" + this.year(); localStorage.setItem(k, String(this.num(k) + Math.round(n))); }
+      } catch { return 0; }
+      return next - have;
+    },
+    /** Candy for a win: `base`, +10% with the Nullp treat boost. Returns what was given (0 outside Halloween). */
+    winCandy(base) { return this.addCandy(Math.round(base * (this.treatBoost() ? 1.1 : 1))); },
+    // Each other game's Halloween reward can be won ONCE per year's event (REBUILD's first win, Track
+    // Run's first win, beating Buckshot's Grim Reaper).
+    onceKey: (game) => "monster_attack_hw_once_" + game + "_" + new Date().getFullYear(),
+    claimed(game) { try { return localStorage.getItem(this.onceKey(game)) === "1"; } catch { return true; } },
+    /** winCandy, but only the first time for `game` this Halloween. Returns what was given. */
+    winCandyOnce(game, base) {
+      if (!this.on() || this.claimed(game)) return 0;
+      const n = this.winCandy(base);
+      if (n > 0) try { localStorage.setItem(this.onceKey(game), "1"); } catch {}
+      return n;
+    },
+  };
+
   window.ArcadeShop = {
+    halloween,
     SHOP, SLOT, SKIN_TABS, SECONDS_PER_COIN, RAINBOW,
     find, load, update, gameSkins, shareSkins, open, close, toast, registerCurrency,
     howToGet, PUMPKIN_PARTS, pumpkinLook, pumpkinSVG, avatarHTML, setAvatarCustom,

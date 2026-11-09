@@ -1073,7 +1073,6 @@
   // ---------------------------------------------------------------- 🎃 Halloween candy (other games)
   // Monster Attack! runs the Halloween event; REBUILD, Track Run and Buckshot only add (or, against
   // the Grim Reaper, take) candy. Same keys, same dates and same force switch as its EVENTS.
-  // Telling Nullp anything about "treats" during the event sets the treat boost: +10% candy per win.
   const halloween = {
     on(d = new Date()) {
       try {
@@ -1086,7 +1085,6 @@
     year: () => new Date().getFullYear(),
     num(k) { try { return Math.max(0, parseInt(localStorage.getItem(k)) || 0); } catch { return 0; } },
     candy() { return this.num("monster_attack_candy"); },
-    treatBoost() { try { return localStorage.getItem("monster_attack_hw_treat_" + this.year()) === "1"; } catch { return false; } },
     /** Add n candy (or take it away, if n < 0 — never below 0). Taking does not lower pass progress. Returns the change. */
     addCandy(n) {
       if (!this.on() || !n) return 0;
@@ -1102,8 +1100,8 @@
     /** 🏅 Owning the Master of Candy Grinding title (Mr Blob's drop): +10% candy. */
     candyGrinder() { return this.ownsTitle("candygrinder"); },
     ownsTitle(id) { try { return (JSON.parse(localStorage.getItem(KEY) || "{}").owned || []).indexOf(id) > -1; } catch { return false; } },
-    /** Candy for a win: `base`, +10% with the Nullp treat boost, +3% with the Master of Rolls, +10% with Candy Grinding. Returns what was given (0 outside Halloween). */
-    winCandy(base) { return this.addCandy(Math.round(base * (1 + (this.treatBoost() ? 0.1 : 0) + (this.rollMaster() ? 0.03 : 0) + (this.candyGrinder() ? 0.1 : 0)))); },
+    /** Candy for a win: `base`, +3% with the Master of Rolls, +10% with Candy Grinding. Returns what was given (0 outside Halloween). */
+    winCandy(base) { return this.addCandy(Math.round(base * (1 + (this.rollMaster() ? 0.03 : 0) + (this.candyGrinder() ? 0.1 : 0)))); },
     // Each other game's Halloween reward can be won ONCE per year's event (REBUILD's first win, Track
     // Run's first win, beating Buckshot's Grim Reaper).
     onceKey: (game) => "monster_attack_hw_once_" + game + "_" + new Date().getFullYear(),

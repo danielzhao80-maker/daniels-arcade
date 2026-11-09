@@ -262,8 +262,8 @@ ok("🎄 4 titles, 3 avatars, 3 backgrounds and a gun skin for Christmas, all se
   L.setItem("monster_attack_event_force", "halloween"); L.setItem("monster_attack_candy", "5"); L.removeItem("monster_attack_hw_once_rebuild_" + Y); L.removeItem("monster_attack_hw_treat_" + Y);
   ok("halloween helper: a first win gives 10 (once)", H.winCandyOnce("rebuild", 10) === 10 && H.winCandyOnce("rebuild", 10) === 0 && L.getItem("monster_attack_candy") === "15");
   L.setItem("monster_attack_hw_treat_" + Y, "1"); L.removeItem("monster_attack_hw_once_trackrun_" + Y);
-  ok("halloween helper: Nullp's treat boost makes it 11", H.winCandyOnce("trackrun", 10) === 11);
-  ok("halloween helper: taking candy never goes below 0", H.addCandy(-999) === -26 && L.getItem("monster_attack_candy") === "0");
+  ok("halloween helper: the old Nullp treat boost is gone (an old key gives no bonus)", H.winCandyOnce("trackrun", 10) === 10 && H.treatBoost === undefined);
+  ok("halloween helper: taking candy never goes below 0", H.addCandy(-999) === -25 && L.getItem("monster_attack_candy") === "0");
   L.setItem("monster_attack_event_force", "off");
   ok("halloween helper: nothing outside Halloween", H.addCandy(10) === 0 && L.getItem("monster_attack_candy") === "0");
   if (keep === null) L.removeItem("monster_attack_event_force"); else L.setItem("monster_attack_event_force", keep);

@@ -87,6 +87,8 @@
       { id: "dimension", name: "🌀 Dimension Opener", price: 0, secret: true, lockText: "Break through" },
       // 🍬 Mr Roll's loot (Monster Attack!'s candy castle) — a 50% drop. Owning it = +3% candy (every game).
       { id: "rollmaster", name: "🍥 Master of Rolls", price: 0, secret: true, lockText: "Mr Roll" },
+      // 🍮 Mr Blob's loot — a 30% drop. Owning it = +10% candy (every game).
+      { id: "candygrinder", name: "🏅 Master of Candy Grinding", price: 0, secret: true, lockText: "Mr Blob" },
       // 🎃 Halloween Pass rewards (Monster Attack!'s Halloween menu) — tiers 8, 20, 38 and 50.
       { id: "hw-sweettooth", name: "🍬 Sweet Tooth", price: 0, secret: true, lockText: "Halloween Pass 8" },
       { id: "hw-ghosthunter", name: "👻 Ghost Hunter", price: 0, secret: true, lockText: "Halloween Pass 20" },
@@ -325,6 +327,7 @@
     dimension: "In Buckshot Roulette (offline), shoot the snow globe on the shelf with a live shell.",
     cookieking: "In Monster Attack!'s 🎃 candy castle, beat Biscuit the Cerberus (40% chance it drops).",
     rollmaster: "In Monster Attack!'s 🎃 candy castle, beat Mr Roll (50% chance it drops). Gives +3% candy.",
+    candygrinder: "In Monster Attack!'s 🎃 candy castle, beat Mr Blob (30% chance it drops). Gives +10% candy.",
   };
   function howToGet(item) {
     if (HOW_TO_GET[item.id]) return HOW_TO_GET[item.id];
@@ -1095,9 +1098,12 @@
       return next - have;
     },
     /** 🍥 Owning the Master of Rolls title (Mr Roll's drop): +3% candy. */
-    rollMaster() { try { return (JSON.parse(localStorage.getItem(KEY) || "{}").owned || []).indexOf("rollmaster") > -1; } catch { return false; } },
-    /** Candy for a win: `base`, +10% with the Nullp treat boost, +3% with the Master of Rolls. Returns what was given (0 outside Halloween). */
-    winCandy(base) { return this.addCandy(Math.round(base * (1 + (this.treatBoost() ? 0.1 : 0) + (this.rollMaster() ? 0.03 : 0)))); },
+    rollMaster() { return this.ownsTitle("rollmaster"); },
+    /** 🏅 Owning the Master of Candy Grinding title (Mr Blob's drop): +10% candy. */
+    candyGrinder() { return this.ownsTitle("candygrinder"); },
+    ownsTitle(id) { try { return (JSON.parse(localStorage.getItem(KEY) || "{}").owned || []).indexOf(id) > -1; } catch { return false; } },
+    /** Candy for a win: `base`, +10% with the Nullp treat boost, +3% with the Master of Rolls, +10% with Candy Grinding. Returns what was given (0 outside Halloween). */
+    winCandy(base) { return this.addCandy(Math.round(base * (1 + (this.treatBoost() ? 0.1 : 0) + (this.rollMaster() ? 0.03 : 0) + (this.candyGrinder() ? 0.1 : 0)))); },
     // Each other game's Halloween reward can be won ONCE per year's event (REBUILD's first win, Track
     // Run's first win, beating Buckshot's Grim Reaper).
     onceKey: (game) => "monster_attack_hw_once_" + game + "_" + new Date().getFullYear(),

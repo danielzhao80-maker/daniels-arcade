@@ -56,6 +56,8 @@
       { id: "xm-penguin", name: "Penguin", price: 0, emoji: "🐧", secret: true, lockText: "Christmas Pass 15" },
       { id: "xm-snowman", name: "Snowman", price: 0, emoji: "⛄", secret: true, lockText: "Christmas Pass 32" },
       { id: "xm-santa", name: "Santa", price: 0, emoji: "🎅", secret: true, lockText: "Christmas Pass 50" },
+      // 🍪 Biscuit the Cerberus's loot (Monster Attack!'s candy castle) — a 40% drop.
+      { id: "cookieking", name: "Cookie King", price: 0, emoji: "🤴", secret: true, lockText: "Biscuit the Cerberus" },
     ],
     Titles: [
       { id: "rookie",  name: "Rookie", price: 0 },
@@ -319,6 +321,7 @@
     champion: "Win Buckshot Roulette 10 times in a row, then wear the Shadow gun skin.",
     comeback: "Win a REBUILD battle after your base has dropped to 1 HP.",
     dimension: "In Buckshot Roulette (offline), shoot the snow globe on the shelf with a live shell.",
+    cookieking: "In Monster Attack!'s 🎃 candy castle, beat Biscuit the Cerberus (40% chance it drops).",
   };
   function howToGet(item) {
     if (HOW_TO_GET[item.id]) return HOW_TO_GET[item.id];

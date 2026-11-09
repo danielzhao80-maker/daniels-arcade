@@ -85,6 +85,8 @@
       // Buckshot (offline): shoot the snow globe on the shelf with a live shell — it also unlocks the
       // Backrooms in Monster Attack!'s ⭐ Special Maps.
       { id: "dimension", name: "🌀 Dimension Opener", price: 0, secret: true, lockText: "Break through" },
+      // 🍬 Mr Roll's loot (Monster Attack!'s candy castle) — a 50% drop. Owning it = +3% candy (every game).
+      { id: "rollmaster", name: "🍥 Master of Rolls", price: 0, secret: true, lockText: "Mr Roll" },
       // 🎃 Halloween Pass rewards (Monster Attack!'s Halloween menu) — tiers 8, 20, 38 and 50.
       { id: "hw-sweettooth", name: "🍬 Sweet Tooth", price: 0, secret: true, lockText: "Halloween Pass 8" },
       { id: "hw-ghosthunter", name: "👻 Ghost Hunter", price: 0, secret: true, lockText: "Halloween Pass 20" },
@@ -322,6 +324,7 @@
     comeback: "Win a REBUILD battle after your base has dropped to 1 HP.",
     dimension: "In Buckshot Roulette (offline), shoot the snow globe on the shelf with a live shell.",
     cookieking: "In Monster Attack!'s 🎃 candy castle, beat Biscuit the Cerberus (40% chance it drops).",
+    rollmaster: "In Monster Attack!'s 🎃 candy castle, beat Mr Roll (50% chance it drops). Gives +3% candy.",
   };
   function howToGet(item) {
     if (HOW_TO_GET[item.id]) return HOW_TO_GET[item.id];
@@ -1091,8 +1094,10 @@
       } catch { return 0; }
       return next - have;
     },
-    /** Candy for a win: `base`, +10% with the Nullp treat boost. Returns what was given (0 outside Halloween). */
-    winCandy(base) { return this.addCandy(Math.round(base * (this.treatBoost() ? 1.1 : 1))); },
+    /** 🍥 Owning the Master of Rolls title (Mr Roll's drop): +3% candy. */
+    rollMaster() { try { return (JSON.parse(localStorage.getItem(KEY) || "{}").owned || []).indexOf("rollmaster") > -1; } catch { return false; } },
+    /** Candy for a win: `base`, +10% with the Nullp treat boost, +3% with the Master of Rolls. Returns what was given (0 outside Halloween). */
+    winCandy(base) { return this.addCandy(Math.round(base * (1 + (this.treatBoost() ? 0.1 : 0) + (this.rollMaster() ? 0.03 : 0)))); },
     // Each other game's Halloween reward can be won ONCE per year's event (REBUILD's first win, Track
     // Run's first win, beating Buckshot's Grim Reaper).
     onceKey: (game) => "monster_attack_hw_once_" + game + "_" + new Date().getFullYear(),

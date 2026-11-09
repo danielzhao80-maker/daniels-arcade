@@ -57,7 +57,7 @@
       { id: "xm-snowman", name: "Snowman", price: 0, emoji: "⛄", secret: true, lockText: "Christmas Pass 32" },
       { id: "xm-santa", name: "Santa", price: 0, emoji: "🎅", secret: true, lockText: "Christmas Pass 50" },
       // 🍪 Biscuit the Cerberus's loot (Monster Attack!'s candy castle) — a 40% drop.
-      { id: "cookieking", name: "Cookie King", price: 0, emoji: "🤴", secret: true, lockText: "Biscuit the Cerberus" },
+      { id: "cookieking", name: "Cookie King", price: 0, emoji: "🤴", secret: true, lockText: "Biscuit / Ginger (castle boss)" },
     ],
     Titles: [
       { id: "rookie",  name: "Rookie", price: 0 },
@@ -86,9 +86,9 @@
       // Backrooms in Monster Attack!'s ⭐ Special Maps.
       { id: "dimension", name: "🌀 Dimension Opener", price: 0, secret: true, lockText: "Break through" },
       // 🍬 Mr Roll's loot (Monster Attack!'s candy castle) — a 50% drop. Owning it = +3% candy (every game).
-      { id: "rollmaster", name: "🍥 Master of Rolls", price: 0, secret: true, lockText: "Mr Roll" },
+      { id: "rollmaster", name: "🍥 Master of Rolls", price: 0, secret: true, lockText: "Mr Roll / Mr Candy Cane" },
       // 🍮 Mr Blob's loot — a 30% drop. Owning it = +10% candy (every game).
-      { id: "candygrinder", name: "🏅 Master of Candy Grinding", price: 0, secret: true, lockText: "Mr Blob" },
+      { id: "candygrinder", name: "🏅 Master of Candy Grinding", price: 0, secret: true, lockText: "Mr Blob / Mr Figgy" },
       // 🎃 Halloween Pass rewards (Monster Attack!'s Halloween menu) — tiers 8, 20, 38 and 50.
       { id: "hw-sweettooth", name: "🍬 Sweet Tooth", price: 0, secret: true, lockText: "Halloween Pass 8" },
       { id: "hw-ghosthunter", name: "👻 Ghost Hunter", price: 0, secret: true, lockText: "Halloween Pass 20" },
@@ -325,9 +325,9 @@
     champion: "Win Buckshot Roulette 10 times in a row, then wear the Shadow gun skin.",
     comeback: "Win a REBUILD battle after your base has dropped to 1 HP.",
     dimension: "In Buckshot Roulette (offline), shoot the snow globe on the shelf with a live shell.",
-    cookieking: "In Monster Attack!'s 🎃 candy castle, beat Biscuit the Cerberus (40% chance it drops).",
-    rollmaster: "In Monster Attack!'s 🎃 candy castle, beat Mr Roll (50% chance it drops). Gives +3% candy.",
-    candygrinder: "In Monster Attack!'s 🎃 candy castle, beat Mr Blob (30% chance it drops). Gives +10% candy.",
+    cookieking: "In Monster Attack!'s 🎃 candy castle beat Biscuit the Cerberus — or at Christmas, in the ❄️ ice castle, Ginger the Cerberus (40% chance it drops).",
+    rollmaster: "In Monster Attack!'s 🎃 candy castle beat Mr Roll — or at Christmas, in the ❄️ ice castle, Mr Candy Cane (50% chance it drops). Gives +3% candy.",
+    candygrinder: "In Monster Attack!'s 🎃 candy castle beat Mr Blob — or at Christmas, in the ❄️ ice castle, Mr Figgy (30% chance it drops). Gives +10% candy.",
   };
   function howToGet(item) {
     if (HOW_TO_GET[item.id]) return HOW_TO_GET[item.id];

@@ -87,6 +87,8 @@
       { id: "dimension", name: "🌀 Dimension Opener", price: 0, secret: true, lockText: "Break through" },
       // 🏆 Achievement: knocked out by ONE hit from full health in Monster Attack! (everyone has a weak spot).
       { id: "achilles", name: "🦶 Achilles Heel", price: 0, secret: true, lockText: "Achievement" },
+      // 🐍 Beat Typhon, Monster Attack!'s OP Greek-mythology boss.
+      { id: "typhonslayer", name: "🐍 Typhon Slayer", price: 0, secret: true, lockText: "Beat Typhon" },
       // 🍬 Mr Roll's loot (Monster Attack!'s candy castle) — a 50% drop. Owning it = +3% candy (every game).
       { id: "rollmaster", name: "🍥 Master of Rolls", price: 0, secret: true, lockText: "Mr Roll / Mr Candy Cane" },
       // 🍮 Mr Blob's loot — a 30% drop. Owning it = +10% candy (every game).
@@ -258,6 +260,10 @@
     { game: "monster-city", key: "reload", emoji: "🔫", name: "Fast Trigger",   step: 6,  text: "+{v}% fire rate" },
     { game: "monster-city", key: "greed",  emoji: "🍖", name: "Flesh Hunter",   step: 10, text: "+{v}% rotten flesh from kills" },
     { game: "monster-city", key: "regen",  emoji: "💚", name: "Mutant Healing", step: 1,  text: "heal {v}% of max HP every 2 seconds" },
+    // 🔮 A one-level spell (single): once a run, HOLD K for 1 second — every monster on the map is wiped
+    // out, bosses too… and so are you (no revive). Monster Attack! reads it as _AB.forbidden.
+    { game: "monster-city", key: "forbidden", emoji: "🔮", name: "Forbidden Spell", single: true, cost: 30, step: 1,
+      text: "once a run, HOLD K: wipe out EVERY monster on the map — and yourself" },
     // Buckshot Roulette
     { game: "buckshot", key: "tough",   emoji: "🍀", name: "Lucky Charge", step: 15, text: "{v}% chance of a bonus charge each round" },
     { game: "buckshot", key: "power",   emoji: "🔥", name: "Hot Shell",    step: 10, text: "{v}% chance a live shot on the dealer does +1 damage" },
@@ -282,7 +288,7 @@
   let currentGame = null; // set by setGame(); limits the Abilities tab to this game's set
 
   const abilityLevel = (id, save = load()) => Math.max(0, Math.min(ABILITY_MAX, (save.abilities || {})[id] | 0));
-  const abilityMax = (a) => (a.secret ? 1 : ABILITY_MAX);
+  const abilityMax = (a) => (a.secret || a.single ? 1 : ABILITY_MAX);
   // Only the abilities switched on in the ⚡ bar count — up to ACTIVE_SLOTS per game.
   const ACTIVE_SLOTS = 3;
   function activeIds(game, save = load()) {
@@ -328,6 +334,7 @@
     comeback: "Win a REBUILD battle after your base has dropped to 1 HP.",
     dimension: "In Buckshot Roulette (offline), shoot the snow globe on the shelf with a live shell.",
     achilles: "In Monster Attack!, get knocked out by ONE single hit while you are at full health.",
+    typhonslayer: "In Monster Attack!, beat 🐍 Typhon, the Father of Monsters — a rare boss (5% of boss waves from wave 20).",
     cookieking: "In Monster Attack!'s 🎃 candy castle beat Biscuit the Cerberus — or at Christmas, in the ❄️ ice castle, Ginger the Cerberus (40% chance it drops).",
     rollmaster: "In Monster Attack!'s 🎃 candy castle beat Mr Roll — or at Christmas, in the ❄️ ice castle, Mr Candy Cane (50% chance it drops). Gives +3% candy.",
     candygrinder: "In Monster Attack!'s 🎃 candy castle beat Mr Blob — or at Christmas, in the ❄️ ice castle, Mr Figgy (30% chance it drops). Gives +10% candy.",
@@ -467,6 +474,7 @@
   const bump = (n) => (n > 0 ? Math.max(1, Math.round(n * PRICE_UP)) : 0);
   const priceOf = (item, save) => (isFree(save) ? 0 : bump(item.price));
   const costOf = (lv, save, game) => (isFree(save) ? 0 : abilityCost(lv, game));
+  const costFor = (a, lv, save) => (a.cost != null ? (isFree(save) ? 0 : a.cost) : costOf(lv, save, a.game));   // a single spell has one price
 
   // ---------------------------------------------------------------- codes
   // Each works once per save. Letters are matched without caring about case or spaces.
@@ -804,11 +812,12 @@
         }
         const isOn = lv && activeIds(a.game, save).includes(a.id);
         const now = lv ? `<em>${esc(effectText(a, lv))}</em>${isOn ? " · ⚡ ON" : " · off (switch on in the ⚡ bar)"}` : "not learned yet";
-        const next = lv < ABILITY_MAX ? `<br>next: ${esc(effectText(a, lv + 1))}` : "";
-        const btn = lv >= ABILITY_MAX ? `<button disabled>MAX</button>`
-          : `<button data-lvl="${esc(a.id)}" ${save.coins < costOf(lv, save, a.game) ? "disabled" : ""}>${lv ? "Upgrade" : "Learn"} 🪙 ${costOf(lv, save, a.game)}</button>`;
-        return `<div class="as-ab"><div class="top"><span class="ico">${a.emoji}</span><b>${esc(a.name)}</b>
-          <span class="pips">${Array.from({ length: ABILITY_MAX }, (_, i) => `<i class="${i < lv ? "on" : ""}"></i>`).join("")}</span></div>
+        const max = abilityMax(a), price = costFor(a, lv, save);
+        const next = lv < max ? `<br>next: ${esc(effectText(a, lv + 1))}` : "";
+        const btn = lv >= max ? `<button disabled>${a.single ? "Learned ✓" : "MAX"}</button>`
+          : `<button data-lvl="${esc(a.id)}" ${save.coins < price ? "disabled" : ""}>${lv ? "Upgrade" : "Learn"} 🪙 ${price}</button>`;
+        return `<div class="as-ab"${a.single ? ' style="border-color:#8e44ad"' : ""}><div class="top"><span class="ico">${a.emoji}</span><b>${esc(a.name)}</b>
+          <span class="pips">${Array.from({ length: max }, (_, i) => `<i class="${i < lv ? "on" : ""}"></i>`).join("")}</span></div>
           <div class="fx">${now}${next}</div>${btn}</div>`;
       }).join("");
       return `${currentGame ? "" : `<h3 style="margin:14px 0 10px;font-weight:900">${esc(GAME_NAMES[g])}</h3>`}<div class="as-abs">${cards}</div>`;
@@ -1039,8 +1048,8 @@
         const save = update((s) => {
           s.abilities = s.abilities || {};
           const lv = abilityLevel(a.id, s);
-          if (a.secret || lv >= abilityMax(a) || s.coins < costOf(lv, s, a.game)) return;
-          s.coins -= costOf(lv, s, a.game);
+          if (a.secret || lv >= abilityMax(a) || s.coins < costFor(a, lv, s)) return;
+          s.coins -= costFor(a, lv, s);
           // Read what's switched on BEFORE learning, and save it as the explicit list: otherwise
           // the "first 3 learned" default could let a newly learned ability push one out.
           const on = activeIds(a.game, s);
@@ -1144,7 +1153,7 @@
     find, load, update, gameSkins, shareSkins, open, close, toast, registerCurrency,
     howToGet, ACHIEVEMENT_IDS, PUMPKIN_PARTS, pumpkinLook, pumpkinSVG, avatarHTML, setAvatarCustom,
     AVATAR_PARTS, avatarLook, avatarSVG, setAvatarPart,
-    ABILITIES, ABILITY_TAB, ABILITY_MAX, abilityLevel, abilityValue,
+    ABILITIES, ABILITY_TAB, ABILITY_MAX, abilityMax, abilityLevel, abilityValue,
     setGame: (g) => {
       currentGame = g;
       if (document.body) mountBar();

@@ -1099,7 +1099,7 @@
 
   function questTasks(sv) {
     const learned = ArcadeShop.ABILITIES.filter((a) => !a.secret && ArcadeShop.abilityLevel(a.id, sv) > 0);
-    const maxed = learned.filter((a) => ArcadeShop.abilityLevel(a.id, sv) >= ArcadeShop.ABILITY_MAX);
+    const maxed = learned.filter((a) => ArcadeShop.abilityLevel(a.id, sv) >= ArcadeShop.abilityMax(a));
     const bought = Object.values(SHOP).flat().filter((i) => i.price > 0 && sv.owned.includes(i.id));
     return [
       { ico: "⏱", name: "Play for 2 hours in the arcade", have: Math.floor(sv.total / 60), need: 120, unit: "min" },
@@ -1288,7 +1288,7 @@
     `<option value="${esc(a.id)}">${a.emoji} ${esc(a.name)} (${esc({ "monster-city": "Monster Attack!", buckshot: "Buckshot", rebuild: "REBUILD" }[a.game])})</option>`).join("");
   const fillLevels = () => {
     const a = ArcadeShop.ABILITIES.find((x) => x.id === $("admAbility").value);
-    const max = a && a.secret ? 1 : ArcadeShop.ABILITY_MAX;
+    const max = a ? ArcadeShop.abilityMax(a) : ArcadeShop.ABILITY_MAX;
     $("admLevel").innerHTML = Array.from({ length: max + 1 }, (_, i) => `<option value="${i}">Lv ${i}</option>`).join("");
     $("admLevel").value = String(ArcadeShop.abilityLevel(a.id));
   };
@@ -1400,7 +1400,7 @@
           sv.equipped.title = "owner"; msg.t = "👑 You are now the Owner!"; break;
         case "unlock": sv.owned = [...new Set([...sv.owned, ...all.map((i) => i.id)])]; msg.t = "🔓 Everything unlocked"; break;
         case "setab": sv.abilities[$("admAbility").value] = +$("admLevel").value; msg.t = "⚡ Ability set"; break;
-        case "maxab": for (const a of ArcadeShop.ABILITIES) sv.abilities[a.id] = a.secret ? 1 : ArcadeShop.ABILITY_MAX; msg.t = "⚡ All abilities maxed"; break;
+        case "maxab": for (const a of ArcadeShop.ABILITIES) sv.abilities[a.id] = ArcadeShop.abilityMax(a); msg.t = "⚡ All abilities maxed"; break;
         case "clearab": sv.abilities = {}; sv.active = {}; msg.t = "🧽 All abilities cleared"; break;
         case "time": sv.total += 3600; msg.t = "⏱ +1 hour of play time"; break;
         // 🎉 Event currency lives in Monster Attack!'s keys, not the arcade save (see addEventCur).

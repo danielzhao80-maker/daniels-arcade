@@ -697,7 +697,7 @@ r.id("admAbility").value = "rebuild:agent"; r.id("admAbility").dispatchEvent(new
 ok("secret ability levels 0..1", r.$$("#admLevel option").length === 2);
 A("maxab");
 s = r.save();
-ok("max all", S0.ABILITIES.every((a) => s.abilities[a.id] === (a.secret ? 1 : 5)));
+ok("max all", S0.ABILITIES.every((a) => s.abilities[a.id] === (a.secret || a.single ? 1 : 5)));
 A("clearab");
 ok("clear all", Object.keys(r.save().abilities).length === 0 && Object.keys(r.save().active).length === 0);
 for (const k of ["freeShop", "super"]) {

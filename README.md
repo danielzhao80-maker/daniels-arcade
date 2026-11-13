@@ -68,3 +68,16 @@ show up in the Admin Panel.
   `node tools/test-arcade.js` in `rebuild/` and `shooting-game/`, and the `tools/*.js` tests in
   `monster-city/`.
 - Accounts: `Nullp-AI/arcade-accounts.js`. Nullp auto-start: `~/Library/LaunchAgents/com.daniel.nullp.plist`.
+
+## Play online (GitHub Pages)
+
+| Version | Link |
+|---|---|
+| 🕹️ Normal (events follow the calendar) | https://danielzhao80-maker.github.io/daniels-arcade/normal/ |
+| 🎃 Halloween (always on) | https://danielzhao80-maker.github.io/daniels-arcade/halloween/ |
+| 🎄 Christmas (always on) | https://danielzhao80-maker.github.io/daniels-arcade/christmas/ |
+
+The arcade remembers the version you opened last (Monster Attack! uses the same switch). Online there
+is no Nullp server, so accounts, the bug inbox and Nullp's AI answers only work on the home computer.
+On this Mac, the `Arcade 1 - Normal`, `Arcade 2 - Halloween` and `Arcade 3 - Christmas` shortcuts open
+this computer's arcade first (each with its own save), then the home Wi-Fi, then the online site.

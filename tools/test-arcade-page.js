@@ -820,6 +820,16 @@ const fake = r.d.createElement("button"); fake.dataset.ms = "m30"; r.id("milesto
 ok("m30 can't be claimed twice", r.save().coins === 3);
 const fake2 = r.d.createElement("button"); fake2.dataset.ms = "m60"; r.id("milestones").appendChild(fake2); fake2.click();
 ok("m60 can't be claimed early", !(r.save().milestones || []).includes("m60"));
+// 🏆 achievements
+{
+  const ra = boot({ seed: { [KEY]: { coins: 0, owned: ["galaxy", "smile", "rookie", "achilles"] } } });
+  const rows = ra.$$("#achievements .ms");
+  ok("🏆 Achievements box: 5 challenge titles, 🦶 Achilles Heel first", rows.length === 5 && /Achilles Heel/.test(rows[0].textContent));
+  ok("🦶 Achilles Heel shows ✓ when you have it; the others 🔒 with how to get them",
+     /✓/.test(rows[0].textContent) && rows.slice(1).every((x) => /🔒/.test(x.textContent)) && /Buckshot/.test(rows[1].textContent) && /1 \/ 5 done/.test(ra.id("achievements").textContent));
+  const t = ra.S.SHOP.Titles.find((i) => i.id === "achilles");
+  ok("🦶 Achilles Heel is a secret title that says how to get it", t && t.secret && /ONE single hit while you are at full health/.test(ra.S.howToGet(t)));
+}
 r = boot({ seed: { [KEY]: { coins: 0, total: 1440 * 60, milestones: ["m30"] } } });
 ownedBefore = r.S.load().owned.length;
 ok("24 h: 5 claims", r.$$("[data-ms]").length === 5);

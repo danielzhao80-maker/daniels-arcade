@@ -357,6 +357,11 @@
           <small>Free rewards for your total play time in the arcade.</small>
           <div id="milestones" style="width:100%"></div>
         </div>
+        <div class="free-card">
+          <b>🏆 Achievements</b>
+          <small>Challenges across the games — each one unlocks its title.</small>
+          <div id="achievements" style="width:100%"></div>
+        </div>
       </div>
     </section>
 
@@ -996,9 +1001,23 @@
     applyLook(); renderWallet(); renderMilestones();
   });
 
+  // 🏆 Achievements: the challenge titles, unlocked by doing something in a game (shown ✓ or 🔒 + how).
+  const ACHIEVEMENTS = ["achilles", "champion", "comeback", "revenge", "dimension"];
+  function renderAchievements() {
+    const sv = ArcadeShop.load(), owned = sv.owned || [];
+    const list = ACHIEVEMENTS.map((id) => SHOP.Titles.find((t) => t.id === id)).filter(Boolean);
+    $("achievements").innerHTML = list.map((t) => {
+      const done = owned.includes(t.id);
+      return `<div class="ms ${done ? "done" : ""}" title="${esc(ArcadeShop.howToGet(t))}"><b>${esc(t.name)}</b>
+        <span style="font-size:.8em;opacity:.8">${done ? "" : esc(ArcadeShop.howToGet(t))}</span><span>${done ? "✓" : "🔒"}</span></div>`;
+    }).join("") + `<small style="opacity:.7">${list.filter((t) => owned.includes(t.id)).length} / ${list.length} done</small>`;
+  }
+
   renderFree();
   renderMilestones();
-  window.addEventListener("hashchange", () => { renderFree(); renderMilestones(); });
+  renderAchievements();
+  window.addEventListener("hashchange", () => { renderFree(); renderMilestones(); renderAchievements(); });
+  window.addEventListener("focus", renderAchievements);   // back from a game: show what you just unlocked
 
   // ---------------------------------------------------------------- hard quest + admin panel
   // The invisible corner of the shop's 🎁 Codes tab opens the quest. Beating it unlocks the Admin

@@ -85,6 +85,8 @@
       // Buckshot (offline): shoot the snow globe on the shelf with a live shell — it also unlocks the
       // Backrooms in Monster Attack!'s ⭐ Special Maps.
       { id: "dimension", name: "🌀 Dimension Opener", price: 0, secret: true, lockText: "Break through" },
+      // 🏆 Achievement: knocked out by ONE hit from full health in Monster Attack! (everyone has a weak spot).
+      { id: "achilles", name: "🦶 Achilles Heel", price: 0, secret: true, lockText: "Achievement" },
       // 🍬 Mr Roll's loot (Monster Attack!'s candy castle) — a 50% drop. Owning it = +3% candy (every game).
       { id: "rollmaster", name: "🍥 Master of Rolls", price: 0, secret: true, lockText: "Mr Roll / Mr Candy Cane" },
       // 🍮 Mr Blob's loot — a 30% drop. Owning it = +10% candy (every game).
@@ -325,6 +327,7 @@
     champion: "Win Buckshot Roulette 10 times in a row, then wear the Shadow gun skin.",
     comeback: "Win a REBUILD battle after your base has dropped to 1 HP.",
     dimension: "In Buckshot Roulette (offline), shoot the snow globe on the shelf with a live shell.",
+    achilles: "In Monster Attack!, get knocked out by ONE single hit while you are at full health.",
     cookieking: "In Monster Attack!'s 🎃 candy castle beat Biscuit the Cerberus — or at Christmas, in the ❄️ ice castle, Ginger the Cerberus (40% chance it drops).",
     rollmaster: "In Monster Attack!'s 🎃 candy castle beat Mr Roll — or at Christmas, in the ❄️ ice castle, Mr Candy Cane (50% chance it drops). Gives +3% candy.",
     candygrinder: "In Monster Attack!'s 🎃 candy castle beat Mr Blob — or at Christmas, in the ❄️ ice castle, Mr Figgy (30% chance it drops). Gives +10% candy.",

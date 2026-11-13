@@ -263,7 +263,7 @@
     // 🔮 A one-level spell (single): once a run, HOLD K for 1 second — every monster on the map is wiped
     // out, bosses too… and so are you (no revive). Monster Attack! reads it as _AB.forbidden.
     { game: "monster-city", key: "forbidden", emoji: "🔮", name: "Forbidden Spell", single: true, cost: 30, step: 1,
-      text: "once a run, HOLD K: wipe out EVERY monster on the map — and yourself" },
+      text: "Destroy" },   // its whole description, on purpose
     // Buckshot Roulette
     { game: "buckshot", key: "tough",   emoji: "🍀", name: "Lucky Charge", step: 15, text: "{v}% chance of a bonus charge each round" },
     { game: "buckshot", key: "power",   emoji: "🔥", name: "Hot Shell",    step: 10, text: "{v}% chance a live shot on the dealer does +1 damage" },

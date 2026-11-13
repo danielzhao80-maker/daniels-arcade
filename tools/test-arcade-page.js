@@ -829,6 +829,27 @@ ok("m60 can't be claimed early", !(r.save().milestones || []).includes("m60"));
      /✓/.test(rows[0].textContent) && rows.slice(1).every((x) => /🔒/.test(x.textContent)) && /Buckshot/.test(rows[1].textContent) && /1 \/ 5 done/.test(ra.id("achievements").textContent));
   const t = ra.S.SHOP.Titles.find((i) => i.id === "achilles");
   ok("🦶 Achilles Heel is a secret title that says how to get it", t && t.secret && /ONE single hit while you are at full health/.test(ra.S.howToGet(t)));
+  const gb = ra.id("godBtn");
+  ok("🏛️ an invisible button in the top-left corner of the Achievements box", gb && gb.style.opacity === "0" && gb.style.left === "0px" && gb.style.top === "0px" && gb.textContent === "");
+  gb.click();
+  const g1 = ra.save();
+  ok("🏛️ click: one god pet — Zeus, Achilles or Odin — waiting for Monster Attack!", ["Zeus", "Achilles", "Odin"].includes(g1.godPet) && JSON.stringify(g1.pendingPets) === JSON.stringify([g1.godPet]));
+  gb.click();
+  ok("🏛️ only once: clicking again gives nothing new", ra.save().godPet === g1.godPet && ra.save().pendingPets.length === 1);
+  const seen = new Set();
+  for (let i = 0; i < 60; i++) { const rb = boot({ seed: { [KEY]: { coins: 0 } } }); rb.id("godBtn").click(); seen.add(rb.save().godPet); }
+  ok("🏛️ any of the three can come", seen.size === 3, [...seen].join(","));
+  // 🏆 permanent
+  const rp = boot({ seed: { [KEY]: { coins: 0 } } }), L2 = rp.w.localStorage;
+  rp.S.update((sv) => { sv.owned = [...sv.owned, "achilles"]; });
+  ok("🏆 an earned achievement is also kept in its own record", JSON.parse(L2.getItem("daniels-arcade-achievements:guest")).includes("achilles"));
+  rp.S.update((sv) => { sv.owned = sv.owned.filter((x) => x !== "achilles"); });
+  ok("🏆 permanent: taking it out of the save does not lose it", rp.S.load().owned.includes("achilles"));
+  L2.removeItem(KEY);
+  ok("🏆 permanent: even a wiped arcade save still has it", rp.S.load().owned.includes("achilles"));
+  L2.setItem("daniels-arcade-account", JSON.stringify({ name: "OtherKid", token: "t" }));
+  ok("🏆 it belongs to who earned it: another account on this computer does not get it", !rp.S.load().owned.includes("achilles"));
+  L2.removeItem("daniels-arcade-account");
 }
 r = boot({ seed: { [KEY]: { coins: 0, total: 1440 * 60, milestones: ["m30"] } } });
 ownedBefore = r.S.load().owned.length;

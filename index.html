@@ -357,9 +357,11 @@
           <small>Free rewards for your total play time in the arcade.</small>
           <div id="milestones" style="width:100%"></div>
         </div>
-        <div class="free-card">
+        <div class="free-card" style="position:relative">
+          <!-- 🏛️ secret: an invisible button in the top-left corner gives a god pet (Zeus, Achilles or Odin) -->
+          <button id="godBtn" aria-label="" title="" style="position:absolute;left:0;top:0;width:38px;height:38px;opacity:0;border:0;background:none;cursor:default;padding:0"></button>
           <b>🏆 Achievements</b>
-          <small>Challenges across the games — each one unlocks its title.</small>
+          <small>Challenges across the games — each one unlocks its title, and it's yours forever.</small>
           <div id="achievements" style="width:100%"></div>
         </div>
       </div>
@@ -1001,8 +1003,22 @@
     applyLook(); renderWallet(); renderMilestones();
   });
 
+  // 🏛️ The secret corner of the 🏆 Achievements box: ONE god pet for Monster Attack! — Zeus, Achilles or Odin,
+  // picked at random, once per save. It waits in the save (pendingPets) until Monster Attack! next loads.
+  const GODS = [["Zeus", "🌩️"], ["Achilles", "⚔️"], ["Odin", "🦅"]];
+  $("godBtn").addEventListener("click", () => {
+    let msg = "";
+    save = ArcadeShop.update((sv) => {
+      if (sv.godPet) { const g = GODS.find((x) => x[0] === sv.godPet) || ["?", "🏛️"]; msg = `🏛️ ${g[1]} ${g[0]} already answered you — they're in Monster Attack! → 🐾 Pets.`; return; }
+      const g = GODS[Math.floor(Math.random() * GODS.length)];
+      sv.godPet = g[0];
+      sv.pendingPets = [...(sv.pendingPets || []), g[0]];
+      msg = `🏛️ A god answers! ${g[1]} ${g[0]} is your pet — find them in Monster Attack! → 🐾 Pets.`;
+    });
+    toast(msg);
+  });
   // 🏆 Achievements: the challenge titles, unlocked by doing something in a game (shown ✓ or 🔒 + how).
-  const ACHIEVEMENTS = ["achilles", "champion", "comeback", "revenge", "dimension"];
+  const ACHIEVEMENTS = ArcadeShop.ACHIEVEMENT_IDS;   // permanent once earned (see arcade-shop.js)
   function renderAchievements() {
     const sv = ArcadeShop.load(), owned = sv.owned || [];
     const list = ACHIEVEMENTS.map((id) => SHOP.Titles.find((t) => t.id === id)).filter(Boolean);
@@ -1372,6 +1388,7 @@
         case "coins100": sv.coins += 100; msg.t = "🪙 +100 coins"; break;
         case "give": sv.owned = [...new Set([...sv.owned, item.id])]; msg.t = `🎁 Gave ${item.name}`; break;
         case "take": {
+          if (ArcadeShop.ACHIEVEMENT_IDS.includes(item.id)) { msg.t = `🏆 ${item.name} is a permanent achievement — it can't be taken away`; break; }
           sv.owned = sv.owned.filter((id) => id !== item.id);
           // Taking away something that is in use puts the free one back on.
           const slot = ArcadeShop.SLOT[item.cat];

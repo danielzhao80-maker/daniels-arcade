@@ -530,16 +530,35 @@
     redeemed: [],
   });
 
+  // 🏆 Achievements are PERMANENT: once a save has one, it is also written to its own record (one per
+  // account on this computer, "guest" when logged out) that nothing clears — not the Admin Panel's
+  // Take away, not a reset, not a wiped save — and load() always puts it back.
+  const ACHIEVEMENT_IDS = ["achilles", "champion", "comeback", "revenge", "dimension"];
+  function achKey() {
+    let n = "guest";
+    try { n = (JSON.parse(localStorage.getItem("daniels-arcade-account") || "null") || {}).name || "guest"; } catch {}
+    return "daniels-arcade-achievements:" + String(n).toLowerCase();
+  }
+  function readAchievements() {
+    try { const a = JSON.parse(localStorage.getItem(achKey()) || "[]"); return Array.isArray(a) ? a.filter((id) => ACHIEVEMENT_IDS.includes(id)) : []; } catch { return []; }
+  }
+  function keepAchievements(save, kept = readAchievements()) {
+    const earned = [...new Set([...kept, ...save.owned.filter((id) => ACHIEVEMENT_IDS.includes(id))])];
+    if (earned.length > kept.length) try { localStorage.setItem(achKey(), JSON.stringify(earned)); } catch {}
+  }
   function load() {
     const base = fresh();
     try {
       const stored = JSON.parse(localStorage.getItem(KEY) || "{}");
-      return { ...base, ...stored,
-        owned: [...new Set([...base.owned, ...(stored.owned || [])])],
+      const kept = readAchievements();
+      const save = { ...base, ...stored,
+        owned: [...new Set([...base.owned, ...(stored.owned || []), ...kept])],
         equipped: { ...base.equipped, ...(stored.equipped || {}) },
         abilities: { ...(stored.abilities || {}) },
         active: { ...(stored.active || {}) },
         redeemed: [...(stored.redeemed || [])] };
+      keepAchievements(save, kept);
+      return save;
     } catch {
       return base;
     }
@@ -565,6 +584,7 @@
   function update(fn) {
     const save = load();
     fn(save);
+    keepAchievements(save);   // 🏆 earned just now: kept for good
     save.coins = Math.max(0, Math.min(CAPS.wallet, Math.floor(save.coins) || 0)); // never negative or fractional
     // Admin Panel → ♾️ Infinite Coins: a huge real number (Infinity can't be saved — it comes back
     // as 0), topped up after every change so spending never makes it go down. Shown as ∞.
@@ -1122,7 +1142,7 @@
     halloween,
     SHOP, SLOT, SKIN_TABS, SECONDS_PER_COIN, RAINBOW,
     find, load, update, gameSkins, shareSkins, open, close, toast, registerCurrency,
-    howToGet, PUMPKIN_PARTS, pumpkinLook, pumpkinSVG, avatarHTML, setAvatarCustom,
+    howToGet, ACHIEVEMENT_IDS, PUMPKIN_PARTS, pumpkinLook, pumpkinSVG, avatarHTML, setAvatarCustom,
     AVATAR_PARTS, avatarLook, avatarSVG, setAvatarPart,
     ABILITIES, ABILITY_TAB, ABILITY_MAX, abilityLevel, abilityValue,
     setGame: (g) => {

@@ -404,7 +404,8 @@ for (const t of ARC_TABS) {
   }
 }
 r.tab("⚡ Abilities");
-ok("abilities: 3 games, 19 cards", r.$$(".as-items h3").length === 3 && r.$$(".as-ab").length === S0.ABILITIES.length);
+ok("abilities: 4 games (with Island Clash), every card", r.$$(".as-items h3").length === 4 && r.$$(".as-ab").length === S0.ABILITIES.length);
+ok("🏝️ Island Clash's six: Lightning, Heal, Rage, Freeze, Barricade, Agent", S0.ABILITIES.filter((a) => a.game === "island").map((a) => a.key).join() === "lightning,heal,rage,freeze,barricade,agent");
 ok("abilities: secret ones locked", r.$$(".as-ab").filter((c) => /SECRET/.test(c.textContent)).every((c) => c.querySelector("button").disabled && /🔒/.test(c.textContent)));
 ok("bump: 10 -> 11, 2 -> 2, 30 -> 32, 1 -> 1", r.itemBtn && bump(10) === 11 && bump(2) === 2 && bump(30) === 32 && bump(1) === 1);
 // buy one item per category

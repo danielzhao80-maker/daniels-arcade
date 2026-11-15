@@ -397,6 +397,19 @@ check(tb(['frost'], 'wizard').slow, '❄️ Frost Magic: slows the troops it hit
 check(tb(['chain'], 'archer').hurt === 3, '⛓️ Chain Lightning: bounces to 2 more troops');
 check(q(`genIsland(10, 3).buildings.some(function(b){ return b.perks && b.perks.length; })`) && !q(`genIsland(3, 3).buildings.some(function(b){ return b.perks && b.perks.length; })`), 'strong computer islands have upgraded towers (from raid level 6)');
 
+// ---- 🛒 the arcade shop's Island Clash abilities ----
+reset({ rank: 1, army: { warrior: 2 } });
+q(`window.__boost = { freeze: 30, agent: 10, lightning: 50 }; window.ArcadeShop = { abilityValue: function(k, g){ return g === 'island' ? (window.__boost[k] || 0) : 0; } };`);
+check(q('th()') === 1 && q(`abUnlocked('freeze') && abUnlocked('agent') && !abUnlocked('rage')`), 'a shop ability unlocks its mini ability at any Town Hall (here: Freeze and Agent at Town Hall 1)');
+q(`startBattle(genIsland(1, 3));`);
+check(q(`Object.keys(battle.abil).join()`) === 'lightning,freeze,agent', '…so it is in your battle bar');
+const lz = q(`(function(){ var b = battle.blds.find(function(x){ return x.type === 'townhall'; }); var h0 = b.hp; castAbility('lightning', b.x, b.y); return h0 - b.hp; })()`);
+check(lz === Math.round(260 * 1.5), 'each shop level makes it stronger (Lightning +50%: 390)', lz);
+const fz2 = q(`(function(){ var d = battle.blds.find(function(b){ return B[b.type].def; }); castAbility('freeze', d.x, d.y); return d.frozenUntil - battle.frame; })()`);
+check(fz2 === 390, 'Freeze +30% lasts longer (6.5 s)', fz2);
+q(`endBattle(true); battle = null; hidePanels(); window.__boost = {}; delete window.ArcadeShop;`);
+check(!q(`abUnlocked('freeze')`), 'without it you wait for the Town Hall level');
+
 // ---- online result ----
 reset();
 q(`NET.mine = { pct: 80, stars: 2, frames: 3000 }; NET.theirs = { pct: 60, stars: 1, frames: 2000 }; onlineResult();`);

@@ -250,6 +250,12 @@ function crossesBarricade(br, ax, ay, bx, by) {
   return d1 * d2 < 0 && d3 * d4 < 0;
 }
 const abilityUses = (t) => t >= 6 ? 2 : 1;
+// 🛒 The arcade shop's ⚡ Abilities for Island Clash: one per mini ability (switched on in the ⚡ bar).
+// Any level unlocks it at any Town Hall; each level = +10% power.
+if (window.ArcadeShop && ArcadeShop.setGame) ArcadeShop.setGame("island");
+const shopBoost = (k) => { try { const v = window.ArcadeShop && ArcadeShop.abilityValue ? Number(ArcadeShop.abilityValue(k, "island")) : 0; return v > 0 ? v : 0; } catch (e) { return 0; } };
+const abPower = (k) => 1 + shopBoost(k) / 100;
+const abUnlocked = (k) => (k === "agent" ? agentUnlocked() : th() >= AB[k].th) || shopBoost(k) > 0;
 const lightningDmg = (t) => 200 + 60 * t;
 
 // ---- save --------------------------------------------------------------------------------------
@@ -391,7 +397,7 @@ let battle = null;
 function startBattle(island, opts) {
   const army = Object.assign({}, S.army);
   if (!Object.values(army).some((n) => n > 0)) return "Train some troops first (🛡️ Army).";
-  const abil = {}; for (const [k, a] of Object.entries(AB)) if (k === "agent" ? agentUnlocked() : th() >= a.th) abil[k] = abilityUses(th());
+  const abil = {}; for (const k of Object.keys(AB)) if (abUnlocked(k)) abil[k] = abilityUses(th());
   battle = { island, opts: opts || {}, frame: 0, army, brought: Object.assign({}, army), five: false, abil, casts: [], barricades: [], agents: [], troops: [], shots: [], fx: [], over: false, selected: Object.keys(army).find((k) => army[k] > 0),
              blds: island.buildings.map((b) => Object.assign({}, b, { hp: hpOf(b.type, b.lvl), maxHp: hpOf(b.type, b.lvl), cd: 0 })) };
   battle.total = battle.blds.filter((b) => b.type !== "wall").length;
@@ -419,19 +425,19 @@ function deploy(kind, x, y) {
 function castAbility(kind, x, y) {
   const bt = battle, a = AB[kind]; if (!bt || bt.over || !a || !(bt.abil[kind] > 0)) return false;
   bt.abil[kind]--;
-  const inR = (o) => Math.hypot(o.x - x, o.y - y) <= a.radius;
+  const inR = (o) => Math.hypot(o.x - x, o.y - y) <= a.radius, pow = abPower(kind);   // 🛒 +10% a shop level
   if (kind === "lightning") {
-    const dmg = lightningDmg(th());
+    const dmg = Math.round(lightningDmg(th()) * pow);
     for (const b of bt.blds) if (b.hp > 0 && inR(b)) { b.hp = Math.max(0, b.hp - dmg); if (b.hp <= 0) bt.fx.push({ x: b.x, y: b.y, t: 30, boom: true }); }
     for (const m of bt.mobs || []) if (m.hp > 0 && inR(m)) m.hp -= dmg;   // …and the mobs there
     for (let i = 0; i < 4; i++) bt.shots.push({ x: x + (Math.random() - 0.5), y: y - 6, tx: x + (Math.random() - 0.5) * a.radius, ty: y + (Math.random() - 0.5) * a.radius, t: 14, col: "#fff7a8" });
-  } else if (kind === "heal") { for (const tr of bt.troops) if (tr.hp > 0 && inR(tr)) tr.hp = Math.min(tr.maxHp, tr.hp + tr.maxHp * 0.6); }
-  else if (kind === "rage") { for (const tr of bt.troops) if (tr.hp > 0 && inR(tr)) tr.rageUntil = bt.frame + 480; }
-  else if (kind === "freeze") { for (const b of bt.blds) if (b.hp > 0 && B[b.type].def && inR(b)) b.frozenUntil = bt.frame + 300; for (const m of bt.mobs || []) if (m.hp > 0 && inR(m)) m.frozenUntil = bt.frame + 300; }
-  else if (kind === "agent") bt.agents.push({ x, y, phase: "sabotage", target: null, t: 0 });
+  } else if (kind === "heal") { for (const tr of bt.troops) if (tr.hp > 0 && inR(tr)) tr.hp = Math.min(tr.maxHp, tr.hp + tr.maxHp * 0.6 * pow); }
+  else if (kind === "rage") { for (const tr of bt.troops) if (tr.hp > 0 && inR(tr)) tr.rageUntil = bt.frame + Math.round(480 * pow); }
+  else if (kind === "freeze") { const f = Math.round(300 * pow); for (const b of bt.blds) if (b.hp > 0 && B[b.type].def && inR(b)) b.frozenUntil = bt.frame + f; for (const m of bt.mobs || []) if (m.hp > 0 && inR(m)) m.frozenUntil = bt.frame + f; }
+  else if (kind === "agent") bt.agents.push({ x, y, phase: "sabotage", target: null, t: 0, pow });
   else if (kind === "barricade") {   // a 3-tile wall, turned to face the island (across the way to its middle)
     const ang = Math.atan2(y - CENTER, x - CENTER), px = -Math.sin(ang) * a.radius, py = Math.cos(ang) * a.radius;
-    bt.barricades.push({ x, y, x1: x - px, y1: y - py, x2: x + px, y2: y + py, hits: BARRICADE_HITS });
+    bt.barricades.push({ x, y, x1: x - px, y1: y - py, x2: x + px, y2: y + py, hits: Math.round(BARRICADE_HITS * pow) });
   }
   bt.casts.push({ x, y, r: a.radius, color: a.color, t: 180, emoji: a.emoji });   // the ring shows ~1.5 s
   return true;
@@ -497,13 +503,13 @@ function agentStep(bt) {
     }
     if (ag.phase === "ticking") {
       if (--ag.t > 0) continue;
-      const tg = ag.target; if (tg && tg.hp > 0) { tg.hp = Math.max(0, tg.hp - tg.maxHp * AGENT_BOMB); bt.fx.push({ x: tg.x, y: tg.y, t: 30, boom: true }); }
+      const tg = ag.target; if (tg && tg.hp > 0) { tg.hp = Math.max(0, tg.hp - tg.maxHp * Math.min(1, AGENT_BOMB * (ag.pow || 1))); bt.fx.push({ x: tg.x, y: tg.y, t: 30, boom: true }); }
       ag.phase = "done"; continue;
     }
     const tg = ag.target, d = Math.hypot(tg.x - ag.x, tg.y - ag.y);
     if (d > 0.6) { ag.x += (tg.x - ag.x) / d * AGENT_SPEED / 60; ag.y += (tg.y - ag.y) / d * AGENT_SPEED / 60; continue; }
     if (ag.phase === "sabotage") {
-      tg.hp = Math.max(0, tg.hp - tg.maxHp * AGENT_SABOTAGE); tg.frozenUntil = bt.frame + 600;
+      tg.hp = Math.max(0, tg.hp - tg.maxHp * Math.min(1, AGENT_SABOTAGE * (ag.pow || 1))); tg.frozenUntil = bt.frame + 600;
       if (tg.hp <= 0) bt.fx.push({ x: tg.x, y: tg.y, t: 30, boom: true });
       bt.casts.push({ x: tg.x, y: tg.y, r: 0.8, color: "#2d3436", t: 90, emoji: "🔧" });
       ag.phase = "bomb"; ag.target = null;
@@ -815,7 +821,8 @@ function renderInfo() {
     sec("🐾 Your island's defenders", `Your best Barracks (Lv ${barracksLvl()}) sends out: ` + (barracksLvl() ? mobPool(barracksLvl()).map((k) => `${MOB[k].emoji} ${MOB[k].name}`).join(", ") : "nothing yet") +
       "<br>🗿 Your golems: " + ((S.golems || []).length ? S.golems.map((k) => `${MOB[k].emoji} ${MOB[k].name}`).join(", ") : "none yet — buy them in 🛡️ Army") +
       "<br>" + Object.values(MOB).map((m) => `${m.emoji} <b>${m.name}</b>: ${m.desc}`).join("<br>")) +
-    sec("✨ Mini abilities (in battle)", Object.entries(AB).map(([k, a]) => `${a.emoji} ${a.name}: ${(k === "agent" ? agentUnlocked() : I.th >= a.th) ? `<b>${abilityUses(I.th)}</b> per battle` : `🔒 Town Hall ${a.th}`} — ${a.desc}`).join("<br>")) +
+    sec("✨ Mini abilities (in battle)", Object.entries(AB).map(([k, a]) => `${a.emoji} ${a.name}: ${abUnlocked(k) ? `<b>${abilityUses(I.th)}</b> per battle${shopBoost(k) ? ` · 🛒 +${shopBoost(k)}% power` : ""}` : `🔒 Town Hall ${a.th} (or the arcade shop)`} — ${a.desc}`).join("<br>")
+      + `<br><span style="opacity:.8">🛒 The arcade shop's ⚡ Abilities tab sells them for Island Clash: they unlock early and get stronger. Switch them on in the ⚡ bar.</span>`) +
     sec("⚔️ Record", `🏆 <b>${I.trophies}</b> trophies · <b>${I.wins}</b> wins · raid level <b>${I.raid}</b> reached`);
 }
 function showInfo(b) {

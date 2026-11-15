@@ -1293,7 +1293,7 @@
   const ALL_ITEMS = Object.entries(SHOP).flatMap(([cat, list]) => list.filter((i) => i.price > 0 || i.secret).map((i) => ({ cat, ...i })));
   $("admItem").innerHTML = ALL_ITEMS.map((i) => `<option value="${esc(i.id)}">${esc(i.cat)}: ${esc(i.name)}${i.secret ? " ⭐" : ""}</option>`).join("");
   $("admAbility").innerHTML = ArcadeShop.ABILITIES.map((a) =>
-    `<option value="${esc(a.id)}">${a.emoji} ${esc(a.name)} (${esc({ "monster-city": "Monster Attack!", buckshot: "Buckshot", rebuild: "REBUILD" }[a.game])})</option>`).join("");
+    `<option value="${esc(a.id)}">${a.emoji} ${esc(a.name)} (${esc({ "monster-city": "Monster Attack!", buckshot: "Buckshot", rebuild: "REBUILD", island: "Island Clash" }[a.game])})</option>`).join("");
   const fillLevels = () => {
     const a = ArcadeShop.ABILITIES.find((x) => x.id === $("admAbility").value);
     const max = a ? ArcadeShop.abilityMax(a) : ArcadeShop.ABILITY_MAX;

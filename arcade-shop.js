@@ -251,7 +251,7 @@
   // 2, 4, 6, 8, 10 coins per level — Monster Attack!'s abilities cost 3× (6, 12, 18, 24, 30).
   const PRICE_MULT = { "monster-city": 3 };
   const abilityCost = (level, game) => bump((level + 1) * 2 * (PRICE_MULT[game] || 1));
-  const GAME_NAMES = { "monster-city": "👾 Monster Attack!", buckshot: "🔫 Buckshot Roulette", rebuild: "🧟 REBUILD" };
+  const GAME_NAMES = { "monster-city": "👾 Monster Attack!", buckshot: "🔫 Buckshot Roulette", rebuild: "🧟 REBUILD", island: "🏝️ Island Clash" };
   const ABILITIES = [
     // Monster Attack!
     { game: "monster-city", key: "tough",  emoji: "🛡️", name: "Monster Hide",   step: 10, text: "+{v}% max HP" },
@@ -276,6 +276,14 @@
     { game: "rebuild", key: "energy", emoji: "💎", name: "Head Start",       step: 5,  text: "+{v} Energy at the start of each battle" },
     { game: "rebuild", key: "greed",  emoji: "🔷", name: "Shard Finder",     step: 10, text: "+{v}% Core Shards from levels" },
     { game: "rebuild", key: "regen",  emoji: "🔧", name: "Auto-Repair",      step: 1,  text: "base repairs {v} HP every 2 seconds" },
+    // Island Clash: one for each battle mini ability. Learned (level 1+) and switched on in the ⚡ bar, it
+    // unlocks that mini ability at any Town Hall level, and each level makes it 10% stronger.
+    { game: "island", key: "lightning", emoji: "⚡", name: "Lightning",  step: 10, text: "unlocked at any Town Hall · +{v}% damage" },
+    { game: "island", key: "heal",      emoji: "💚", name: "Heal",       step: 10, text: "unlocked at any Town Hall · heals +{v}%" },
+    { game: "island", key: "rage",      emoji: "🔥", name: "Rage",       step: 10, text: "unlocked at any Town Hall · lasts +{v}%" },
+    { game: "island", key: "freeze",    emoji: "❄️", name: "Freeze",     step: 10, text: "unlocked at any Town Hall · lasts +{v}%" },
+    { game: "island", key: "barricade", emoji: "🧱", name: "Barricade",  step: 10, text: "unlocked at any Town Hall · blocks +{v}% more hits" },
+    { game: "island", key: "agent",     emoji: "🕵️", name: "Agent",      step: 10, text: "unlocked at any Town Hall · sabotage and bomb +{v}%" },
     // Secret agent abilities — one per game, from the all-codes reward. They add to several
     // of the game's normal effects at once (bonus), so no game needed new code for them.
     { game: "monster-city", key: "agent", emoji: "🕵️", name: "Agent Mode", secret: true, step: 0,

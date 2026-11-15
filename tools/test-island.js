@@ -242,9 +242,11 @@ q(`frame(performance.now()); endBattle(true); battle = null;`);
 q(`document.getElementById('btnInfo').onclick();`);
 check(/Mini abilities/.test(q(`document.getElementById('infoBody').innerHTML`)), '📊 My Island lists them');
 
-// ---- 💂 defending mobs ----
+// ---- 🐺 defending mobs ----
 check(q(`spawnMobs([{ type: 'barracks', lvl: 1, x: 5, y: 5 }]).length`) === 2 && q(`spawnMobs([{ type: 'barracks', lvl: 3, x: 5, y: 5 }, { type: 'barracks', lvl: 9, x: 6, y: 6 }]).length`) === 10, 'each Barracks sends out 1 + its level (max 6)');
-check(q(`spawnMobs([{ type: 'barracks', lvl: 2, x: 5, y: 5 }]).map(function(m){ return m.kind; }).join()`) === 'guard,sentry,guard', 'Guards and Sentries');
+check(q(`spawnMobs([{ type: 'barracks', lvl: 2, x: 5, y: 5 }]).map(function(m){ return m.kind; }).join()`) === 'wolf,monkey,raccoon', 'wolves, monkeys and raccoons');
+check(q(`spawnMobs([{ type: 'barracks', lvl: 3, x: 5, y: 5 }]).map(function(m){ return m.kind; }).join()`) === 'golem,monkey,raccoon,wolf', '…and from Barracks level 3 an Earth Golem');
+check(q(`MOB.golem.hp > MOB.wolf.hp * 4 && MOB.golem.speed < MOB.wolf.speed && MOB.raccoon.rate < MOB.wolf.rate && MOB.monkey.range > 2`), 'the golem is huge and slow, the raccoon attacks fastest, the monkey throws from range');
 reset({ army: { warrior: 1 } });
 const mb = JSON.parse(q(`(function(){ var isl = { name: 'Camp', th: 2, loot: {}, buildings: [{ type: 'townhall', lvl: 2, x: CENTER, y: CENTER }, { type: 'barracks', lvl: 2, x: CENTER - 2, y: CENTER }] };
   startBattle(isl); var n = battle.mobs.length; deploy('warrior', CENTER - 5.5, CENTER); var tr = battle.troops[0];
@@ -261,7 +263,7 @@ check(home.back, 'with nothing near, mobs walk back home');
 q(`var m = battle.mobs[0]; castAbility('lightning', m.x, m.y);`);
 check(q(`battle.mobs[0].hp`) < q(`battle.mobs[0].maxHp`), '⚡ Lightning hits mobs too');
 q(`endBattle(true); battle = null;`);
-check(/💂 mobs/.test(q(`(function(){ renderRaids(); return document.getElementById('raidGrid').innerHTML; })()`)), 'the raid list shows how many mobs an island has');
+check(/🐺 mobs/.test(q(`(function(){ renderRaids(); return document.getElementById('raidGrid').innerHTML; })()`)), 'the raid list shows how many mobs an island has');
 
 // ---- online result ----
 reset();

@@ -60,6 +60,8 @@
   <span class="pill">🎖️ <b id="rankN">1</b></span>
   <span class="pill">⚔️ <b id="armyN">0</b>/<b id="armyCap">0</b></span>
   <button id="btnInfo" class="blue small">📊 My Island</button>
+  <button id="btnAdmin" class="small" style="display:none;background:linear-gradient(180deg,#ff7675,#c0392b);box-shadow:0 4px 0 #7b1d14">🛠️ Admin</button>
+  <button id="btnOwner" class="small" style="display:none;background:linear-gradient(180deg,#f9ca24,#b8860b);box-shadow:0 4px 0 #6b4f00">👑 Owner</button>
 </div>
 <div id="codebar" class="bar">
   <input id="codeIn" maxlength="16" placeholder="🎁 CODE" style="width:140px;font-size:.9rem;padding:5px 10px">
@@ -87,6 +89,7 @@
   <div class="sub" id="onlineMsg" style="font-size:1rem;font-weight:900;margin-top:10px"></div>
 </div>
 <div class="panel" id="infoPanel"><button class="close" data-close>✕</button><h2>📊 My Island</h2><div class="sub">Everything about your island.</div><div id="infoBody"></div></div>
+<div class="panel" id="adminPanel"><button class="close" data-close>✕</button><h2 id="admTitle"></h2><div class="sub" id="admSub"></div><div id="admBody"></div><div class="sub" id="admMsg" style="font-weight:900;font-size:1rem;margin-top:10px"></div></div>
 <div class="panel" id="rankPanel"><button class="close" data-close>✕</button><h2>🎖️ Rank Up</h2><div id="rankBody"></div></div>
 <div class="panel" id="resultPanel"><h2 id="resTitle"></h2><div class="sub" id="resText" style="font-size:1rem"></div><div class="row"><button id="resOk">Back to my island</button></div></div>
 
@@ -694,6 +697,8 @@ const CODES = {
 function redeemCode(raw) {
   const code = String(raw || "").trim().toUpperCase().replace(/\s+/g, "");
   if (!code) return "Type a code first.";
+  if (codeHash(code) === OWNER_HASH) { S.owner = true; save(); refreshPanelButtons(); openAdmin(true); return "👑 OWNER PANEL unlocked — no limits!"; }
+  if (code === ADMIN_CODE) { S.admin = true; save(); refreshPanelButtons(); openAdmin(false); return "🛠️ Admin Panel unlocked!"; }
   const c = CODES[code]; if (!c) return "❌ That code doesn't exist.";
   S.codes = S.codes || [];
   if (S.codes.includes(code)) return "You already used that code.";
@@ -708,6 +713,74 @@ function redeemCode(raw) {
   save();
   return `🎁 ${code}: ${parts.join(" · ") || "your storage is full!"}`;
 }
+// ---- 🛠️ Admin Panel (daily limits) and 👑 Owner Panel (no limits) ------------------------------------------
+// Opened from the 🎁 code box. The owner's code is NOT written in this file (the game is public on GitHub) —
+// only its hash. Admin: the admin code, or an arcade admin. Once opened, its button stays in the top bar.
+const OWNER_HASH = "1nzwpznwvfj", ADMIN_CODE = "NOP2WGAMES";
+function codeHash(str, seed = 67) {   // cyrb53 (the same hash Monster Attack! uses for its owner code)
+  let h1 = 0xdeadbeef ^ seed, h2 = 0x41c6ce57 ^ seed;
+  for (let i = 0, ch; i < str.length; i++) { ch = str.charCodeAt(i); h1 = Math.imul(h1 ^ ch, 2654435761); h2 = Math.imul(h2 ^ ch, 1597334677); }
+  h1 = Math.imul(h1 ^ (h1 >>> 16), 2246822507); h1 ^= Math.imul(h2 ^ (h2 >>> 13), 3266489909);
+  h2 = Math.imul(h2 ^ (h2 >>> 16), 2246822507); h2 ^= Math.imul(h1 ^ (h1 >>> 13), 3266489909);
+  return (4294967296 * (2097151 & h2) + (h1 >>> 0)).toString(36);
+}
+const arcadeAdmin = () => { try { const sv = JSON.parse(localStorage.getItem("daniels-arcade-v1") || "{}"); return !!(sv.adminUnlocked || (sv.owned || []).includes("owner")); } catch (e) { return false; } };
+const isOwner = () => !!S.owner;
+const isAdmin = () => isOwner() || !!S.admin || arcadeAdmin();
+const ADMIN_CAPS = { gold: 3000, wood: 3000, stone: 3000, troops: 20, golems: 1 };
+const todayStr = () => new Date().toISOString().slice(0, 10);
+function adminLeft(k) { if (!S.adminDay || S.adminDay.date !== todayStr()) S.adminDay = { date: todayStr() }; return ADMIN_CAPS[k] - (S.adminDay[k] || 0); }
+function adminSpend(k, n) { const left = adminLeft(k); if (n > left) return false; S.adminDay[k] = (S.adminDay[k] || 0) + n; return true; }
+// All panel actions. owner = no limits; admin = ADMIN_CAPS a day and no Town Hall / rank / raid / trophies.
+function panelAction(act, arg, owner) {
+  if (owner ? !isOwner() : !isAdmin()) return "🔒 Not allowed.";
+  const cap = capOf();
+  if (act === "res") {   // arg: resource
+    const want = owner ? cap - S[arg] : Math.min(500, cap - S[arg]);
+    if (want <= 0) return `${R[arg]} is full (${cap.toLocaleString()}).`;
+    if (!owner && !adminSpend(arg, want)) return `🚫 Daily limit: ${R[arg]} ${ADMIN_CAPS[arg].toLocaleString()} a day (${Math.max(0, adminLeft(arg))} left).`;
+    S[arg] += want; save(); return `${R[arg]} +${Math.floor(want).toLocaleString()}${owner ? " (filled)" : ` · ${adminLeft(arg)} left today`}`;
+  }
+  if (act === "troops") {   // arg: kind
+    const t = T[arg]; let n = Math.floor((armyCap() - armyUsed()) / t.house);
+    if (!owner) n = Math.min(n, 5, Math.floor(adminLeft("troops") / t.house) || 0);
+    if (n <= 0) return owner ? "Army is full." : `🚫 Daily limit: 20 troops a day (${adminLeft("troops")} left) — or your army is full.`;
+    if (!owner) adminSpend("troops", n * t.house);
+    S.army[arg] = (S.army[arg] || 0) + n; save(); return `${t.emoji} ${t.name} +${n}`;
+  }
+  if (act === "golem") {   // arg: kind or "all"
+    const kinds = arg === "all" ? Object.keys(GOLEM_COST) : [arg];
+    if (!owner && (arg === "all" || !adminSpend("golems", 1))) return "🚫 Admins can give 1 golem a day.";
+    S.golems = [...new Set([...(S.golems || []), ...kinds])]; save(); return `🗿 ${kinds.map((k) => MOB[k].name).join(", ")} now guard your island`;
+  }
+  if (act === "codes") { S.codes = []; save(); return "🎁 Every code works again."; }
+  if (!owner) return "👑 Owner only.";
+  if (act === "th") { const l = Math.max(1, Math.min(MAX_TH, +arg || 1)); S.buildings.find((b) => b.type === "townhall").lvl = l; S.rank = Math.max(rank(), l); save(); return `🏰 Town Hall set to ${l}`; }
+  if (act === "rank") { S.rank = Math.max(1, Math.min(MAX_TH, +arg || 1)); save(); return `🎖️ Rank set to ${S.rank}`; }
+  if (act === "raid") { S.raidLevel = Math.max(1, Math.min(99, +arg || 1)); save(); return `🗺️ Raid level set to ${S.raidLevel}`; }
+  if (act === "trophies") { S.trophies += +arg || 0; save(); return `🏆 +${+arg || 0} trophies`; }
+  return "?";
+}
+function renderAdmin(owner) {
+  $("admTitle").textContent = owner ? "👑 Owner Panel" : "🛠️ Admin Panel";
+  $("admSub").textContent = owner ? "♾️ No limits." : `⏳ Daily limits: ${R.gold} ${R.wood} ${R.stone} 3,000 each · 20 troops · 1 golem. They reset every day.`;
+  const btn = (act, arg, label, cls) => `<button class="small ${cls || ""}" data-act="${act}" data-arg="${arg}">${label}</button>`;
+  const sec = (t, body) => `<div class="card" style="text-align:left;margin-bottom:10px"><div class="n">${t}</div><div class="row" style="justify-content:flex-start;margin:6px 0 0">${body}</div></div>`;
+  const left = (k) => owner ? "" : ` <span style="opacity:.7;font-size:.8rem">(${Math.max(0, adminLeft(k))} left)</span>`;
+  $("admBody").innerHTML =
+    sec("💰 Resources" + (owner ? "" : " — +500 a click"), ["gold", "wood", "stone"].map((k) => btn("res", k, `${R[k]} ${owner ? "Fill" : "+500"}`)).join("") + (owner ? "" : left("gold"))) +
+    sec("⚔️ Troops" + (owner ? " — fill your army" : " — 5 a click") + left("troops"), Object.entries(T).map(([k, t]) => btn("troops", k, `${t.emoji} ${t.name}`, "blue")).join("")) +
+    sec("🗿 Golems" + left("golems"), Object.keys(GOLEM_COST).map((k) => btn("golem", k, `${MOB[k].emoji} ${MOB[k].name}`, "green")).join("") + (owner ? btn("golem", "all", "All golems", "green") : "")) +
+    sec("🎁 Codes", btn("codes", "", "Reset my codes")) +
+    (owner ? sec("🏰 Town Hall · 🎖️ Rank · 🗺️ Raid · 🏆", `<input id="admNum" type="number" min="1" value="${th()}" style="width:90px;text-transform:none">` +
+      btn("th", "#", "Set Town Hall") + btn("rank", "#", "Set Rank") + btn("raid", "#", "Set Raid level") + btn("trophies", "#", "Add 🏆")) : "");
+  $("admBody").querySelectorAll("[data-act]").forEach((b) => (b.onclick = () => {
+    const arg = b.dataset.arg === "#" ? $("admNum").value : b.dataset.arg;
+    $("admMsg").textContent = panelAction(b.dataset.act, arg, owner); renderTop(); renderAdmin(owner);
+  }));
+}
+function refreshPanelButtons() { $("btnAdmin").style.display = isAdmin() && !isOwner() ? "inline-block" : "none"; $("btnOwner").style.display = isOwner() ? "inline-block" : "none"; }
+function openAdmin(owner) { hideInfo(); $("admMsg").textContent = ""; renderAdmin(owner); openPanel("adminPanel"); }
 function hostOnline() {
   if (!hasArmy()) return onlineMsg("Train some troops first (🛡️ Army) — you need an army to fight!");
   if (typeof Peer === "undefined") return onlineMsg("Online play needs the internet (PeerJS didn't load).");
@@ -875,6 +948,8 @@ $("btnArmy").onclick = () => { hideInfo(); renderArmy(); openPanel("armyPanel");
 $("btnRaid").onclick = () => { hideInfo(); renderRaids(); openPanel("raidPanel"); };
 $("btnOnline").onclick = () => { hideInfo(); onlineMsg(""); openPanel("onlinePanel"); };
 $("btnInfo").onclick = () => { hideInfo(); renderInfo(); openPanel("infoPanel"); };
+$("btnAdmin").onclick = () => openAdmin(false);
+$("btnOwner").onclick = () => openAdmin(true);
 $("btnRank").onclick = () => {
   hideInfo();
   const isl = rankIsland();
@@ -1082,7 +1157,7 @@ if (window.ArcadeShop && ArcadeShop.registerCurrency) {
 }
 window.nullpState = () => ({ townHall: th(), gold: Math.floor(S.gold), wood: Math.floor(S.wood), stone: Math.floor(S.stone), trophies: S.trophies, army: armyUsed() + "/" + armyCap(), inBattle: !!battle });
 
-load(); resize(); setView(th()); renderTop(); save();
+load(); resize(); setView(th()); renderTop(); save(); refreshPanelButtons();
 requestAnimationFrame(frame);
 </script>
 <script defer src="../nullp-widget.js" data-game="Island Clash"></script>

@@ -515,6 +515,43 @@ check(cards === 6, 'the raid list shows 6 islands', cards);
 const th5 = JSON.parse(q(`JSON.stringify((function(){ var t = {}, n = {}; for (var l = 1; l <= 30; l++) { var i = genIsland(l); t[i.theme] = 1; n[i.name] = 1; } return { themes: Object.keys(t).length, names: Object.keys(n).length }; })())`));
 check(th5.themes === 5 && th5.names >= 20, 'islands come in 5 themes (🌴 🌿 🏜️ 🌋 ❄️) with lots of names', JSON.stringify(th5));
 
+// ---- 🛠️ Admin / 👑 Owner panels ----
+reset({ rank: 1 });
+check(/OWNER_HASH = "[0-9a-z]+"/.test(html) && !(process.env.OWNER_CODE && html.toUpperCase().includes(process.env.OWNER_CODE.toUpperCase())), 'the owner code is not in the page (only its hash)');
+check(q(`panelAction('res', 'gold', false)`) === '🔒 Not allowed.' && q(`panelAction('th', 3, true)`) === '🔒 Not allowed.', 'no panels until you have the code');
+q(`document.getElementById('codeIn').value = 'nop2wgames'; document.getElementById('codeBtn').onclick();`);
+check(q('S.admin') === true && q(`document.getElementById('adminPanel').style.display`) === 'block' && q(`document.getElementById('btnAdmin').style.display`) === 'inline-block', '🛠️ the admin code opens the Admin Panel (and its button stays at the top)');
+q(`S.gold = 0; S.buildings.push({ type: 'storage', lvl: 5, x: CENTER + 3, y: CENTER });`);
+const adm = JSON.parse(q(`(function(){ var r = []; for (var i = 0; i < 8; i++) r.push(panelAction('res', 'gold', false)); return JSON.stringify({ gold: S.gold, last: r[r.length - 1] }); })()`));
+check(adm.gold === 3000 && /Daily limit/.test(adm.last), 'admin: +500 a click, 3,000 a day', JSON.stringify(adm));
+q(`S.army = {};`);
+q(`for (var i = 0; i < 10; i++) panelAction('troops', 'warrior', false);`);
+check(q('S.army.warrior') === 20, 'admin: 20 troops a day');
+check(q(`panelAction('golem', 'golem', false)`).indexOf('guard') > -1 && /1 golem a day/.test(q(`panelAction('golem', 'firegolem', false)`)), 'admin: 1 golem a day');
+check(/Owner only/.test(q(`panelAction('th', 5, false)`)) && q('th()') === 1, 'admin: cannot set the Town Hall, rank, raid level or trophies');
+q(`panelAction('codes', '', false);`);
+check(q(`S.codes.length`) === 0, 'admin: reset codes');
+check(!q(`isOwner()`), 'the admin code is not the owner code');
+// owner (hash check without the real code)
+q(`S.owner = true; refreshPanelButtons(); S.gold = 0;`);
+check(q(`document.getElementById('btnOwner').style.display`) === 'inline-block', '👑 the owner button shows at the top');
+q(`for (var i = 0; i < 5; i++) panelAction('res', 'gold', true);`);
+check(q('S.gold') === q('capOf()'), 'owner: no limit (fills to your storage)');
+q(`S.army = {}; panelAction('troops', 'warrior', true);`);
+check(q('armyUsed()') === q('armyCap()'), 'owner: fills your army');
+check(/now guard/.test(q(`panelAction('golem', 'all', true)`)) && q(`S.golems.length`) === 4, 'owner: every golem');
+check(q(`(panelAction('th', 6, true), th())`) === 6 && q('rank()') === 6, 'owner: set the Town Hall (and rank)');
+check(q(`(panelAction('rank', 8, true), rank())`) === 8 && q(`(panelAction('raid', 12, true), S.raidLevel)`) === 12, 'owner: set rank and raid level');
+q(`openAdmin(true);`);
+check(/No limits/.test(q(`document.getElementById('admSub').textContent`)) && /Set Town Hall/.test(q(`document.getElementById('admBody').innerHTML`)), 'the Owner Panel shows its extra controls');
+q(`hidePanels();`);
+if (process.env.OWNER_CODE) {
+  reset({ rank: 1 });
+  q(`document.getElementById('codeIn').value = ${JSON.stringify(process.env.OWNER_CODE.toLowerCase())}; document.getElementById('codeBtn').onclick();`);
+  check(q(`isOwner()`) && !(q(`S.codes`) || []).length, 'the real owner code opens the Owner Panel (and is not saved as a used code)');
+  q(`hidePanels();`);
+} else console.log('  (skip) set OWNER_CODE=... to check the real owner code');
+
 // ---- drawing ----
 q(`for (var i = 0; i < 3; i++) frame(performance.now() + i * 16);`);
 check(true, 'the island and a battle draw without errors');

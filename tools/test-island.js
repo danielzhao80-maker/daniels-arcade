@@ -207,9 +207,9 @@ const h = JSON.parse(q(`(function(){ deploy('warrior', 0.5, CENTER); var tr = ba
 check(h.hp > 10 && h.hp <= h.max, '💚 Heal heals your troops', JSON.stringify(h));
 const rg = JSON.parse(q(`(function(){ var tr = battle.troops[0]; castAbility('rage', tr.x, tr.y); var x0 = tr.x; tr.target = null; battleStep(); var moved = Math.abs(tr.x - x0); tr.rageUntil = 0; var x1 = tr.x; battleStep(); return JSON.stringify({ raged: moved, normal: Math.abs(tr.x - x1) }); })()`));
 check(rg.raged > rg.normal * 1.3, '🔥 Rage: troops move faster (and hit harder)', JSON.stringify(rg));
-const fz = JSON.parse(q(`(function(){ var d = battle.blds.find(function(b){ return B[b.type].def; }); castAbility('freeze', d.x, d.y); d.cd = 0; var tr = battle.troops[0]; tr.x = d.x + 0.5; tr.y = d.y; tr.hp = tr.maxHp = 1e9; var h0 = tr.hp; for (var i = 0; i < 100; i++) { tr.x = d.x + 0.5; tr.y = d.y; battleStep(); } return JSON.stringify({ frozen: d.frozenUntil > battle.frame, hurt: h0 - tr.hp }); })()`));
+const fz = JSON.parse(q(`(function(){ battle.mobs = []; var d = battle.blds.find(function(b){ return B[b.type].def; }); castAbility('freeze', d.x, d.y); d.cd = 0; var tr = battle.troops[0]; tr.x = d.x + 0.5; tr.y = d.y; tr.hp = tr.maxHp = 1e9; var h0 = tr.hp; for (var i = 0; i < 100; i++) { tr.x = d.x + 0.5; tr.y = d.y; battleStep(); } return JSON.stringify({ frozen: d.frozenUntil > battle.frame, hurt: h0 - tr.hp }); })()`));
 check(fz.frozen && fz.hurt === 0, '❄️ Freeze: the defences in the area stop shooting', JSON.stringify(fz));
-const bar = JSON.parse(q(`(function(){ var d = battle.blds.find(function(b){ return B[b.type].def; }); d.frozenUntil = 0; d.cd = 0;
+const bar = JSON.parse(q(`(function(){ battle.mobs = []; var d = battle.blds.find(function(b){ return B[b.type].def; }); d.frozenUntil = 0; d.cd = 0;
   var tr = battle.troops[0]; tr.x = d.x - 2; tr.y = d.y; tr.hp = tr.maxHp = 1e9; tr.dmg = 0; var h0 = tr.hp;
   castAbility('barricade', d.x - 1, d.y);
   var br = battle.barricades[0];
@@ -241,6 +241,27 @@ check(/data-sel="ab:lightning"/.test(q(`document.getElementById('battlebar').inn
 q(`frame(performance.now()); endBattle(true); battle = null;`);
 q(`document.getElementById('btnInfo').onclick();`);
 check(/Mini abilities/.test(q(`document.getElementById('infoBody').innerHTML`)), '📊 My Island lists them');
+
+// ---- 💂 defending mobs ----
+check(q(`spawnMobs([{ type: 'barracks', lvl: 1, x: 5, y: 5 }]).length`) === 2 && q(`spawnMobs([{ type: 'barracks', lvl: 3, x: 5, y: 5 }, { type: 'barracks', lvl: 9, x: 6, y: 6 }]).length`) === 10, 'each Barracks sends out 1 + its level (max 6)');
+check(q(`spawnMobs([{ type: 'barracks', lvl: 2, x: 5, y: 5 }]).map(function(m){ return m.kind; }).join()`) === 'guard,sentry,guard', 'Guards and Sentries');
+reset({ army: { warrior: 1 } });
+const mb = JSON.parse(q(`(function(){ var isl = { name: 'Camp', th: 2, loot: {}, buildings: [{ type: 'townhall', lvl: 2, x: CENTER, y: CENTER }, { type: 'barracks', lvl: 2, x: CENTER - 2, y: CENTER }] };
+  startBattle(isl); var n = battle.mobs.length; deploy('warrior', CENTER - 5.5, CENTER); var tr = battle.troops[0];
+  var hurt = false, fought = false, m0 = battle.mobs.reduce(function(a, m){ return a + m.hp; }, 0);
+  for (var i = 0; i < 600 && tr.hp > 0; i++) { var h = tr.hp; battleStep(); if (tr.hp < h) hurt = true; }
+  var m1 = battle.mobs.reduce(function(a, m){ return a + Math.max(0, m.hp); }, 0);
+  return JSON.stringify({ n: n, hurt: hurt, mobsHurt: m1 < m0, dead: tr.hp <= 0 }); })()`));
+check(mb.n === 3 && mb.hurt && mb.mobsHurt, 'the mobs rush a troop that comes near — and the troop fights back', JSON.stringify(mb));
+q(`endBattle(true); battle = null;`);
+reset({ army: { warrior: 1 } });
+const home = JSON.parse(q(`(function(){ var isl = { name: 'Camp', th: 2, loot: {}, buildings: [{ type: 'townhall', lvl: 2, x: CENTER, y: CENTER }, { type: 'barracks', lvl: 1, x: CENTER - 2, y: CENTER }] };
+  startBattle(isl); var m = battle.mobs[0]; m.x += 3; for (var i = 0; i < 400; i++) battleStep(); return JSON.stringify({ back: Math.hypot(m.x - m.homeX, m.y - m.homeY) < 0.2 }); })()`));
+check(home.back, 'with nothing near, mobs walk back home');
+q(`var m = battle.mobs[0]; castAbility('lightning', m.x, m.y);`);
+check(q(`battle.mobs[0].hp`) < q(`battle.mobs[0].maxHp`), '⚡ Lightning hits mobs too');
+q(`endBattle(true); battle = null;`);
+check(/💂 mobs/.test(q(`(function(){ renderRaids(); return document.getElementById('raidGrid').innerHTML; })()`)), 'the raid list shows how many mobs an island has');
 
 // ---- online result ----
 reset();

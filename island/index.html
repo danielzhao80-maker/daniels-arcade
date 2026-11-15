@@ -103,7 +103,7 @@ const B = {
   lumbermill: { name: "Lumber Mill",  emoji: "🪓", hp: 260, base: { gold: 60 },                 makes: "wood",  desc: "Chops wood." },
   quarry:     { name: "Quarry",       emoji: "⚒️", hp: 260, base: { gold: 60, wood: 40 },       makes: "stone", desc: "Cuts stone." },
   storage:    { name: "Storage",      emoji: "📦", hp: 320, base: { gold: 100, wood: 100 },     desc: "Holds more of every resource." },
-  barracks:   { name: "Barracks",     emoji: "⛺", hp: 320, base: { gold: 150, wood: 80 },      desc: "More army space. Higher levels unlock new troops." },
+  barracks:   { name: "Barracks",     emoji: "⛺", hp: 320, base: { gold: 150, wood: 80 },      desc: "More army space and new troops — and it sends out 💂 guards to defend your island when it's attacked." },
   archer:     { name: "Archer Tower", emoji: "🏹", hp: 300, base: { gold: 120, wood: 60, stone: 30 }, def: { range: 4.5, dmg: 9, rate: 40 }, desc: "Shoots troops from far away." },
   cannon:     { name: "Cannon",       emoji: "💣", hp: 340, base: { gold: 200, stone: 80 },     def: { range: 3.5, dmg: 24, rate: 70 }, desc: "Big hits, shorter range." },
   wizard:     { name: "Wizard Tower", emoji: "🔮", hp: 300, base: { gold: 500, stone: 200 },    def: { range: 3.5, dmg: 14, rate: 60, splash: 1.3 }, desc: "Blasts groups of troops." },
@@ -136,6 +136,26 @@ const T = {
   giant:   { name: "Giant",   emoji: "🗿", cost: 120, house: 5, hp: 420, dmg: 16, range: 0.8, speed: 0.8, rate: 40, unlock: 3, targets: "def", desc: "Huge HP. Goes for defences first." },
   mage:    { name: "Mage",    emoji: "🧙", cost: 150, house: 4, hp: 60,  dmg: 22, range: 2.6, speed: 1.2, rate: 45, unlock: 5, splash: 1.1, desc: "Blasts several buildings at once." },
 };
+
+// ---- 💂 defending mobs: every Barracks on an island sends out 1 + its level (max 6) when it is attacked —
+// Guards (melee) and Sentries (ranged). They rush any troop that comes near and go home when nothing does.
+const MOB = {
+  guard:  { name: "Guard",  emoji: "💂", hp: 110, dmg: 12, range: 0.7, speed: 1.3, rate: 32, sight: 4.5 },
+  sentry: { name: "Sentry", emoji: "🧝", hp: 60,  dmg: 10, range: 2.8, speed: 1.2, rate: 40, sight: 5 },
+};
+function spawnMobs(blds) {
+  const mobs = [];
+  for (const b of blds) {
+    if (b.type !== "barracks") continue;
+    const n = Math.min(6, 1 + b.lvl), lv = 1 + 0.3 * (b.lvl - 1);
+    for (let i = 0; i < n; i++) {
+      const kind = i % 2 ? "sentry" : "guard", m = MOB[kind], a = (Math.PI * 2 / n) * i;
+      const x = b.x + Math.cos(a) * 0.6, y = b.y + Math.sin(a) * 0.6;
+      mobs.push({ kind, x, y, homeX: x, homeY: y, hp: m.hp * lv, maxHp: m.hp * lv, dmg: m.dmg * lv, cd: 0 });
+    }
+  }
+  return mobs;
+}
 
 // ---- ✨ mini abilities (battle spells) ------------------------------------------------------------
 // Unlocked by Town Hall level; every battle you get 1 use of each (2 from Town Hall 6). Tap one in the
@@ -267,6 +287,7 @@ function startBattle(island, opts) {
   battle = { island, opts: opts || {}, frame: 0, army, abil, casts: [], barricades: [], agents: [], troops: [], shots: [], fx: [], over: false, selected: Object.keys(army).find((k) => army[k] > 0),
              blds: island.buildings.map((b) => Object.assign({}, b, { hp: hpOf(b.type, b.lvl), maxHp: hpOf(b.type, b.lvl), cd: 0 })) };
   battle.total = battle.blds.filter((b) => b.type !== "wall").length;
+  battle.mobs = spawnMobs(battle.blds);   // 💂 the island's defenders
   for (const k in army) S.army[k] = 0;   // the army goes into battle (survivors don't come back)
   save();
   showBattleBar(); hidePanels(); hideInfo();
@@ -293,10 +314,11 @@ function castAbility(kind, x, y) {
   if (kind === "lightning") {
     const dmg = lightningDmg(th());
     for (const b of bt.blds) if (b.hp > 0 && inR(b)) { b.hp = Math.max(0, b.hp - dmg); if (b.hp <= 0) bt.fx.push({ x: b.x, y: b.y, t: 30, boom: true }); }
+    for (const m of bt.mobs || []) if (m.hp > 0 && inR(m)) m.hp -= dmg;   // …and the mobs there
     for (let i = 0; i < 4; i++) bt.shots.push({ x: x + (Math.random() - 0.5), y: y - 6, tx: x + (Math.random() - 0.5) * a.radius, ty: y + (Math.random() - 0.5) * a.radius, t: 14, col: "#fff7a8" });
   } else if (kind === "heal") { for (const tr of bt.troops) if (tr.hp > 0 && inR(tr)) tr.hp = Math.min(tr.maxHp, tr.hp + tr.maxHp * 0.6); }
   else if (kind === "rage") { for (const tr of bt.troops) if (tr.hp > 0 && inR(tr)) tr.rageUntil = bt.frame + 480; }
-  else if (kind === "freeze") { for (const b of bt.blds) if (b.hp > 0 && B[b.type].def && inR(b)) b.frozenUntil = bt.frame + 300; }
+  else if (kind === "freeze") { for (const b of bt.blds) if (b.hp > 0 && B[b.type].def && inR(b)) b.frozenUntil = bt.frame + 300; for (const m of bt.mobs || []) if (m.hp > 0 && inR(m)) m.frozenUntil = bt.frame + 300; }
   else if (kind === "agent") bt.agents.push({ x, y, phase: "sabotage", target: null, t: 0 });
   else if (kind === "barricade") {   // a 3-tile wall, turned to face the island (across the way to its middle)
     const ang = Math.atan2(y - CENTER, x - CENTER), px = -Math.sin(ang) * a.radius, py = Math.cos(ang) * a.radius;
@@ -307,6 +329,24 @@ function castAbility(kind, x, y) {
 }
 // 🕵️ The Agent (invisible to defences): walks to the strongest defence and sabotages it (40% of its health,
 // knocked out 10 s), then to the Town Hall, plants a bomb, and 3 s later it blows for 35% of the Town Hall.
+function mobStep(bt) {
+  for (const m of bt.mobs || []) {
+    if (m.hp <= 0 || m.frozenUntil > bt.frame) continue;
+    const M = MOB[m.kind];
+    let tg = null, bd = M.sight;
+    for (const tr of bt.troops) if (tr.hp > 0) { const d = Math.hypot(tr.x - m.x, tr.y - m.y); if (d < bd) { bd = d; tg = tr; } }
+    if (!tg) {   // nothing near: walk back home
+      const hd = Math.hypot(m.homeX - m.x, m.homeY - m.y);
+      if (hd > 0.1) { m.x += (m.homeX - m.x) / hd * M.speed / 60; m.y += (m.homeY - m.y) / hd * M.speed / 60; }
+      continue;
+    }
+    if (bd > M.range + 0.3) { m.x += (tg.x - m.x) / bd * M.speed / 60; m.y += (tg.y - m.y) / bd * M.speed / 60; }
+    else if (--m.cd <= 0) {
+      m.cd = M.rate; tg.hp -= m.dmg;
+      if (M.range > 1) bt.shots.push({ x: m.x, y: m.y, tx: tg.x, ty: tg.y, t: 8, col: "#ff7675" });
+    }
+  }
+}
 const AGENT_SPEED = 2.2, AGENT_SABOTAGE = 0.4, AGENT_BOMB = 0.35;
 function agentStep(bt) {
   for (const ag of bt.agents) {
@@ -359,14 +399,18 @@ function battleStep() {
   for (const tr of bt.troops) {
     if (tr.hp <= 0) continue;
     if (!tr.target || tr.target.hp <= 0) tr.target = pickTarget(tr);
-    const tg = tr.target; if (!tg) continue;
+    // 💂 a defending mob in reach: fight it first
+    let foe = null, fd = T[tr.kind].range + 0.6;
+    for (const m of bt.mobs || []) if (m.hp > 0) { const dd = Math.hypot(m.x - tr.x, m.y - tr.y); if (dd < fd) { fd = dd; foe = m; } }
+    const tg = foe || tr.target; if (!tg) continue;
     const t = T[tr.kind], d = Math.hypot(tg.x - tr.x, tg.y - tr.y);
     const raged = tr.rageUntil > bt.frame, spd = t.speed * (raged ? 1.4 : 1), dmgNow = tr.dmg * (raged ? 1.6 : 1);   // 🔥 Rage
     if (d > t.range + 0.45) { tr.x += (tg.x - tr.x) / d * spd * dt; tr.y += (tg.y - tr.y) / d * spd * dt; }
     else if (--tr.cd <= 0) {
       tr.cd = t.rate;
       const hit = (b, dmg) => { b.hp -= dmg; if (b.hp <= 0) { b.hp = 0; bt.fx.push({ x: b.x, y: b.y, t: 30, boom: true }); } };
-      if (t.splash) { for (const b of bt.blds) if (b.hp > 0 && Math.hypot(b.x - tg.x, b.y - tg.y) <= t.splash) hit(b, dmgNow); }
+      if (foe) { foe.hp -= dmgNow; if (foe.hp <= 0) bt.fx.push({ x: foe.x, y: foe.y, t: 16 }); }
+      else if (t.splash) { for (const b of bt.blds) if (b.hp > 0 && Math.hypot(b.x - tg.x, b.y - tg.y) <= t.splash) hit(b, dmgNow); }
       else hit(tg, dmgNow);
       if (t.range > 1) bt.shots.push({ x: tr.x, y: tr.y, tx: tg.x, ty: tg.y, t: 10, col: t.splash ? "#a55eea" : "#feca57" });
     }
@@ -391,6 +435,7 @@ function battleStep() {
     else tg.hp -= dmg;
     bt.shots.push({ x: b.x, y: b.y, tx: tg.x, ty: tg.y, t: 8, col: b.type === "cannon" ? "#2d3436" : b.type === "wizard" ? "#a55eea" : "#fff" });
   }
+  mobStep(bt);
   agentStep(bt);
   bt.shots = bt.shots.filter((s) => --s.t > 0); bt.fx = bt.fx.filter((f) => --f.t > 0); bt.casts = bt.casts.filter((c) => --c.t > 0);
   const anyTroops = bt.troops.some((t) => t.hp > 0) || Object.values(bt.army).some((n) => n > 0) || bt.agents.some((a) => a.phase !== "done");
@@ -551,7 +596,7 @@ function renderRaids() {
   const lv = S.raidLevel, opts = [Math.max(1, lv - 1), lv, lv + 1, lv + 3];
   $("raidGrid").innerHTML = [...new Set(opts)].map((l) => {
     const isl = genIsland(l);
-    return `<div class="card"><div class="e">🏝️</div><div class="n">${isl.name}</div><div class="d">Level ${l} · Town Hall ${isl.th}<br>${isl.buildings.filter((b) => B[b.type].def).length} defences</div>
+    return `<div class="card"><div class="e">🏝️</div><div class="n">${isl.name}</div><div class="d">Level ${l} · Town Hall ${isl.th}<br>${isl.buildings.filter((b) => B[b.type].def).length} defences · ${spawnMobs(isl.buildings).length} 💂 mobs</div>
       <div class="c">Loot up to ${costText(isl.loot)}</div><button class="small red" data-raid="${l}">Attack!</button></div>`;
   }).join("");
   $("raidGrid").querySelectorAll("[data-raid]").forEach((b) => (b.onclick = () => { const e = startBattle(genIsland(+b.dataset.raid)); if (e) toast(e); }));
@@ -705,6 +750,13 @@ function frame(now) {
       const [x, y] = toScreen(c.x, c.y);
       ctx.globalAlpha = Math.min(1, c.t / 60); ctx.strokeStyle = c.color; ctx.lineWidth = 4; ctx.beginPath(); ctx.arc(x, y, c.r * tile, 0, Math.PI * 2); ctx.stroke();
       ctx.fillStyle = c.color + "33"; ctx.fill(); ctx.font = `${tile * 0.9}px serif`; ctx.fillText(c.emoji, x, y); ctx.globalAlpha = 1;
+    }
+    for (const m of bt.mobs || []) {   // 💂 the island's defenders (red rings)
+      if (m.hp <= 0) continue;
+      const [mx, my] = toScreen(m.x, m.y);
+      ctx.fillStyle = m.frozenUntil > bt.frame ? "rgba(116,185,255,0.9)" : "rgba(255,118,117,0.9)"; ctx.beginPath(); ctx.arc(mx, my, tile * 0.3, 0, Math.PI * 2); ctx.fill();
+      ctx.font = `${tile * 0.55}px serif`; ctx.fillText(MOB[m.kind].emoji, mx, my);
+      ctx.fillStyle = "#2d3436"; ctx.fillRect(mx - tile * 0.3, my - tile * 0.45, tile * 0.6, 3); ctx.fillStyle = "#ff4757"; ctx.fillRect(mx - tile * 0.3, my - tile * 0.45, tile * 0.6 * Math.max(0, m.hp) / m.maxHp, 3);
     }
     for (const ag of bt.agents) {   // 🕵️ the agent (see-through: the defences can't see him) and his ticking bomb
       if (ag.phase === "done") continue;

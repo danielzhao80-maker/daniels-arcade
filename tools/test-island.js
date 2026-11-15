@@ -163,6 +163,20 @@ check(q(`S.gold`) === q(`capOf()`), 'never more than your storage holds');
 reset({ gold: 0, wood: 0, stone: 0, last: 0 });
 q(`localStorage.setItem(SAVE_KEY, JSON.stringify(Object.assign(JSON.parse(localStorage.getItem(SAVE_KEY)), { last: Date.now() - 3600 * 1000 }))); load();`);
 check(Math.abs(q(`S.gold`) - 18 * 60) < 3, 'earnings while you are away (1 hour = 1080 gold)', q('S.gold'));
+// ---- 📦 storage from buildings ----
+reset();
+const c0 = q('capOf()');
+check(c0 === 1000 + 500 + 100 + 100, 'a new island holds 1,700 (base + Town Hall + its mine and mill)', c0);
+q(`S.buildings.push({ type: 'archer', lvl: 2, x: CENTER + 1, y: CENTER + 1 });`);
+check(q('capOf()') === c0 + 500, '🏹 an Archer Tower adds storage (+250 a level)');
+q(`S.buildings.push({ type: 'cannon', lvl: 1, x: CENTER - 1, y: CENTER + 1 }, { type: 'wizard', lvl: 1, x: CENTER + 1, y: CENTER - 1 }, { type: 'wall', lvl: 2, x: CENTER - 1, y: CENTER - 1 });`);
+check(q('capOf()') === c0 + 500 + 300 + 400 + 50, '💣 Cannon +300, 🔮 Wizard Tower +400, 🧱 Wall +25 a level');
+q(`S.buildings.push({ type: 'storage', lvl: 1, x: CENTER + 2, y: CENTER + 2 });`);
+check(q('capOf()') === c0 + 1250 + 1500, '📦 Storage still adds the most (+1,500 a level)');
+check(/📦 \+500 storage/.test(q(`(function(){ showInfo(S.buildings.find(function(b){ return b.type === 'archer'; })); return document.getElementById('infoCard').innerHTML; })()`)), 'a building\'s info shows the storage it adds');
+q(`document.getElementById('btnInfo').onclick();`);
+check(/1,000 base/.test(q(`document.getElementById('infoBody').innerHTML`)), '📊 My Island breaks the storage down');
+q(`hidePanels(); hideInfo();`);
 // ---- army ----
 reset({ gold: 1000 });
 check(q(`train('warrior', 1)`) === null && q(`S.army.warrior`) === 7 && q(`S.gold`) === 975, 'train a warrior (🪙 25)');

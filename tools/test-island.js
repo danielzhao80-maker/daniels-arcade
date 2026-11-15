@@ -462,6 +462,17 @@ const left = q(`(function(){ var h = {}; var fake = { on: function(ev, f){ h[ev]
 check(/friend left/.test(JSON.parse(left).title) && JSON.parse(left).ok !== 'none' && JSON.parse(left).gold > 0, 'online: if your friend leaves while you wait, you win and can go back (no more stuck "Waiting…")', left);
 q(`netReset(); hidePanels();`);
 
+// ---- 🐾 defenders on your island ----
+reset();
+q(`S.golems = ['firegolem']; S.buildings.find(function(b){ return b.type === 'barracks'; }).lvl = 2;`);
+const hd = JSON.parse(q(`JSON.stringify(homeDefenders().map(function(m){ return m.kind; }))`));
+check(hd[0] === 'firegolem' && hd.slice(1).join() === 'wolf,monkey,raccoon', 'your island shows your golem by the Town Hall and the animals your Barracks send', JSON.stringify(hd));
+q(`frame(performance.now());`);
+const pet = q(`(function(){ var m = homeDefenders()[1]; var t = performance.now() / 1000; var p = homeMobPos(m, 1, t); return defenderAt(p[0], p[1], t).kind; })()`);
+check(pet === 'wolf', 'you can tap one to see what it does');
+q(`S.golems.push('windgolem');`);
+check(q(`homeDefenders().filter(function(m){ return MOB[m.kind].golem; }).length`) === 2, 'buy another golem and it shows up straight away');
+
 // ---- drawing ----
 q(`for (var i = 0; i < 3; i++) frame(performance.now() + i * 16);`);
 check(true, 'the island and a battle draw without errors');

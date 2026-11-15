@@ -889,6 +889,34 @@ function drawIsland(t, list, time, opts) {
     if (!opts && selected === b) { ctx.strokeStyle = "#feca57"; ctx.lineWidth = 3; ctx.strokeRect(sx - s / 2 - 3, sy - s / 2 - 3, s + 6, s + 6); }
   }
 }
+// 🐾 On your own island your defenders are out and about: the animals your Barracks send wander near them,
+// your bought golems stand guard round the Town Hall (green rings: they're yours). Tap one to see what it does.
+let homeMobs = [], homeMobsKey = "";
+function homeDefenders() {
+  const key = JSON.stringify([S.buildings.filter((b) => b.type === "barracks" || b.type === "townhall").map((b) => [b.type, b.lvl, b.x, b.y]), S.golems || []]);
+  if (key !== homeMobsKey) { homeMobsKey = key; homeMobs = spawnMobs(S.buildings, (S.golems || []).slice()); }
+  return homeMobs;
+}
+function homeMobPos(m, i, time) {   // a gentle wander round its post
+  const r = MOB[m.kind].golem ? 0.12 : 0.35, sp = 0.4 + (i % 5) * 0.13;
+  return [m.homeX + Math.cos(time * sp + i * 1.7) * r, m.homeY + Math.sin(time * sp * 1.3 + i) * r];
+}
+function drawHomeDefenders(time) {
+  homeDefenders().forEach((m, i) => {
+    const M = MOB[m.kind], [x, y] = homeMobPos(m, i, time), [sx, sy0] = toScreen(x, y);
+    const rr = tile * (M.big ? 0.4 : M.small ? 0.18 : 0.26), sy = M.flying ? sy0 - tile * 0.35 : sy0;
+    if (M.flying) { ctx.fillStyle = "rgba(0,0,0,0.2)"; ctx.beginPath(); ctx.ellipse(sx, sy0 + tile * 0.25, rr, rr * 0.4, 0, 0, Math.PI * 2); ctx.fill(); }
+    ctx.fillStyle = M.ring; ctx.beginPath(); ctx.arc(sx, sy, rr, 0, Math.PI * 2); ctx.fill();
+    ctx.strokeStyle = "#2ecc71"; ctx.lineWidth = 2; ctx.stroke();
+    ctx.font = `${rr * 1.7}px serif`; ctx.textAlign = "center"; ctx.textBaseline = "middle"; ctx.fillText(M.emoji, sx, sy);
+    if (M.golem && m.kind !== "golem") { ctx.font = `${rr * 0.85}px serif`; ctx.fillText("🗿", sx + rr * 0.6, sy + rr * 0.55); }
+  });
+}
+function defenderAt(fx, fy, time) {
+  let best = null, bd = 0.45;
+  homeDefenders().forEach((m, i) => { const [x, y] = homeMobPos(m, i, time), d = Math.hypot(x - fx, y - fy); if (d < bd) { bd = d; best = m; } });
+  return best;
+}
 let last = performance.now(), prodAcc = 0;
 function frame(now) {
   const dt = Math.min(0.25, (now - last) / 1000); last = now;
@@ -955,6 +983,7 @@ function frame(now) {
     ctx.fillText(bt.selected && bt.selected.startsWith("ab:") ? `${AB[bt.selected.slice(3)].emoji} Tap anywhere to cast ${AB[bt.selected.slice(3)].name}` : `⚔️ ${bt.island.name} — tap the sea or the beach to send in your ${bt.selected ? T[bt.selected].name.toLowerCase() + "s" : "troops"}`, innerWidth / 2, 74);
   } else {
     drawIsland(th(), S.buildings, time, null);
+    drawHomeDefenders(time);   // 🐺 your animals by their Barracks, 🗿 your golems by the Town Hall
     if (placing || moving) { ctx.font = "bold 16px Nunito, sans-serif"; ctx.fillStyle = "#fff"; ctx.textAlign = "center"; const k = placing || moving.type; ctx.fillText(`${placing ? "Placing" : "Moving"}: ${B[k].emoji} ${B[k].name} — tap an empty green spot`, innerWidth / 2, 104); }
   }
   requestAnimationFrame(frame);
@@ -992,6 +1021,8 @@ cv.addEventListener("click", (e) => {
     if (err) toast(err); else { toast(`${B[placing].emoji} ${B[placing].name} built!`); placing = null; renderTop(); }
     return;
   }
+  const pet = defenderAt(fx, fy, performance.now() / 1000);
+  if (pet) { hideInfo(); const M = MOB[pet.kind]; toast(`${M.emoji} ${M.name} — ${M.desc}${M.golem && pet.kind !== "golem" || (S.golems || []).includes(pet.kind) ? " (your golem)" : " (from your Barracks)"}`); return; }
   const b = S.buildings.find((q) => q.x === x && q.y === y);
   if (b) showInfo(b); else hideInfo();
 });

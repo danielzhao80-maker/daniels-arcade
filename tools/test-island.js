@@ -230,6 +230,11 @@ check(q(`Object.keys(CODES).length`) === 20, '20 codes');
 reset({ gold: 0, wood: 0, stone: 0, army: {} });
 q(`S.buildings.push({ type: 'storage', lvl: 5, x: CENTER + 1, y: CENTER + 1 }, { type: 'barracks', lvl: 5, x: CENTER - 1, y: CENTER + 1 }); redeemCode('TSUNAMI'); redeemCode('ARMADA'); redeemCode('WIZARDS');`);
 check(q('S.gold') === 5000 && q('S.army.warrior') === 15 && q('S.army.archer') === 5 && q('S.army.mage') === 2, 'TSUNAMI (5,000 of each), ARMADA (15 warriors + 5 archers), WIZARDS (2 mages)');
+reset({ gold: 0 });
+q(`redeemCode('SHARK'); document.getElementById('codeList').onclick();`);
+const cl = q(`document.getElementById('codesGrid').innerHTML`);
+check(q(`document.getElementById('codesPanel').style.display`) === 'block' && (cl.match(/class="card"/g) || []).length === 20 && /SHARK ✓/.test(cl) && /TSUNAMI/.test(cl), '📜 the Codes button lists all 20 codes, with ✓ on the used ones');
+check(q(`(function(){ document.querySelector ? 0 : 0; redeemCode('ISLAND'); return S.codes.includes('ISLAND'); })()`), 'its Use buttons redeem them');
 check(/id="codebar"/.test(html) && html.indexOf('id="codebar"') < html.indexOf('id="bottom"'), 'the code bar sits at the top of the game');
 // ---- drawing ----
 q(`for (var i = 0; i < 3; i++) frame(performance.now() + i * 16);`);

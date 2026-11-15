@@ -60,6 +60,7 @@
 <div id="codebar" class="bar" style="top:52px">
   <input id="codeIn" maxlength="16" placeholder="🎁 CODE" style="width:140px;font-size:.9rem;padding:5px 10px">
   <button id="codeBtn" class="small">Redeem</button>
+  <button id="codeList" class="small blue">📜 Codes</button>
 </div>
 <div id="bottom" class="bar">
   <button id="btnBuild">🏗️ Build</button>
@@ -81,6 +82,7 @@
   <div class="sub" id="onlineMsg" style="font-size:1rem;font-weight:900;margin-top:10px"></div>
 </div>
 <div class="panel" id="infoPanel"><button class="close" data-close>✕</button><h2>📊 My Island</h2><div class="sub">Everything about your island.</div><div id="infoBody"></div></div>
+<div class="panel" id="codesPanel"><button class="close" data-close>✕</button><h2>📜 Codes</h2><div class="sub">Type one in the 🎁 bar at the top. Each works once per island.</div><div class="grid" id="codesGrid"></div></div>
 <div class="panel" id="resultPanel"><h2 id="resTitle"></h2><div class="sub" id="resText" style="font-size:1rem"></div><div class="row"><button id="resOk">Back to my island</button></div></div>
 
 <script>
@@ -526,6 +528,18 @@ $("btnArmy").onclick = () => { hideInfo(); renderArmy(); openPanel("armyPanel");
 $("btnRaid").onclick = () => { hideInfo(); renderRaids(); openPanel("raidPanel"); };
 $("btnOnline").onclick = () => { hideInfo(); onlineMsg(""); openPanel("onlinePanel"); };
 $("btnInfo").onclick = () => { hideInfo(); renderInfo(); openPanel("infoPanel"); };
+function renderCodes() {
+  const used = S.codes || [];
+  $("codesGrid").innerHTML = Object.entries(CODES).map(([code, c]) => {
+    const gives = [...["gold", "wood", "stone"].filter((k) => c[k]).map((k) => `${R[k]} ${c[k].toLocaleString()}`),
+                   ...Object.entries(c.troops || {}).map(([k, n]) => `${T[k].emoji} ${n} ${T[k].name.toLowerCase()}${n === 1 ? "" : "s"}`)].join(" · ");
+    const done = used.includes(code);
+    return `<div class="card" style="${done ? "opacity:.55" : ""}"><div class="n" style="font-family:'Fredoka One',cursive;font-size:1.1rem">${code}${done ? " ✓" : ""}</div>
+      <div class="d">${gives}</div>${done ? `<div class="c">Used</div>` : `<button class="small" data-use="${code}">Use</button>`}</div>`;
+  }).join("");
+  $("codesGrid").querySelectorAll("[data-use]").forEach((b) => (b.onclick = () => { toast(redeemCode(b.dataset.use)); renderTop(); renderCodes(); }));
+}
+$("codeList").onclick = () => { hideInfo(); renderCodes(); openPanel("codesPanel"); };
 $("codeBtn").onclick = () => { toast(redeemCode($("codeIn").value)); $("codeIn").value = ""; renderTop(); };
 $("codeIn").addEventListener("keydown", (e) => { e.stopPropagation(); if (e.key === "Enter") $("codeBtn").onclick(); });
 $("hostBtn").onclick = hostOnline;

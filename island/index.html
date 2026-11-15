@@ -109,6 +109,39 @@ const B = {
   wizard:     { name: "Wizard Tower", emoji: "🔮", hp: 300, base: { gold: 500, stone: 200 },    def: { range: 3.5, dmg: 14, rate: 60, splash: 1.3 }, desc: "Blasts groups of troops. +400 storage a level." },
   wall:       { name: "Wall",         emoji: "🧱", hp: 380, base: { stone: 25 },                desc: "Troops have to break through walls in their way." },
 };
+// ⬆️ Tower upgrades: three one-time upgrades per tower, each needing a higher tower level (2, 3, 4).
+const PERKS = {
+  archer: [ { id: "eagleeye", emoji: "🔭", name: "Eagle Eye",   desc: "+1.5 range" },
+            { id: "firearrows", emoji: "🔥", name: "Fire Arrows", desc: "troops it hits burn for 3 s" },
+            { id: "doubleshot", emoji: "🎯", name: "Double Shot", desc: "shoots 2 troops at once" } ],
+  cannon: [ { id: "heavy",     emoji: "🪨", name: "Heavy Balls",     desc: "+60% damage" },
+            { id: "reload",    emoji: "⚡", name: "Fast Reload",     desc: "fires 50% faster" },
+            { id: "explosive", emoji: "💥", name: "Explosive Shells", desc: "splash damage" } ],
+  wizard: [ { id: "bigblast",  emoji: "🌀", name: "Big Blast",       desc: "bigger splash" },
+            { id: "frost",     emoji: "❄️", name: "Frost Magic",     desc: "slows the troops it hits" },
+            { id: "chain",     emoji: "⛓️", name: "Chain Lightning", desc: "bounces to 2 more troops" } ],
+};
+const PERK_COST = [{ gold: 800, stone: 400 }, { gold: 1500, stone: 800 }, { gold: 2500, stone: 1500 }];
+const hasPerk = (b, id) => !!(b.perks && b.perks.includes(id));
+function buyPerk(b, i) {
+  const list = PERKS[b.type]; if (!list || !list[i]) return "That tower has no such upgrade.";
+  const p = list[i];
+  if (hasPerk(b, p.id)) return `${p.name} is already on this tower.`;
+  if (b.lvl < i + 2) return `Needs the tower at level ${i + 2}.`;
+  if (!canPay(PERK_COST[i])) return `Not enough: ${costText(PERK_COST[i])}`;
+  pay(PERK_COST[i]); b.perks = [...(b.perks || []), p.id]; save(); return null;
+}
+// A tower's numbers in battle, with its upgrades.
+function towerStats(b) {
+  const D = B[b.type].def;
+  let range = D.range, rate = D.rate, dmg = D.dmg * (1 + 0.45 * (b.lvl - 1)), splash = D.splash || 0;
+  if (hasPerk(b, "eagleeye")) range += 1.5;
+  if (hasPerk(b, "heavy")) dmg *= 1.6;
+  if (hasPerk(b, "reload")) rate = Math.round(rate * 0.66);
+  if (hasPerk(b, "explosive")) splash = Math.max(splash, 1.0);
+  if (hasPerk(b, "bigblast")) splash += 0.7;
+  return { range, rate, dmg, splash };
+}
 const BUILD_ORDER = ["goldmine", "lumbermill", "quarry", "storage", "barracks", "archer", "cannon", "wizard", "wall"];
 function limitOf(type, th) {
   switch (type) {
@@ -294,7 +327,9 @@ function genIsland(lvl, seed) {
   const want = ["archer", "cannon", "wizard", "goldmine", "lumbermill", "quarry", "storage", "barracks"];
   for (const type of want) for (let k = 0; k < limitOf(type, t); k++) {
     const sp = spots.pop(); if (!sp) break;
-    list.push({ type, lvl: Math.max(1, t - Math.floor(r() * 2)), x: sp[0], y: sp[1] });
+    const lv = Math.max(1, t - Math.floor(r() * 2)), perks = [];
+    if (PERKS[type] && lvl >= 6) for (let i = 0; i < Math.min(3, lv - 1); i++) if (r() < 0.25 + lvl * 0.03) perks.push(PERKS[type][i].id);   // stronger islands have upgraded towers
+    list.push({ type, lvl: lv, x: sp[0], y: sp[1], perks });
   }
   // a few walls round the middle
   const walls = Math.min(limitOf("wall", t), 6 + lvl);
@@ -308,7 +343,7 @@ function genIsland(lvl, seed) {
 // Your island as someone else will see it (online).
 function myIslandSnapshot() {
   const name = (() => { try { return (JSON.parse(localStorage.getItem("daniels-arcade-account") || "null") || {}).name || ""; } catch (e) { return ""; } })() || "Friend";
-  return { name: name + "'s island", th: th(), golems: (S.golems || []).slice(), buildings: S.buildings.map((b) => ({ type: b.type, lvl: b.lvl, x: b.x, y: b.y })),
+  return { name: name + "'s island", th: th(), golems: (S.golems || []).slice(), buildings: S.buildings.map((b) => ({ type: b.type, lvl: b.lvl, x: b.x, y: b.y, perks: (b.perks || []).slice() })),
            loot: { gold: Math.floor(S.gold * 0.1), wood: Math.floor(S.wood * 0.1), stone: Math.floor(S.stone * 0.1) } };
 }
 
@@ -488,11 +523,12 @@ function battleStep() {
     }
   }
   for (const b of bt.blds) {
-    const D = B[b.type].def; if (!D || b.hp <= 0) continue;
+    if (!B[b.type].def || b.hp <= 0) continue;
     if (b.frozenUntil > bt.frame) continue;   // ❄️ Freeze
     if (--b.cd > 0) continue;
-    let tg = null, bd = D.range;
-    for (const tr of bt.troops) if (tr.hp > 0) { const d = Math.hypot(tr.x - b.x, tr.y - b.y); if (d <= bd) { bd = d; tg = tr; } }
+    const D = towerStats(b);   // ⬆️ with its upgrades
+    const inRange = bt.troops.filter((tr) => tr.hp > 0 && Math.hypot(tr.x - b.x, tr.y - b.y) <= D.range).sort((p, q) => Math.hypot(p.x - b.x, p.y - b.y) - Math.hypot(q.x - b.x, q.y - b.y));
+    let tg = inRange[0] || null;
     if (!tg) continue;
     b.cd = D.rate;
     const wall = bt.barricades.find((br) => br.hits > 0 && crossesBarricade(br, b.x, b.y, tg.x, tg.y));
@@ -502,10 +538,26 @@ function battleStep() {
       if (wall.hits <= 0) bt.fx.push({ x: wall.x, y: wall.y, t: 30, boom: true });
       continue;
     }
-    const dmg = D.dmg * (1 + 0.45 * (b.lvl - 1));
-    if (D.splash) { for (const tr of bt.troops) if (tr.hp > 0 && Math.hypot(tr.x - tg.x, tr.y - tg.y) <= D.splash) tr.hp -= dmg; }
-    else tg.hp -= dmg;
-    bt.shots.push({ x: b.x, y: b.y, tx: tg.x, ty: tg.y, t: 8, col: b.type === "cannon" ? "#2d3436" : b.type === "wizard" ? "#a55eea" : "#fff" });
+    const dmg = D.dmg, col = b.type === "cannon" ? "#2d3436" : b.type === "wizard" ? "#a55eea" : hasPerk(b, "firearrows") ? "#ff793f" : "#fff";
+    const strike = (t0, d) => {
+      const hitList = D.splash ? bt.troops.filter((tr) => tr.hp > 0 && Math.hypot(tr.x - t0.x, tr.y - t0.y) <= D.splash) : [t0];
+      for (const tr of hitList) {
+        tr.hp -= d;
+        if (hasPerk(b, "firearrows")) { tr.burnLeft = 180; tr.burnDps = 15 * (1 + 0.3 * (b.lvl - 1)); }   // 🔥
+        if (hasPerk(b, "frost")) tr.slowUntil = bt.frame + 150;                                              // ❄️
+      }
+      bt.shots.push({ x: b.x, y: b.y, tx: t0.x, ty: t0.y, t: 8, col });
+    };
+    strike(tg, dmg);
+    if (hasPerk(b, "doubleshot") && inRange[1]) strike(inRange[1], dmg);   // 🎯
+    if (hasPerk(b, "chain")) {   // ⛓️ bounces to 2 more troops near the first
+      let from = tg; const hit = new Set([tg]);
+      for (let k = 0; k < 2; k++) {
+        const nx = bt.troops.filter((tr) => tr.hp > 0 && !hit.has(tr) && Math.hypot(tr.x - from.x, tr.y - from.y) <= 2.2).sort((p, q) => Math.hypot(p.x - from.x, p.y - from.y) - Math.hypot(q.x - from.x, q.y - from.y))[0];
+        if (!nx) break;
+        nx.hp -= dmg * 0.6; hit.add(nx); bt.shots.push({ x: from.x, y: from.y, tx: nx.x, ty: nx.y, t: 8, col: "#a29bfe" }); from = nx;
+      }
+    }
   }
   mobStep(bt);
   agentStep(bt);
@@ -715,8 +767,15 @@ function showInfo(b) {
   const max = b.type === "townhall" ? MAX_TH : th(), up = b.lvl < max ? costOf(b.type, b.lvl + 1) : null, D = B[b.type].def;
   $("infoCard").innerHTML = `<div style="font-size:1.6rem">${B[b.type].emoji} <b>${B[b.type].name}</b> Lv ${b.lvl}</div>
     <div style="font-size:.8rem;opacity:.85;margin:4px 0">${B[b.type].desc}</div>
-    <div style="font-size:.8rem">${storeOf(b) ? `📦 +${storeOf(b).toLocaleString()} storage · ` : ""}❤️ ${hpOf(b.type, b.lvl)}${B[b.type].makes ? ` · makes ${R[B[b.type].makes]} ${prodPerMin(b.lvl)}/min` : ""}${D ? ` · 💥 ${Math.round(D.dmg * (1 + 0.45 * (b.lvl - 1)))} · range ${D.range}` : ""}</div>
+    <div style="font-size:.8rem">${storeOf(b) ? `📦 +${storeOf(b).toLocaleString()} storage · ` : ""}❤️ ${hpOf(b.type, b.lvl)}${B[b.type].makes ? ` · makes ${R[B[b.type].makes]} ${prodPerMin(b.lvl)}/min` : ""}${D ? (() => { const st = towerStats(b); return ` · 💥 ${Math.round(st.dmg)} · range ${st.range}${st.splash ? ` · splash ${st.splash}` : ""}`; })() : ""}</div>
     <div style="margin-top:8px">${up ? `<button class="small green" id="upBtn" ${canPay(up) ? "" : "disabled"}>Upgrade → Lv ${b.lvl + 1}<br>${costText(up)}</button>` : `<i>${b.type === "townhall" ? "Top level!" : "Upgrade the Town Hall to go higher."}</i>`}</div>`;
+  if (PERKS[b.type]) {   // ⬆️ the tower's special upgrades
+    $("infoCard").innerHTML += `<div style="margin-top:8px;font-weight:900;font-size:.85rem">⬆️ Tower upgrades</div>` + PERKS[b.type].map((p, i) => {
+      const have = hasPerk(b, p.id), locked = b.lvl < i + 2;
+      return `<div style="font-size:.78rem;margin-top:4px">${p.emoji} <b>${p.name}</b> — ${p.desc}<br>${have ? "✅ Done" : locked ? `🔒 Tower level ${i + 2}` : `<button class="small" data-perk="${i}" ${canPay(PERK_COST[i]) ? "" : "disabled"}>Buy ${costText(PERK_COST[i])}</button>`}</div>`;
+    }).join("");
+    $("infoCard").querySelectorAll("[data-perk]").forEach((btn) => (btn.onclick = () => { const e = buyPerk(b, +btn.dataset.perk); toast(e || `${PERKS[b.type][+btn.dataset.perk].emoji} ${PERKS[b.type][+btn.dataset.perk].name} added!`); renderTop(); showInfo(b); }));
+  }
   $("info").style.display = "block";
   const ub = $("upBtn"); if (ub) ub.onclick = () => { const e = upgradeBuilding(b); toast(e || `${B[b.type].emoji} ${B[b.type].name} is now level ${b.lvl}!`); renderTop(); showInfo(b); };
 }
@@ -805,6 +864,7 @@ function drawIsland(t, list, time, opts) {
     ctx.font = `${s * (b.type === "townhall" ? 0.78 : 0.66)}px serif`; ctx.fillText(dead ? "💥" : B[b.type].emoji, sx, sy + 1);
     ctx.globalAlpha = 1;
     if (b.type !== "wall") { ctx.font = `bold ${tile * 0.32}px Nunito, sans-serif`; ctx.fillStyle = "#fff"; ctx.strokeStyle = "#000"; ctx.lineWidth = 3; ctx.strokeText(b.lvl, sx + s * 0.38, sy - s * 0.38); ctx.fillText(b.lvl, sx + s * 0.38, sy - s * 0.38); }
+    if (b.perks && b.perks.length) { ctx.font = `${tile * 0.28}px serif`; ctx.fillText("⭐".repeat(b.perks.length), sx, sy + s * 0.48); }   // ⬆️ upgraded tower
     if (opts && opts.battle && b.hp > 0 && b.hp < b.maxHp) { ctx.fillStyle = "#2d3436"; ctx.fillRect(sx - s / 2, sy + s / 2 + 2, s, 4); ctx.fillStyle = "#2ecc71"; ctx.fillRect(sx - s / 2, sy + s / 2 + 2, s * b.hp / b.maxHp, 4); }
     if (!opts && selected === b) { ctx.strokeStyle = "#feca57"; ctx.lineWidth = 3; ctx.strokeRect(sx - s / 2 - 3, sy - s / 2 - 3, s + 6, s + 6); }
   }

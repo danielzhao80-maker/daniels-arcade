@@ -364,6 +364,38 @@ const ct = JSON.parse(q(`(function(){ var isl = { name: 'Gale', th: 2, loot: {},
   endBattle(true); battle = null; return JSON.stringify({ rate: caught / hits, hits: hits }); })()`));
 check(ct.rate > 0.65 && ct.rate < 0.75, '🌪️ Wind Golem: catches about 70% of attacks and throws them back', JSON.stringify(ct));
 
+// ---- ⬆️ tower upgrades ----
+reset({ gold: 1e4, wood: 1e4, stone: 1e4 });
+q(`S.buildings.push({ type: 'storage', lvl: 5, x: CENTER + 3, y: CENTER }); S.gold = S.stone = 1e4; S.buildings.push({ type: 'archer', lvl: 1, x: CENTER + 1, y: CENTER + 1 }); window.__A = S.buildings[S.buildings.length - 1];`);
+check(/level 2/.test(q(`buyPerk(__A, 0)`)), 'tower upgrades need the tower at level 2 / 3 / 4');
+q(`__A.lvl = 4;`);
+check(q(`buyPerk(__A, 0)`) === null && q(`__A.perks.join()`) === 'eagleeye' && q('S.gold') === 1e4 - 800 && q('S.stone') === 1e4 - 400, '🔭 Eagle Eye bought (🪙 800 🪨 400)');
+check(/already/.test(q(`buyPerk(__A, 0)`)), 'each upgrade once');
+check(q(`towerStats(__A).range`) === 6, '…+1.5 range');
+q(`buyPerk(__A, 1); buyPerk(__A, 2);`);
+check(q(`__A.perks.length`) === 3, 'all three on one tower');
+check(/data-perk|✅ Done/.test(q(`(function(){ showInfo(__A); return document.getElementById('infoCard').innerHTML; })()`)) && /Tower upgrades/.test(q(`document.getElementById('infoCard').innerHTML`)), 'the tower\'s info card shows its upgrades');
+q(`hideInfo();`);
+check(q(`myIslandSnapshot().buildings.find(function(b){ return b.type === 'archer'; }).perks.length`) === 3, 'your upgrades defend your island online');
+const cn = JSON.parse(q(`(function(){ var b = { type: 'cannon', lvl: 4, perks: ['heavy', 'reload', 'explosive'] }; var plain = towerStats({ type: 'cannon', lvl: 4 }); var up = towerStats(b); return JSON.stringify({ dmg: up.dmg / plain.dmg, rate: up.rate / plain.rate, splash: up.splash }); })()`));
+check(Math.abs(cn.dmg - 1.6) < 1e-9 && cn.rate < 0.7 && cn.splash >= 1, '💣 Cannon: Heavy Balls +60%, Fast Reload, Explosive Shells splash', JSON.stringify(cn));
+check(q(`towerStats({ type: 'wizard', lvl: 3, perks: ['bigblast'] }).splash`) === 2, '🔮 Big Blast: bigger splash');
+// in battle: fire arrows, double shot, frost, chain
+const tb = (perks, type) => JSON.parse(q(`(function(){ var isl = { name: 'Fort', th: 4, loot: {}, buildings: [{ type: 'townhall', lvl: 4, x: CENTER, y: CENTER }, { type: '${type}', lvl: 4, x: CENTER - 1, y: CENTER, perks: ${JSON.stringify(perks)} }] };
+  S.army = { warrior: 3 }; startBattle(isl); battle.mobs = [];
+  for (var i = 0; i < 3; i++) deploy('warrior', CENTER - 8, CENTER + i * 0.5);
+  battle.troops.forEach(function(t, i){ t.hp = t.maxHp = 1e6; t.dmg = 0; t.x = CENTER - 2.5; t.y = CENTER + (i - 1) * 0.6; });
+  var tw = battle.blds[1]; tw.cd = 0; var h = battle.troops.map(function(t){ return t.hp; }); battleStep();
+  var o = { hurt: battle.troops.filter(function(t, i){ return t.hp < h[i]; }).length, burn: battle.troops.some(function(t){ return t.burnLeft > 0; }), slow: battle.troops.some(function(t){ return t.slowUntil > battle.frame; }) };
+  endBattle(true); battle = null; return JSON.stringify(o); })()`));
+reset({ army: {} });
+check(tb([], 'archer').hurt === 1 && !tb([], 'archer').burn, 'a plain Archer Tower hits 1 troop');
+check(tb(['firearrows'], 'archer').burn, '🔥 Fire Arrows: the troop burns');
+check(tb(['doubleshot'], 'archer').hurt === 2, '🎯 Double Shot: 2 troops at once');
+check(tb(['frost'], 'wizard').slow, '❄️ Frost Magic: slows the troops it hits');
+check(tb(['chain'], 'archer').hurt === 3, '⛓️ Chain Lightning: bounces to 2 more troops');
+check(q(`genIsland(10, 3).buildings.some(function(b){ return b.perks && b.perks.length; })`) && !q(`genIsland(3, 3).buildings.some(function(b){ return b.perks && b.perks.length; })`), 'strong computer islands have upgraded towers (from raid level 6)');
+
 // ---- online result ----
 reset();
 q(`NET.mine = { pct: 80, stars: 2, frames: 3000 }; NET.theirs = { pct: 60, stars: 1, frames: 2000 }; onlineResult();`);

@@ -185,6 +185,7 @@ const result = q(`(function(){
     produce: function(){ produce(Math.random() * 600); },
     rich: function(){ var c = capOf(); S.gold = Math.min(c, S.gold + 2000); S.wood = Math.min(c, S.wood + 2000); S.stone = Math.min(c, S.stone + 2000); },
     fight: fightOnce,
+    raid: function(){ var e = startDefense(); if (e) return; var n = 0; while (battle && !battle.over && n++ < BATTLE_FRAMES + 50) { battleStep(); if (battle) battle.troops.forEach(function(t){ if (!isFinite(t.hp) || !isFinite(t.x)) errors.push('raider NaN'); }); } if (battle && !battle.over) errors.push('raid never ended'); battle = null; hidePanels(); },
     rankup: function(){ if (Math.random() < 0.5) { S.rank = Math.min(MAX_TH, rank() + 1); return; }   // half the time: a won challenge
       var e = startRankUp(); if (e) return; var n = 0; while (battle && !battle.over && n++ < BATTLE_FRAMES + 50) { if (Math.random() < 0.1) { var k = pick(Object.keys(battle.army)); deploy(k, CENTER - landRadius(battle.island.th) - 1, CENTER + Math.random() * 2 - 1); } battleStep(); } battle = null; hidePanels(); },
     reload: function(){ save(); load(); },

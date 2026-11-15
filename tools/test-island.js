@@ -552,6 +552,44 @@ if (process.env.OWNER_CODE) {
   q(`hidePanels();`);
 } else console.log('  (skip) set OWNER_CODE=... to check the real owner code');
 
+// ---- 🏴‍☠️ raids on your island ----
+check(q(`(function(){ for (var i = 0; i < 500; i++) { var l = raiderLoot(); if ([l.gold, l.wood, l.stone].some(function(v){ return v < 70 || v > 500; })) return false; } return true; })()`), 'raiders carry 70–500 of each resource');
+check(q(`JSON.stringify(raiderArmy(1))`) === JSON.stringify({ warrior: 3, archer: 1 }) && q(`raiderArmy(6).giant`) > 0 && q(`raiderArmy(6).mage`) > 0, 'the raider army grows with your Town Hall');
+reset({ gold: 1000, wood: 800, stone: 600 });
+q(`load(); `);
+check(q(`Math.round((S.nextRaidAt - Date.now()) / 60000)`) === 10, 'the first raid comes 10 minutes after you start playing (no raids while you are away)');
+q(`S.army = { warrior: 3 }; startBattle(genIsland(1, 3));`);
+check(/busy/.test(q(`startDefense()`)) && q(`battle.opts.defense`) !== true, 'a raid never interrupts a battle you are in');
+q(`endBattle(true); battle = null; hidePanels(); S.gold = 1000; S.wood = 800; S.stone = 600; S.army = {};`);
+// lose: they flatten it
+q(`startDefense(); battle.mobs = []; battle.blds.forEach(function(b){ if (B[b.type].def) b.hp = 0; });`);
+check(q(`battle.opts.defense`) && q(`battle.troops.length`) === 4 && q(`battle.troops.every(function(t){ return t.raider; })`), 'raiders land and attack your island');
+q(`var n = 0; while (battle && !battle.over && n++ < 6000) { battle.troops.forEach(function(t){ t.hp = Math.max(t.hp, 1e6); t.dmg = 500; }); battleStep(); }`);
+const lost = JSON.parse(q(`JSON.stringify({ g: S.gold, w: S.wood, s: S.stone, title: document.getElementById('resTitle').textContent, lost: S.raidsLost })`));
+check(lost.g === 500 && lost.w === 400 && lost.s === 300 && /raiders won/.test(lost.title) && lost.lost === 1, 'lose (they destroy half your island): you lose HALF your stuff', JSON.stringify(lost));
+check(q(`Math.round((S.nextRaidAt - Date.now()) / 60000)`) === 10, '…and the next raid is 10 minutes away');
+q(`battle = null; hidePanels();`);
+// win: they all fall
+reset({ gold: 100, wood: 100, stone: 100, army: {} });
+q(`startDefense(); var loot = Object.assign({}, battle.raid.loot), army = Object.assign({}, battle.raid.army); window.__raid = { loot: loot, army: army }; battle.troops.forEach(function(t){ t.hp = 0; }); battleStep();`);
+const won = JSON.parse(q(`JSON.stringify({ g: S.gold, w: S.wood, s: S.stone, army: S.army, raid: window.__raid, title: document.getElementById('resTitle').textContent, won: S.raidsWon, trophies: S.trophies })`));
+check(/beat the raiders/.test(won.title) && won.won === 1, 'beat them: you win', JSON.stringify(won));
+check(won.army.warrior === won.raid.army.warrior && won.army.archer === won.raid.army.archer, '…the raiders join your army as recruits');
+check(won.g === 100 + Math.floor(won.raid.loot.gold / 4) && won.s === 100 + Math.floor(won.raid.loot.stone / 4), '…and you take a quarter of what they carried');
+q(`battle = null; hidePanels();`);
+reset({ army: { warrior: 19 } });
+q(`startDefense(); battle.troops.forEach(function(t){ t.hp = 0; }); battleStep(); battle = null; hidePanels();`);
+check(q(`armyUsed()`) <= q(`armyCap()`), 'recruits only join if there is army space');
+// the timer starts a raid by itself
+reset();
+q(`S.nextRaidAt = Date.now() - 1; frame(performance.now());`);
+check(q(`!!battle && battle.opts.defense`), 'when the timer runs out, the raid starts by itself');
+q(`var n = 0; while (battle && !battle.over && n++ < 6000) battleStep(); battle = null; hidePanels();`);
+check(/raidIn/.test(html) && /🏴‍☠️ Raiders beaten/.test(q(`(function(){ renderInfo(); return document.getElementById('infoBody').innerHTML; })()`)), 'a countdown in the top bar, and your raid record in 📊 My Island');
+q(`S.owner = true;`);
+check(/Here they come/.test(q(`panelAction('raidnow', '', true)`)) && q(`battle.opts.defense`), '👑 owner: Raid now');
+q(`var n = 0; while (battle && !battle.over && n++ < 6000) battleStep(); battle = null; hidePanels(); S.owner = false;`);
+
 // ---- drawing ----
 q(`for (var i = 0; i < 3; i++) frame(performance.now() + i * 16);`);
 check(true, 'the island and a battle draw without errors');

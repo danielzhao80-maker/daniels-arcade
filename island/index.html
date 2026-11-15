@@ -58,6 +58,7 @@
   <span class="pill">🪨 <b id="stone">0</b></span>
   <span class="pill">🏆 <b id="trophies">0</b></span>
   <span class="pill">🎖️ <b id="rankN">1</b></span>
+  <span class="pill" title="Raiders arrive in…">🏴‍☠️ <b id="raidIn">10:00</b></span>
   <span class="pill">⚔️ <b id="armyN">0</b>/<b id="armyCap">0</b></span>
   <button id="btnInfo" class="blue small">📊 My Island</button>
   <button id="btnAdmin" class="small" style="display:none;background:linear-gradient(180deg,#ff7675,#c0392b);box-shadow:0 4px 0 #7b1d14">🛠️ Admin</button>
@@ -271,6 +272,7 @@ function load() {
   try { S = Object.assign(freshSave(), JSON.parse(localStorage.getItem(SAVE_KEY) || "null") || {}); } catch (e) { S = freshSave(); }
   if (!Array.isArray(S.buildings) || !S.buildings.some((b) => b.type === "townhall")) S.buildings = freshSave().buildings;
   S.rank = Math.max(S.rank || 1, th());   // 🎖️ islands from before ranks: start at your Town Hall level
+  if (!S.nextRaidAt || S.nextRaidAt < Date.now() + 60000) S.nextRaidAt = Date.now() + RAID_EVERY;   // 🏴‍☠️ 10 min after you start playing (no raids while you're away)
   if ((S.codesReset || 0) < 1) { S.codes = []; S.codesReset = 1; }   // the owner asked for every code to work again (once)
   // Earnings while you were away (up to 8 hours).
   const away = Math.min(OFFLINE_CAP_S, Math.max(0, (Date.now() - (S.last || Date.now())) / 1000));
@@ -486,8 +488,9 @@ function mobStep(bt) {
       if (M.range > 1) bt.shots.push({ x: m.x, y: m.y, tx: tg.x, ty: tg.y, t: 8, col: "#8d6e63" });   // 🥥
       if (m.steal) {   // 🐒 a thief: it pinches some of your gold, wood or stone (never more than you have)
         const res = ["gold", "wood", "stone"][Math.floor(Math.random() * 3)];
-        const take = Math.max(0, Math.min(m.steal, Math.floor(S[res] - bt.stolen[res])));
-        if (take > 0) { bt.stolen[res] += take; bt.texts.push({ x: m.x, y: m.y - 0.4, t: 50, text: `−${take} ${R[res]}` }); }
+        const pool = bt.opts.defense ? bt.raid.loot[res] : S[res];   // defending: your monkeys pinch the raiders' loot for you
+        const take = Math.max(0, Math.min(m.steal, Math.floor(pool - bt.stolen[res])));
+        if (take > 0) { bt.stolen[res] += take; bt.texts.push({ x: m.x, y: m.y - 0.4, t: 50, text: `${bt.opts.defense ? "+" : "−"}${take} ${R[res]}` }); }
       }
     }
   }
@@ -611,9 +614,63 @@ function battleStep() {
   const anyTroops = bt.troops.some((t) => t.hp > 0) || Object.values(bt.army).some((n) => n > 0) || bt.agents.some((a) => a.phase !== "done");
   if (destroyedPct(bt) >= 100 || !anyTroops || bt.frame >= BATTLE_FRAMES) endBattle();
 }
+// ---- 🏴‍☠️ RAIDS ON YOUR ISLAND: every 10 minutes while you play, raiders sail in and your island defends
+// itself (towers + upgrades, Barracks animals, golems). They destroy half your island or more: you lose HALF
+// your gold, wood and stone. You beat them: they join your army as recruits (as many as fit) and you take a
+// quarter of what they carried (70–500 of each). A raid waits until any battle you are in is over.
+const RAID_EVERY = 10 * 60 * 1000;
+function raiderArmy(t) {
+  const army = { warrior: 2 + t, archer: 1 + Math.floor(t / 2) };
+  if (t >= 3) army.giant = Math.floor((t - 1) / 2);
+  if (t >= 5) army.mage = t - 4;
+  return army;
+}
+function raiderLoot(rnd) { rnd = rnd || Math.random; const r = () => 70 + Math.floor(rnd() * 431); return { gold: r(), wood: r(), stone: r() }; }
+function startDefense() {
+  if (battle) return "You're busy in a battle — the raiders will wait.";
+  placing = null; moving = null;
+  const isl = myIslandSnapshot(); isl.name = "your island"; isl.loot = {};
+  const army = raiderArmy(th()), loot = raiderLoot();
+  battle = { island: isl, opts: { defense: true }, frame: 0, army: {}, brought: {}, five: false, abil: {}, casts: [], barricades: [], agents: [], troops: [], shots: [], fx: [], over: false, selected: null,
+             blds: isl.buildings.map((b) => Object.assign({}, b, { hp: hpOf(b.type, b.lvl), maxHp: hpOf(b.type, b.lvl), cd: 0 })), raid: { army, loot } };
+  battle.total = battle.blds.filter((b) => b.type !== "wall").length;
+  battle.mobs = spawnMobs(battle.blds, isl.golems);
+  battle.stolen = { gold: 0, wood: 0, stone: 0 }; battle.texts = [];
+  const lv = 1 + 0.15 * (th() - 1), r0 = landRadius(isl.th) + 1.2; let i = 0;   // three landing parties round the island
+  for (const [k, n] of Object.entries(army)) for (let j = 0; j < n; j++) {
+    const a = (i++ % 3) * 2.09 + 0.5 + Math.random() * 0.5, t = T[k];
+    battle.troops.push({ kind: k, x: CENTER + Math.cos(a) * r0, y: CENTER + Math.sin(a) * r0, hp: t.hp * lv, maxHp: t.hp * lv, dmg: t.dmg * lv, cd: 0, target: null, raider: true });
+  }
+  showBattleBar(); hidePanels(); hideInfo();
+  toast("🏴‍☠️ RAIDERS! Your island is under attack!");
+  return null;
+}
+function endDefense(bt) {
+  const pct = destroyedPct(bt), cap = capOf(), lost = pct >= 50;
+  let title, text;
+  if (lost) {
+    const gone = {}; for (const k of ["gold", "wood", "stone"]) { gone[k] = Math.floor(S[k] / 2); S[k] -= gone[k]; }
+    S.raidsLost = (S.raidsLost || 0) + 1;
+    title = "🏴‍☠️ The raiders won"; text = `They destroyed ${pct}% of your island and took HALF your stuff: ${costText(gone)}. Build more defences!`;
+  } else {
+    const joined = [];
+    for (const [k, n] of Object.entries(bt.raid.army)) {   // the beaten raiders become your recruits
+      const fit = Math.max(0, Math.min(n, Math.floor((armyCap() - armyUsed()) / T[k].house)));
+      if (fit) { S.army[k] = (S.army[k] || 0) + fit; joined.push(`${T[k].emoji} ${fit}`); }
+    }
+    const got = {}; for (const k of ["gold", "wood", "stone"]) { got[k] = Math.max(0, Math.min(Math.floor(bt.raid.loot[k] / 4) + (bt.stolen[k] || 0), cap - S[k])); S[k] += got[k]; }
+    S.raidsWon = (S.raidsWon || 0) + 1; S.trophies += 5;
+    title = "🛡️ You beat the raiders!"; text = `They only destroyed ${pct}%. Recruits joined your army: ${joined.join(" ") || "none (no army space)"} · loot ${costText(got)} · 🏆 +5`;
+  }
+  S.nextRaidAt = Date.now() + RAID_EVERY;
+  save(); showResult(title, text);
+  document.getElementById("battlebar").style.display = "none";
+  document.getElementById("bottom").style.display = "flex"; document.getElementById("codebar").style.display = "flex";
+}
 function endBattle(forced) {
   const bt = battle; if (!bt || bt.over) return;
   bt.over = true;
+  if (bt.opts.defense) return endDefense(bt);
   // troops you never deployed go home
   for (const [k, n] of Object.entries(bt.army)) if (n > 0) S.army[k] = (S.army[k] || 0) + n;
   const pct = destroyedPct(bt), stars = starsOf(bt);
@@ -759,6 +816,7 @@ function panelAction(act, arg, owner) {
   if (act === "rank") { S.rank = Math.max(1, Math.min(MAX_TH, +arg || 1)); save(); return `🎖️ Rank set to ${S.rank}`; }
   if (act === "raid") { S.raidLevel = Math.max(1, Math.min(99, +arg || 1)); save(); return `🗺️ Raid level set to ${S.raidLevel}`; }
   if (act === "trophies") { S.trophies += +arg || 0; save(); return `🏆 +${+arg || 0} trophies`; }
+  if (act === "raidnow") { hidePanels(); const e = startDefense(); return e || "🏴‍☠️ Here they come!"; }
   return "?";
 }
 function renderAdmin(owner) {
@@ -773,7 +831,8 @@ function renderAdmin(owner) {
     sec("🗿 Golems" + left("golems"), Object.keys(GOLEM_COST).map((k) => btn("golem", k, `${MOB[k].emoji} ${MOB[k].name}`, "green")).join("") + (owner ? btn("golem", "all", "All golems", "green") : "")) +
     sec("🎁 Codes", btn("codes", "", "Reset my codes")) +
     (owner ? sec("🏰 Town Hall · 🎖️ Rank · 🗺️ Raid · 🏆", `<input id="admNum" type="number" min="1" value="${th()}" style="width:90px;text-transform:none">` +
-      btn("th", "#", "Set Town Hall") + btn("rank", "#", "Set Rank") + btn("raid", "#", "Set Raid level") + btn("trophies", "#", "Add 🏆")) : "");
+      btn("th", "#", "Set Town Hall") + btn("rank", "#", "Set Rank") + btn("raid", "#", "Set Raid level") + btn("trophies", "#", "Add 🏆")) +
+      sec("🏴‍☠️ Raids", btn("raidnow", "", "🏴‍☠️ Raid now", "red")) : "");
   $("admBody").querySelectorAll("[data-act]").forEach((b) => (b.onclick = () => {
     const arg = b.dataset.arg === "#" ? $("admNum").value : b.dataset.arg;
     $("admMsg").textContent = panelAction(b.dataset.act, arg, owner); renderTop(); renderAdmin(owner);
@@ -832,7 +891,8 @@ function moveBuilding(b, x, y) {
 function hideInfo() { selected = null; $("info").style.display = "none"; }
 function renderTop() {
   $("thLv").textContent = th(); for (const k of ["gold", "wood", "stone"]) $(k).textContent = Math.floor(S[k]).toLocaleString();
-  $("trophies").textContent = S.trophies; $("rankN").textContent = rank(); $("armyN").textContent = armyUsed(); $("armyCap").textContent = armyCap();
+  $("trophies").textContent = S.trophies; $("rankN").textContent = rank();
+  if (S.nextRaidAt) { const sec = Math.max(0, Math.ceil((S.nextRaidAt - Date.now()) / 1000)); $("raidIn").textContent = `${Math.floor(sec / 60)}:${String(sec % 60).padStart(2, "0")}`; } $("armyN").textContent = armyUsed(); $("armyCap").textContent = armyCap();
 }
 function renderBuild() {
   $("buildGrid").innerHTML = BUILD_ORDER.map((type) => {
@@ -896,7 +956,7 @@ function renderInfo() {
       "<br>" + Object.values(MOB).map((m) => `${m.emoji} <b>${m.name}</b>: ${m.desc}`).join("<br>")) +
     sec("✨ Mini abilities (in battle)", Object.entries(AB).map(([k, a]) => `${a.emoji} ${a.name}: ${abUnlocked(k) ? `<b>${abilityUses(I.th)}</b> per battle${shopBoost(k) ? ` · 🛒 +${shopBoost(k)}% power` : ""}` : `🔒 Town Hall ${a.th} (or the arcade shop)`} — ${a.desc}`).join("<br>")
       + `<br><span style="opacity:.8">🛒 The arcade shop's ⚡ Abilities tab sells them for Island Clash: they unlock early and get stronger. Switch them on in the ⚡ bar.</span>`) +
-    sec("⚔️ Record", `🏆 <b>${I.trophies}</b> trophies · <b>${I.wins}</b> wins · raid level <b>${I.raid}</b> reached`);
+    sec("⚔️ Record", `🏆 <b>${I.trophies}</b> trophies · <b>${I.wins}</b> wins · raid level <b>${I.raid}</b> reached<br>🏴‍☠️ Raiders beaten <b>${S.raidsWon || 0}</b> · lost to <b>${S.raidsLost || 0}</b> — next raid in ${$("raidIn").textContent}`);
 }
 function showInfo(b) {
   selected = b;
@@ -922,6 +982,13 @@ function showBattleBar() {
   const bar = $("battlebar"); bar.style.display = "flex";
   const draw = () => {
     if (!battle || battle.over) return;
+    if (battle.opts.defense) {
+      const left = battle.troops.filter((t) => t.hp > 0).length;
+      bar.innerHTML = `<span class="pill">🏴‍☠️ Raiders left: ${left} · ⏱ ${Math.max(0, Math.ceil((BATTLE_FRAMES - battle.frame) / 120))}s · 💥 your island ${destroyedPct(battle)}% (50% = they win)</span>
+        <button class="small blue" id="skipRaid">⏩ Skip</button>`;
+      $("skipRaid").onclick = () => { let n = 0; while (battle && !battle.over && n++ < BATTLE_FRAMES + 50) battleStep(); };
+      return;
+    }
     bar.innerHTML = Object.entries(battle.army).filter(([k]) => battle.brought[k] > 0).map(([k, n]) =>
       `<button class="troop small ${battle.selected === k ? "sel" : ""}" data-sel="${k}" ${n > 0 ? "" : "disabled"}>${T[k].emoji} ${n}</button>`).join("")
       + Object.entries(battle.abil).map(([k, n]) =>
@@ -1041,13 +1108,19 @@ function defenderAt(fx, fy, time) {
   homeDefenders().forEach((m, i) => { const [x, y] = homeMobPos(m, i, time), d = Math.hypot(x - fx, y - fy); if (d < bd) { bd = d; best = m; } });
   return best;
 }
-let last = performance.now(), prodAcc = 0;
+let last = performance.now(), prodAcc = 0, raidWarned = false;
 function frame(now) {
   const dt = Math.min(0.25, (now - last) / 1000); last = now;
   const time = now / 1000;
   if (battle && !battle.over) {
     for (let i = 0; i < 2 && battle && !battle.over; i++) battleStep();   // 2 steps a frame: battles play at a lively speed
     if (battle && battle.drawBar && battle.frame % 15 === 0) battle.drawBar();
+  }
+  // 🏴‍☠️ raid timer
+  if (!battle && S.nextRaidAt) {
+    const left = S.nextRaidAt - Date.now();
+    if (left <= 10000 && !raidWarned) { raidWarned = true; toast("🏴‍☠️ Raiders spotted! They land in 10 seconds…"); }
+    if (left <= 0) { raidWarned = false; startDefense(); }
   }
   // your mines keep working while you fight
   prodAcc += dt; if (prodAcc >= 1) { produce(prodAcc); prodAcc = 0; if (!battle) renderTop(); if (Math.random() < 0.1) save(); }
@@ -1104,7 +1177,7 @@ function frame(now) {
     }
     for (const b of bt.blds) if (b.frozenUntil > bt.frame && b.hp > 0) { const [x, y] = toScreen(b.x, b.y); ctx.fillStyle = "rgba(116,185,255,0.45)"; ctx.fillRect(x - tile * 0.45, y - tile * 0.45, tile * 0.9, tile * 0.9); }
     ctx.font = "bold 18px Nunito, sans-serif"; ctx.fillStyle = "#fff"; ctx.textAlign = "center";
-    ctx.fillText(bt.selected && bt.selected.startsWith("ab:") ? `${AB[bt.selected.slice(3)].emoji} Tap anywhere to cast ${AB[bt.selected.slice(3)].name}` : `⚔️ ${bt.island.name} — tap the sea or the beach to send in your ${bt.selected ? T[bt.selected].name.toLowerCase() + "s" : "troops"}`, innerWidth / 2, 74);
+    ctx.fillText(bt.opts.defense ? "🏴‍☠️ Raiders are attacking your island! Your towers, animals and golems fight back." : bt.selected && bt.selected.startsWith("ab:") ? `${AB[bt.selected.slice(3)].emoji} Tap anywhere to cast ${AB[bt.selected.slice(3)].name}` : `⚔️ ${bt.island.name} — tap the sea or the beach to send in your ${bt.selected ? T[bt.selected].name.toLowerCase() + "s" : "troops"}`, innerWidth / 2, 74);
   } else {
     drawIsland(th(), S.buildings, time, null);
     drawHomeDefenders(time);   // 🐺 your animals by their Barracks, 🗿 your golems by the Town Hall

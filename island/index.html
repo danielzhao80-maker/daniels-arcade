@@ -142,7 +142,7 @@ const T = {
 // near and go home when nothing does.
 const MOB = {
   wolf:    { name: "Wolf",        emoji: "🐺", hp: 90,  dmg: 13, range: 0.7, speed: 1.9, rate: 28, sight: 5,   ring: "#a4b0be", desc: "Fast pack hunter." },
-  monkey:  { name: "Monkey",      emoji: "🐒", hp: 55,  dmg: 9,  range: 2.8, speed: 1.5, rate: 36, sight: 5,   ring: "#e1b12c", desc: "Throws coconuts from range." },
+  monkey:  { name: "Monkey",      emoji: "🐒", hp: 55,  dmg: 9,  range: 2.8, speed: 1.5, rate: 36, sight: 5,   ring: "#e1b12c", steal: 5, desc: "Throws coconuts from range — and STEALS your resources with every hit." },
   raccoon: { name: "Raccoon",     emoji: "🦝", hp: 45,  dmg: 6,  range: 0.6, speed: 2.1, rate: 14, sight: 4.5, ring: "#636e72", desc: "Small, quick, attacks very fast." },
   golem:   { name: "Earth Golem", emoji: "🪨", hp: 520, dmg: 30, range: 0.9, speed: 0.7, rate: 60, sight: 4,   ring: "#8d6e63", big: true, desc: "Huge, slow, smashes hard." },
 };
@@ -155,7 +155,7 @@ function spawnMobs(blds) {
     for (let i = 0; i < n; i++) {
       const kind = (b.lvl >= 3 && i === 0) ? "golem" : MOB_CYCLE[i % 3], m = MOB[kind], a = (Math.PI * 2 / n) * i;
       const x = b.x + Math.cos(a) * 0.6, y = b.y + Math.sin(a) * 0.6;
-      mobs.push({ kind, x, y, homeX: x, homeY: y, hp: m.hp * lv, maxHp: m.hp * lv, dmg: m.dmg * lv, cd: 0 });
+      mobs.push({ kind, x, y, homeX: x, homeY: y, hp: m.hp * lv, maxHp: m.hp * lv, dmg: m.dmg * lv, cd: 0, steal: m.steal ? Math.round(m.steal * lv) : 0 });
     }
   }
   return mobs;
@@ -292,6 +292,7 @@ function startBattle(island, opts) {
              blds: island.buildings.map((b) => Object.assign({}, b, { hp: hpOf(b.type, b.lvl), maxHp: hpOf(b.type, b.lvl), cd: 0 })) };
   battle.total = battle.blds.filter((b) => b.type !== "wall").length;
   battle.mobs = spawnMobs(battle.blds);   // 🐺 the island's defenders
+  battle.stolen = { gold: 0, wood: 0, stone: 0 }; battle.texts = [];   // 🐒 what the monkeys took
   for (const k in army) S.army[k] = 0;   // the army goes into battle (survivors don't come back)
   save();
   showBattleBar(); hidePanels(); hideInfo();
@@ -348,6 +349,11 @@ function mobStep(bt) {
     else if (--m.cd <= 0) {
       m.cd = M.rate; tg.hp -= m.dmg;
       if (M.range > 1) bt.shots.push({ x: m.x, y: m.y, tx: tg.x, ty: tg.y, t: 8, col: "#8d6e63" });   // 🥥
+      if (m.steal) {   // 🐒 a thief: it pinches some of your gold, wood or stone (never more than you have)
+        const res = ["gold", "wood", "stone"][Math.floor(Math.random() * 3)];
+        const take = Math.max(0, Math.min(m.steal, Math.floor(S[res] - bt.stolen[res])));
+        if (take > 0) { bt.stolen[res] += take; bt.texts.push({ x: m.x, y: m.y - 0.4, t: 50, text: `−${take} ${R[res]}` }); }
+      }
     }
   }
 }
@@ -442,6 +448,7 @@ function battleStep() {
   mobStep(bt);
   agentStep(bt);
   bt.shots = bt.shots.filter((s) => --s.t > 0); bt.fx = bt.fx.filter((f) => --f.t > 0); bt.casts = bt.casts.filter((c) => --c.t > 0);
+  if (bt.texts) bt.texts = bt.texts.filter((t) => --t.t > 0);
   const anyTroops = bt.troops.some((t) => t.hp > 0) || Object.values(bt.army).some((n) => n > 0) || bt.agents.some((a) => a.phase !== "done");
   if (destroyedPct(bt) >= 100 || !anyTroops || bt.frame >= BATTLE_FRAMES) endBattle();
 }
@@ -455,8 +462,11 @@ function endBattle(forced) {
   for (const [k, v] of Object.entries(bt.island.loot || {})) loot[k] = Math.floor(v * pct / 100);
   const cap = capOf();
   for (const k in loot) S[k] = Math.min(cap, S[k] + loot[k]);
+  const stolen = bt.stolen || {};   // 🐒 the monkeys' takings come out of your stores
+  for (const k in stolen) S[k] = Math.max(0, S[k] - stolen[k]);
+  const stoleText = costText(Object.fromEntries(Object.entries(stolen).filter(([, v]) => v > 0)));
   let title = stars > 0 ? `⭐`.repeat(stars) + " Victory!" : "💥 Defeat";
-  let text = `You destroyed ${pct}% of ${bt.island.name}. Loot: ${costText(loot) || "none"}.`;
+  let text = `You destroyed ${pct}% of ${bt.island.name}. Loot: ${costText(loot) || "none"}.${stoleText ? ` 🐒 Monkeys stole ${stoleText}!` : ""}`;
   if (!bt.opts.online) {
     if (stars > 0) { S.trophies += 8 + stars * 4; S.wins++; if (stars >= 2 && S.raidLevel === bt.island.level) S.raidLevel++; text += ` 🏆 +${8 + stars * 4}`; }
     else { S.trophies = Math.max(0, S.trophies - 5); text += " 🏆 −5"; }
@@ -762,6 +772,11 @@ function frame(now) {
       ctx.strokeStyle = "#ff4757"; ctx.lineWidth = 2; ctx.stroke();
       ctx.font = `${rr * 1.8}px serif`; ctx.fillText(M.emoji, mx, my);
       ctx.fillStyle = "#2d3436"; ctx.fillRect(mx - tile * 0.3, my - tile * 0.45, tile * 0.6, 3); ctx.fillStyle = "#ff4757"; ctx.fillRect(mx - tile * 0.3, my - tile * 0.45, tile * 0.6 * Math.max(0, m.hp) / m.maxHp, 3);
+    }
+    for (const t of bt.texts || []) {   // 🐒 "−5 🪙" floating up from a thieving monkey
+      const [tx, ty] = toScreen(t.x, t.y - (50 - t.t) / 60);
+      ctx.globalAlpha = Math.min(1, t.t / 20); ctx.font = `bold ${tile * 0.38}px Nunito, sans-serif`; ctx.fillStyle = "#ffeaa7"; ctx.strokeStyle = "#000"; ctx.lineWidth = 3;
+      ctx.strokeText(t.text, tx, ty); ctx.fillText(t.text, tx, ty); ctx.globalAlpha = 1;
     }
     for (const ag of bt.agents) {   // 🕵️ the agent (see-through: the defences can't see him) and his ticking bomb
       if (ag.phase === "done") continue;

@@ -103,7 +103,7 @@ const B = {
   lumbermill: { name: "Lumber Mill",  emoji: "🪓", hp: 260, base: { gold: 60 },                 makes: "wood",  desc: "Chops wood." },
   quarry:     { name: "Quarry",       emoji: "⚒️", hp: 260, base: { gold: 60, wood: 40 },       makes: "stone", desc: "Cuts stone." },
   storage:    { name: "Storage",      emoji: "📦", hp: 320, base: { gold: 100, wood: 100 },     desc: "Holds more of every resource." },
-  barracks:   { name: "Barracks",     emoji: "⛺", hp: 320, base: { gold: 150, wood: 80 },      desc: "More army space and new troops — and it sends out animals to defend your island: 🐺 🐒 🦝, then 🐗 🐝 (Lv 2), 🐍 🦂 + an 🪨 Earth Golem (Lv 3), 🐻 (Lv 4), 🦅 (Lv 5)." },
+  barracks:   { name: "Barracks",     emoji: "⛺", hp: 320, base: { gold: 150, wood: 80 },      desc: "More army space and new troops — and it sends out animals to defend your island: 🐺 🐒 🦝, then 🐗 🐝 (Lv 2), 🐍 🦂 (Lv 3), 🐻 (Lv 4), 🦅 (Lv 5) — led by a golem: 🪨 Earth (Lv 3), 🔥 Fire (Lv 4), 💧 Water (Lv 5), 🌪️ Wind (Lv 6), two from Lv 7." },
   archer:     { name: "Archer Tower", emoji: "🏹", hp: 300, base: { gold: 120, wood: 60, stone: 30 }, def: { range: 4.5, dmg: 9, rate: 40 }, desc: "Shoots troops from far away." },
   cannon:     { name: "Cannon",       emoji: "💣", hp: 340, base: { gold: 200, stone: 80 },     def: { range: 3.5, dmg: 24, rate: 70 }, desc: "Big hits, shorter range." },
   wizard:     { name: "Wizard Tower", emoji: "🔮", hp: 300, base: { gold: 500, stone: 200 },    def: { range: 3.5, dmg: 14, rate: 60, splash: 1.3 }, desc: "Blasts groups of troops." },
@@ -151,7 +151,13 @@ const MOB = {
   scorpion: { name: "Scorpion", emoji: "🦂", hp: 70,  dmg: 8,  range: 0.7, speed: 1.3, rate: 36, sight: 4.5, ring: "#c23616", slow: 0.5, desc: "STING: your troop moves at half speed for 3 s." },
   bear:     { name: "Bear",     emoji: "🐻", hp: 260, dmg: 18, range: 0.8, speed: 1.1, rate: 50, sight: 4.5, ring: "#6d4c41", big: true, stun: 60, desc: "ROAR: knocks your troop out for 1 s." },
   eagle:    { name: "Eagle",    emoji: "🦅", hp: 80,  dmg: 11, range: 1.2, speed: 2.2, rate: 30, sight: 6,   ring: "#dcdde1", flying: true, desc: "FLIES: only archers and mages can hit it." },
+  firegolem:  { name: "Fire Golem",  emoji: "🔥", hp: 480, dmg: 22, range: 0.9, speed: 0.8, rate: 55, sight: 4,   ring: "#e84118", big: true, golem: true, burn: 40, splash: 0.9, desc: "BURN: sets troops on fire, and each hit splashes the troops around." },
+  watergolem: { name: "Water Golem", emoji: "💧", hp: 560, dmg: 18, range: 0.9, speed: 0.8, rate: 55, sight: 4,   ring: "#0097e6", big: true, golem: true, heals: 0.04, push: 0.8, desc: "HEALS every animal near it, and its hits push your troops back." },
+  windgolem:  { name: "Wind Golem",  emoji: "🌪️", hp: 420, dmg: 16, range: 2.2, speed: 1.5, rate: 45, sight: 5,   ring: "#7f8fa6", big: true, golem: true, push: 1.6, desc: "GUSTS from range that blow your troops far away. Fast." },
 };
+MOB.golem.golem = true;
+// The golem that leads a Barracks' pack: Earth (Lv 3), Fire (Lv 4), Water (Lv 5), Wind (Lv 6+); two from Lv 7.
+const golemsFor = (lvl) => lvl >= 7 ? ["firegolem", "windgolem"] : lvl >= 6 ? ["windgolem"] : lvl >= 5 ? ["watergolem"] : lvl >= 4 ? ["firegolem"] : lvl >= 3 ? ["golem"] : [];
 // Which animals a Barracks of this level can send (they take turns; a level-3+ Barracks leads with its Golem).
 const MOB_UNLOCK = [["wolf", 1], ["monkey", 1], ["raccoon", 1], ["boar", 2], ["bee", 2], ["snake", 3], ["scorpion", 3], ["bear", 4], ["eagle", 5]];
 const mobPool = (lvl) => MOB_UNLOCK.filter(([, l]) => lvl >= l).map(([k]) => k);
@@ -162,7 +168,7 @@ function spawnMobs(blds) {
     if (b.type !== "barracks") continue;
     const n = Math.min(6, 1 + b.lvl), lv = 1 + 0.3 * (b.lvl - 1);
     for (let i = 0; i < n; i++) {
-      const pool = mobPool(b.lvl), kind = (b.lvl >= 3 && i === 0) ? "golem" : pool[(i + (b.lvl >= 3 ? 2 : 0)) % pool.length], m = MOB[kind], a = (Math.PI * 2 / n) * i;
+      const pool = mobPool(b.lvl), gl = golemsFor(b.lvl), kind = i < gl.length ? gl[i] : pool[(i + (gl.length ? 2 : 0)) % pool.length], m = MOB[kind], a = (Math.PI * 2 / n) * i;
       const x = b.x + Math.cos(a) * 0.6, y = b.y + Math.sin(a) * 0.6;
       mobs.push({ kind, x, y, homeX: x, homeY: y, hp: m.hp * lv, maxHp: m.hp * lv, dmg: m.dmg * lv, cd: 0, steal: m.steal ? Math.round(m.steal * lv) : 0 });
     }
@@ -347,6 +353,10 @@ function mobStep(bt) {
   for (const m of bt.mobs || []) {
     if (m.hp <= 0 || m.frozenUntil > bt.frame) continue;
     const M = MOB[m.kind];
+    if (M.heals && bt.frame % 60 === 0) {   // 💧 heals every animal around it once a second
+      for (const o of bt.mobs) if (o.hp > 0 && Math.hypot(o.x - m.x, o.y - m.y) <= 2) o.hp = Math.min(o.maxHp, o.hp + o.maxHp * M.heals);
+      bt.casts.push({ x: m.x, y: m.y, r: 2, color: "#0097e6", t: 24, emoji: "" });
+    }
     let tg = null, bd = M.sight;
     for (const tr of bt.troops) if (tr.hp > 0) { const d = Math.hypot(tr.x - m.x, tr.y - m.y); if (d < bd) { bd = d; tg = tr; } }
     if (!tg) {   // nothing near: walk back home
@@ -363,6 +373,18 @@ function mobStep(bt) {
       if (M.poison) { tg.poisonLeft = 180; tg.poisonDps = M.poison * (m.dmg / M.dmg); }   // 🐍 (scaled with the Barracks level)
       if (M.slow) tg.slowUntil = bt.frame + 180;                                          // 🦂
       if (M.stun) tg.stunUntil = bt.frame + M.stun;                                       // 🐻
+      const lvMul = m.dmg / M.dmg;
+      if (M.burn) for (const o of bt.troops) if (o.hp > 0 && (o === tg || Math.hypot(o.x - tg.x, o.y - tg.y) <= M.splash)) {   // 🔥 burn + splash
+        if (o !== tg) o.hp -= dmg * 0.5;
+        o.burnLeft = 180; o.burnDps = M.burn * lvMul;
+      }
+      if (M.push) {   // 💧 🌪️ knock the troop back, away from the golem (not into the deep sea)
+        const d0 = Math.hypot(tg.x - m.x, tg.y - m.y) || 1;
+        tg.x += (tg.x - m.x) / d0 * M.push; tg.y += (tg.y - m.y) / d0 * M.push;
+        const r0 = Math.hypot(tg.x - CENTER, tg.y - CENTER), lim = landRadius(bt.island.th) + 2;
+        if (r0 > lim) { tg.x = CENTER + (tg.x - CENTER) / r0 * lim; tg.y = CENTER + (tg.y - CENTER) / r0 * lim; }
+        if (M.range > 1) bt.shots.push({ x: m.x, y: m.y, tx: tg.x, ty: tg.y, t: 10, col: "#dcdde1" });
+      }
       if (M.range > 1) bt.shots.push({ x: m.x, y: m.y, tx: tg.x, ty: tg.y, t: 8, col: "#8d6e63" });   // 🥥
       if (m.steal) {   // 🐒 a thief: it pinches some of your gold, wood or stone (never more than you have)
         const res = ["gold", "wood", "stone"][Math.floor(Math.random() * 3)];
@@ -424,6 +446,7 @@ function battleStep() {
   for (const tr of bt.troops) {
     if (tr.hp <= 0) continue;
     if (tr.poisonLeft > 0) { tr.poisonLeft--; tr.hp -= tr.poisonDps / 60; if (tr.hp <= 0) continue; }   // 🐍
+    if (tr.burnLeft > 0) { tr.burnLeft--; tr.hp -= tr.burnDps / 60; if (tr.hp <= 0) continue; }         // 🔥
     if (tr.stunUntil > bt.frame) continue;                                                              // 🐻
     if (!tr.target || tr.target.hp <= 0) tr.target = pickTarget(tr);
     // 🐺 a defending mob in reach: fight it first
@@ -651,7 +674,7 @@ function renderInfo() {
     sec("💰 Resources", ["gold", "wood", "stone"].map((k) => `${R[k]} <b>${I.res[k].toLocaleString()}</b> / ${I.cap.toLocaleString()} &nbsp;·&nbsp; +${I.make[k]}/min`).join("<br>")) +
     sec("🏗️ Buildings", I.blds.map((b) => `${B[b.type].emoji} ${B[b.type].name}: <b>${b.n}</b>/${b.lim}${b.type === "wall" ? "" : ` &nbsp;·&nbsp; Lv ${b.levels.join(", ")}`}`).join("<br>")) +
     sec("🛡️ Army", `${I.used}/${I.armyCap} space · Barracks Lv ${barracksLvl()}<br>` + (I.army.length ? I.army.map(([k, n]) => `${T[k].emoji} ${T[k].name} × <b>${n}</b>`).join(" &nbsp; ") : "<i>No troops — train some in 🛡️ Army</i>")) +
-    sec("🐾 Your island's defenders", `Your best Barracks (Lv ${barracksLvl()}) sends out: ` + (barracksLvl() ? [...(barracksLvl() >= 3 ? ["golem"] : []), ...mobPool(barracksLvl())].map((k) => `${MOB[k].emoji} ${MOB[k].name}`).join(", ") : "nothing yet") +
+    sec("🐾 Your island's defenders", `Your best Barracks (Lv ${barracksLvl()}) sends out: ` + (barracksLvl() ? [...golemsFor(barracksLvl()), ...mobPool(barracksLvl())].map((k) => `${MOB[k].emoji} ${MOB[k].name}`).join(", ") : "nothing yet") +
       "<br>" + Object.values(MOB).map((m) => `${m.emoji} <b>${m.name}</b>: ${m.desc}`).join("<br>")) +
     sec("✨ Mini abilities (in battle)", Object.entries(AB).map(([k, a]) => `${a.emoji} ${a.name}: ${(k === "agent" ? agentUnlocked() : I.th >= a.th) ? `<b>${abilityUses(I.th)}</b> per battle` : `🔒 Town Hall ${a.th}`} — ${a.desc}`).join("<br>")) +
     sec("⚔️ Record", `🏆 <b>${I.trophies}</b> trophies · <b>${I.wins}</b> wins · raid level <b>${I.raid}</b> reached`);
@@ -773,7 +796,7 @@ function frame(now) {
     for (const tr of bt.troops) {
       if (tr.hp <= 0) continue;
       const [sx, sy] = toScreen(tr.x, tr.y);
-      ctx.fillStyle = tr.stunUntil > bt.frame ? "rgba(253,203,110,0.95)" : tr.poisonLeft > 0 ? "rgba(68,189,50,0.85)" : tr.slowUntil > bt.frame ? "rgba(194,54,22,0.6)" : tr.rageUntil > bt.frame ? "rgba(232,65,24,0.85)" : "rgba(255,255,255,0.85)";
+      ctx.fillStyle = tr.stunUntil > bt.frame ? "rgba(253,203,110,0.95)" : tr.burnLeft > 0 ? "rgba(255,121,63,0.9)" : tr.poisonLeft > 0 ? "rgba(68,189,50,0.85)" : tr.slowUntil > bt.frame ? "rgba(194,54,22,0.6)" : tr.rageUntil > bt.frame ? "rgba(232,65,24,0.85)" : "rgba(255,255,255,0.85)";
       ctx.beginPath(); ctx.arc(sx, sy, tile * 0.3, 0, Math.PI * 2); ctx.fill();
       ctx.fillText(T[tr.kind].emoji, sx, sy);
       ctx.fillStyle = "#c0392b"; ctx.fillRect(sx - tile * 0.3, sy - tile * 0.45, tile * 0.6, 3); ctx.fillStyle = "#2ecc71"; ctx.fillRect(sx - tile * 0.3, sy - tile * 0.45, tile * 0.6 * Math.max(0, tr.hp) / tr.maxHp, 3);
@@ -793,6 +816,7 @@ function frame(now) {
       ctx.fillStyle = m.frozenUntil > bt.frame ? "rgba(116,185,255,0.9)" : M.ring; ctx.beginPath(); ctx.arc(mx, my, rr, 0, Math.PI * 2); ctx.fill();
       ctx.strokeStyle = "#ff4757"; ctx.lineWidth = 2; ctx.stroke();
       ctx.font = `${rr * 1.8}px serif`; ctx.fillText(M.emoji, mx, my);
+      if (M.golem && m.kind !== "golem") { ctx.font = `${rr * 0.9}px serif`; ctx.fillText("🗿", mx + rr * 0.6, my + rr * 0.55); }   // an elemental golem
       ctx.fillStyle = "#2d3436"; ctx.fillRect(mx - tile * 0.3, my - tile * 0.45, tile * 0.6, 3); ctx.fillStyle = "#ff4757"; ctx.fillRect(mx - tile * 0.3, my - tile * 0.45, tile * 0.6 * Math.max(0, m.hp) / m.maxHp, 3);
     }
     for (const t of bt.texts || []) {   // 🐒 "−5 🪙" floating up from a thieving monkey

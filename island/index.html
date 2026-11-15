@@ -363,6 +363,18 @@ const CODES = {
   ARCHERS:   { troops: { archer: 6 } },
   KRAKEN:    { troops: { giant: 2 } },
   DANIEL:    { gold: 2000, wood: 2000, stone: 2000 },
+  SHARK:      { gold: 800 },
+  PALMTREE:   { wood: 800 },
+  VOLCANO:    { stone: 800 },
+  MERMAID:    { gold: 600, wood: 600, stone: 600 },
+  CAPTAIN:    { gold: 1000, wood: 1000, stone: 1000 },
+  GOLDRUSH:   { gold: 3000 },
+  LUMBERJACK: { wood: 1500 },
+  STONEAGE:   { stone: 1500 },
+  TSUNAMI:    { gold: 5000, wood: 5000, stone: 5000 },
+  ARMADA:     { troops: { warrior: 15, archer: 5 } },
+  WIZARDS:    { troops: { mage: 2 } },
+  TITANS:     { troops: { giant: 4 } },
 };
 function redeemCode(raw) {
   const code = String(raw || "").trim().toUpperCase().replace(/\s+/g, "");

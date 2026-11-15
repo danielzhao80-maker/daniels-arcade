@@ -88,5 +88,6 @@ Build up your island — Town Hall, gold mines, lumber mills, quarries, storage,
 wizard towers and walls — upgrade everything (up to Town Hall 8) and train an army (warriors, archers, giants, mages).
 Raid computer islands offline, or tap **Fight online** and share the 5-letter code: you and a friend attack each
 other's real islands at the same time and whoever destroys more wins. Online: https://danielzhao80-maker.github.io/daniels-arcade/island/
-Codes (the 🎁 bar at the top, each once per island): ISLAND, COCONUT, ROCKSOLID, TREASURE, PIRATE, ARCHERS, KRAKEN, DANIEL.
+Codes (the 🎁 bar at the top, each once per island): ISLAND, COCONUT, ROCKSOLID, TREASURE, PIRATE, ARCHERS, KRAKEN, DANIEL, SHARK,
+PALMTREE, VOLCANO, MERMAID, CAPTAIN, GOLDRUSH, LUMBERJACK, STONEAGE, TSUNAMI, ARMADA, WIZARDS, TITANS.
 Tests: `node tools/test-island.js`.

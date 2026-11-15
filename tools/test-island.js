@@ -193,6 +193,28 @@ const def = JSON.parse(q(`(function(){ var isl = { name: 'Fort', th: 3, loot: {}
   startBattle(isl); deploy('warrior', CENTER - 5, CENTER); deploy('warrior', CENTER - 5, CENTER + 0.3); var n = 0; while (!battle.over && n++ < BATTLE_FRAMES + 10) battleStep();
   return JSON.stringify({ alive: battle.troops.filter(function(t){ return t.hp > 0; }).length, stars: starsOf(battle), trophies: S.trophies }); })()`));
 check(def.alive === 0 && def.stars === 0, 'defences shoot back: 2 warriors lose to a level-3 fort', JSON.stringify(def));
+// ---- ✨ mini abilities ----
+reset({ army: { warrior: 4 } });
+q(`startBattle(genIsland(2, 9));`);
+check(JSON.stringify(q(`JSON.stringify(battle.abil)`)) === JSON.stringify('{"lightning":1}'), 'Town Hall 1: only ⚡ Lightning, 1 use a battle');
+const zap = JSON.parse(q(`(function(){ var b = battle.blds.find(function(x){ return x.type === 'townhall'; }); var h0 = b.hp; var ok = castAbility('lightning', b.x, b.y); return JSON.stringify({ ok: ok, dmg: h0 - b.hp, left: battle.abil.lightning, again: castAbility('lightning', b.x, b.y) }); })()`));
+check(zap.ok && zap.dmg === 260 && zap.left === 0 && zap.again === false, '⚡ Lightning blasts the buildings in the area (260 at TH 1), then it is used up', JSON.stringify(zap));
+q(`endBattle(true); battle = null;`);
+reset({ army: { warrior: 4 }, gold: 1e6, wood: 1e6, stone: 1e6 });
+q(`for (var i = 0; i < 5; i++) upgradeBuilding(S.buildings[0]); startBattle(genIsland(2, 9));`);
+check(q('th()') === 6 && q(`Object.keys(battle.abil).join()`) === 'lightning,heal,rage,freeze' && q(`battle.abil.heal`) === 2, 'Town Hall 6: all four, 2 uses each');
+const h = JSON.parse(q(`(function(){ deploy('warrior', 0.5, CENTER); var tr = battle.troops[0]; tr.hp = 10; castAbility('heal', tr.x, tr.y); return JSON.stringify({ hp: tr.hp, max: tr.maxHp }); })()`));
+check(h.hp > 10 && h.hp <= h.max, '💚 Heal heals your troops', JSON.stringify(h));
+const rg = JSON.parse(q(`(function(){ var tr = battle.troops[0]; castAbility('rage', tr.x, tr.y); var x0 = tr.x; tr.target = null; battleStep(); var moved = Math.abs(tr.x - x0); tr.rageUntil = 0; var x1 = tr.x; battleStep(); return JSON.stringify({ raged: moved, normal: Math.abs(tr.x - x1) }); })()`));
+check(rg.raged > rg.normal * 1.3, '🔥 Rage: troops move faster (and hit harder)', JSON.stringify(rg));
+const fz = JSON.parse(q(`(function(){ var d = battle.blds.find(function(b){ return B[b.type].def; }); castAbility('freeze', d.x, d.y); d.cd = 0; var tr = battle.troops[0]; tr.x = d.x + 0.5; tr.y = d.y; tr.hp = tr.maxHp = 1e9; var h0 = tr.hp; for (var i = 0; i < 100; i++) { tr.x = d.x + 0.5; tr.y = d.y; battleStep(); } return JSON.stringify({ frozen: d.frozenUntil > battle.frame, hurt: h0 - tr.hp }); })()`));
+check(fz.frozen && fz.hurt === 0, '❄️ Freeze: the defences in the area stop shooting', JSON.stringify(fz));
+q(`battle.selected = 'ab:lightning'; battle.drawBar();`);
+check(/data-sel="ab:lightning"/.test(q(`document.getElementById('battlebar').innerHTML`)), 'the abilities are buttons in the battle bar');
+q(`frame(performance.now()); endBattle(true); battle = null;`);
+q(`document.getElementById('btnInfo').onclick();`);
+check(/Mini abilities/.test(q(`document.getElementById('infoBody').innerHTML`)), '📊 My Island lists them');
+
 // ---- online result ----
 reset();
 q(`NET.mine = { pct: 80, stars: 2, frames: 3000 }; NET.theirs = { pct: 60, stars: 1, frames: 2000 }; onlineResult();`);

@@ -1,0 +1,576 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Island Clash</title>
+<link href="https://fonts.googleapis.com/css2?family=Fredoka+One&family=Nunito:wght@700;900&display=swap" rel="stylesheet">
+<script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js"></script>
+<script src="../arcade-shop.js"></script>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { height: 100%; overflow: hidden; background: #0b3d5c; font-family: Nunito, system-ui, sans-serif; color: #fff; user-select: none; }
+  #game { display: block; width: 100vw; height: 100vh; cursor: pointer; }
+  .bar { position: fixed; left: 50%; transform: translateX(-50%); display: flex; gap: 8px; align-items: center; flex-wrap: wrap; justify-content: center; z-index: 5; }
+  #top { top: 10px; }
+  #bottom { bottom: 14px; }
+  .pill { background: rgba(10, 30, 50, .78); border: 2px solid rgba(255,255,255,.25); border-radius: 30px; padding: 6px 14px; font-weight: 900; font-size: .95rem; white-space: nowrap; }
+  .pill b { font-family: "Fredoka One", cursive; font-weight: 400; }
+  button { font-family: "Fredoka One", cursive; font-size: 1rem; border: 3px solid #fff; border-radius: 30px; padding: 9px 18px; color: #fff; cursor: pointer;
+           background: linear-gradient(180deg, #ffb142, #e67e22); box-shadow: 0 4px 0 #8a4b0f; }
+  button:active { transform: translateY(2px); box-shadow: 0 2px 0 #8a4b0f; }
+  button:disabled { opacity: .45; cursor: default; }
+  button.blue { background: linear-gradient(180deg, #48dbfb, #2e86de); box-shadow: 0 4px 0 #1b4f8a; }
+  button.red { background: linear-gradient(180deg, #ff6b6b, #c0392b); box-shadow: 0 4px 0 #7b1d14; }
+  button.green { background: linear-gradient(180deg, #55efc4, #1e9e6a); box-shadow: 0 4px 0 #0f5a3b; }
+  button.small { font-size: .82rem; padding: 6px 12px; }
+  .panel { position: fixed; left: 50%; top: 50%; transform: translate(-50%, -50%); width: min(620px, 94vw); max-height: 84vh; overflow-y: auto;
+           background: linear-gradient(180deg, #13405e, #0c2a40); border: 3px solid #fff; border-radius: 22px; padding: 18px; z-index: 10; display: none; box-shadow: 0 10px 40px rgba(0,0,0,.5); }
+  .panel h2 { font-family: "Fredoka One", cursive; font-weight: 400; font-size: 1.6rem; margin-bottom: 4px; text-align: center; }
+  .panel .sub { text-align: center; opacity: .8; font-size: .85rem; margin-bottom: 12px; }
+  .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 10px; }
+  .card { background: rgba(255,255,255,.08); border: 2px solid rgba(255,255,255,.18); border-radius: 14px; padding: 10px; text-align: center; }
+  .card .e { font-size: 2rem; }
+  .card .n { font-weight: 900; margin: 2px 0; }
+  .card .d { font-size: .75rem; opacity: .8; min-height: 2.2em; }
+  .card .c { font-size: .8rem; margin: 6px 0; }
+  .close { position: absolute; right: 14px; top: 12px; background: rgba(255,255,255,.15); box-shadow: none; padding: 4px 11px; border-width: 2px; }
+  #toast { position: fixed; top: 64px; left: 50%; transform: translateX(-50%); background: rgba(0,0,0,.75); padding: 8px 18px; border-radius: 20px; font-weight: 900; z-index: 20; display: none; text-align: center; max-width: 90vw; }
+  #info { position: fixed; left: 14px; bottom: 80px; width: 260px; z-index: 6; display: none; }
+  #info .card { text-align: left; background: rgba(10,30,50,.88); }
+  #battlebar { display: none; }
+  .troop { border-radius: 16px; padding: 6px 10px; font-size: .9rem; }
+  .troop.sel { outline: 3px solid #feca57; }
+  input { font-family: "Fredoka One", cursive; font-size: 1.1rem; padding: 8px 12px; border-radius: 14px; border: 2px solid #fff; background: rgba(255,255,255,.12); color: #fff; width: 170px; text-align: center; text-transform: uppercase; }
+  .row { display: flex; gap: 10px; justify-content: center; align-items: center; flex-wrap: wrap; margin: 10px 0; }
+</style>
+</head>
+<body>
+<canvas id="game"></canvas>
+
+<div id="top" class="bar">
+  <span class="pill">🏰 Lv <b id="thLv">1</b></span>
+  <span class="pill">🪙 <b id="gold">0</b></span>
+  <span class="pill">🪵 <b id="wood">0</b></span>
+  <span class="pill">🪨 <b id="stone">0</b></span>
+  <span class="pill">🏆 <b id="trophies">0</b></span>
+  <span class="pill">⚔️ <b id="armyN">0</b>/<b id="armyCap">0</b></span>
+</div>
+<div id="bottom" class="bar">
+  <button id="btnBuild">🏗️ Build</button>
+  <button id="btnArmy" class="blue">🛡️ Army</button>
+  <button id="btnRaid" class="red">⚔️ Raid (offline)</button>
+  <button id="btnOnline" class="green">🌐 Fight online</button>
+</div>
+<div id="battlebar" class="bar" style="bottom:14px"></div>
+<div id="info"><div class="card" id="infoCard"></div></div>
+<div id="toast"></div>
+
+<div class="panel" id="buildPanel"><button class="close" data-close>✕</button><h2>🏗️ Build</h2><div class="sub">Pick a building, then tap an empty spot on your island.</div><div class="grid" id="buildGrid"></div></div>
+<div class="panel" id="armyPanel"><button class="close" data-close>✕</button><h2>🛡️ Army</h2><div class="sub" id="armySub"></div><div class="grid" id="armyGrid"></div></div>
+<div class="panel" id="raidPanel"><button class="close" data-close>✕</button><h2>⚔️ Raid an island</h2><div class="sub">Computer islands — the harder, the more loot.</div><div class="grid" id="raidGrid"></div></div>
+<div class="panel" id="onlinePanel"><button class="close" data-close>✕</button><h2>🌐 Fight online</h2>
+  <div class="sub">You and a friend attack each other's islands at the same time. Whoever destroys more wins!</div>
+  <div class="row"><button id="hostBtn" class="green">Create a battle</button></div>
+  <div class="row"><input id="joinCode" maxlength="5" placeholder="CODE"><button id="joinBtn" class="blue">Join</button></div>
+  <div class="sub" id="onlineMsg" style="font-size:1rem;font-weight:900;margin-top:10px"></div>
+</div>
+<div class="panel" id="resultPanel"><h2 id="resTitle"></h2><div class="sub" id="resText" style="font-size:1rem"></div><div class="row"><button id="resOk">Back to my island</button></div></div>
+
+<script>
+"use strict";
+// ======================================================================== 🏝️ ISLAND CLASH
+// Build up your island (Town Hall, mines, mills, quarries, storage, barracks, defences), train an army and
+// fight: raid computer islands offline, or attack a friend's real island online (PeerJS) while they attack
+// yours — whoever destroys more wins. Everything is kept in localStorage (island_clash_save).
+const SAVE_KEY = "island_clash_save";
+const R = { gold: "🪙", wood: "🪵", stone: "🪨" };
+const MAX_TH = 8, OFFLINE_CAP_S = 8 * 3600;
+
+// ---- buildings ---------------------------------------------------------------------------------
+// base: cost of level 1 (each level ×1.8). hp at level 1 (+50% a level). per-TH limits in limitOf().
+const B = {
+  townhall:   { name: "Town Hall",    emoji: "🏰", hp: 900, base: { gold: 400, wood: 400, stone: 250 }, desc: "The heart of your island. Upgrade it to unlock levels, land and more buildings." },
+  goldmine:   { name: "Gold Mine",    emoji: "⛏️", hp: 260, base: { wood: 60 },                 makes: "gold",  desc: "Digs up gold." },
+  lumbermill: { name: "Lumber Mill",  emoji: "🪓", hp: 260, base: { gold: 60 },                 makes: "wood",  desc: "Chops wood." },
+  quarry:     { name: "Quarry",       emoji: "⚒️", hp: 260, base: { gold: 60, wood: 40 },       makes: "stone", desc: "Cuts stone." },
+  storage:    { name: "Storage",      emoji: "📦", hp: 320, base: { gold: 100, wood: 100 },     desc: "Holds more of every resource." },
+  barracks:   { name: "Barracks",     emoji: "⛺", hp: 320, base: { gold: 150, wood: 80 },      desc: "More army space. Higher levels unlock new troops." },
+  archer:     { name: "Archer Tower", emoji: "🏹", hp: 300, base: { gold: 120, wood: 60, stone: 30 }, def: { range: 4.5, dmg: 9, rate: 40 }, desc: "Shoots troops from far away." },
+  cannon:     { name: "Cannon",       emoji: "💣", hp: 340, base: { gold: 200, stone: 80 },     def: { range: 3.5, dmg: 24, rate: 70 }, desc: "Big hits, shorter range." },
+  wizard:     { name: "Wizard Tower", emoji: "🔮", hp: 300, base: { gold: 500, stone: 200 },    def: { range: 3.5, dmg: 14, rate: 60, splash: 1.3 }, desc: "Blasts groups of troops." },
+  wall:       { name: "Wall",         emoji: "🧱", hp: 380, base: { stone: 25 },                desc: "Troops have to break through walls in their way." },
+};
+const BUILD_ORDER = ["goldmine", "lumbermill", "quarry", "storage", "barracks", "archer", "cannon", "wizard", "wall"];
+function limitOf(type, th) {
+  switch (type) {
+    case "townhall": return 1;
+    case "goldmine": case "lumbermill": case "quarry": return Math.min(5, 1 + Math.floor(th / 2));
+    case "storage": return 1 + Math.floor(th / 3);
+    case "barracks": return th >= 4 ? 2 : 1;
+    case "archer": return Math.ceil(th / 2);
+    case "cannon": return th >= 2 ? Math.floor(th / 2) : 0;
+    case "wizard": return th >= 4 ? Math.floor((th - 2) / 2) : 0;
+    case "wall": return th >= 2 ? th * 4 : 0;
+  }
+  return 0;
+}
+const costOf = (type, lvl) => { const o = {}; for (const [k, v] of Object.entries(B[type].base)) o[k] = Math.round(v * Math.pow(1.8, lvl - 1)); return o; };
+const hpOf = (type, lvl) => Math.round(B[type].hp * (1 + 0.5 * (lvl - 1)));
+const landRadius = (th) => Math.min(9.5, 3.6 + th * 0.8);
+const GRID = 21, CENTER = 10;
+const prodPerMin = (lvl) => 18 * lvl;
+
+// ---- troops ------------------------------------------------------------------------------------
+const T = {
+  warrior: { name: "Warrior", emoji: "🗡️", cost: 25,  house: 1, hp: 70,  dmg: 11, range: 0.7, speed: 1.4, rate: 30, unlock: 1, desc: "Tough fighter." },
+  archer:  { name: "Archer",  emoji: "🏹", cost: 35,  house: 1, hp: 40,  dmg: 9,  range: 3,   speed: 1.3, rate: 34, unlock: 2, desc: "Shoots from range." },
+  giant:   { name: "Giant",   emoji: "🗿", cost: 120, house: 5, hp: 420, dmg: 16, range: 0.8, speed: 0.8, rate: 40, unlock: 3, targets: "def", desc: "Huge HP. Goes for defences first." },
+  mage:    { name: "Mage",    emoji: "🧙", cost: 150, house: 4, hp: 60,  dmg: 22, range: 2.6, speed: 1.2, rate: 45, unlock: 5, splash: 1.1, desc: "Blasts several buildings at once." },
+};
+
+// ---- save --------------------------------------------------------------------------------------
+function freshSave() {
+  return { gold: 300, wood: 300, stone: 200, trophies: 0, army: { warrior: 6 }, raidLevel: 1, wins: 0, last: Date.now(),
+           buildings: [ { type: "townhall", lvl: 1, x: CENTER, y: CENTER }, { type: "goldmine", lvl: 1, x: CENTER + 2, y: CENTER }, { type: "lumbermill", lvl: 1, x: CENTER - 2, y: CENTER }, { type: "barracks", lvl: 1, x: CENTER, y: CENTER + 2 } ] };
+}
+let S;
+function load() {
+  try { S = Object.assign(freshSave(), JSON.parse(localStorage.getItem(SAVE_KEY) || "null") || {}); } catch (e) { S = freshSave(); }
+  if (!Array.isArray(S.buildings) || !S.buildings.some((b) => b.type === "townhall")) S.buildings = freshSave().buildings;
+  // Earnings while you were away (up to 8 hours).
+  const away = Math.min(OFFLINE_CAP_S, Math.max(0, (Date.now() - (S.last || Date.now())) / 1000));
+  const got = produce(away);
+  if (away > 60 && (got.gold + got.wood + got.stone) > 0) setTimeout(() => toast(`🌙 While you were away: 🪙 ${got.gold} · 🪵 ${got.wood} · 🪨 ${got.stone}`), 600);
+  S.last = Date.now();
+}
+function save() { S.last = Date.now(); try { localStorage.setItem(SAVE_KEY, JSON.stringify(S)); } catch (e) {} }
+const th = () => (S.buildings.find((b) => b.type === "townhall") || { lvl: 1 }).lvl;
+const countOf = (type) => S.buildings.filter((b) => b.type === type).length;
+function capOf() { const st = S.buildings.filter((b) => b.type === "storage").reduce((a, b) => a + b.lvl, 0); return 1000 + 500 * th() + 1500 * st; }
+function armyCap() { return 10 + S.buildings.filter((b) => b.type === "barracks").reduce((a, b) => a + b.lvl * 10, 0); }
+const barracksLvl = () => Math.max(0, ...S.buildings.filter((b) => b.type === "barracks").map((b) => b.lvl));
+const armyUsed = () => Object.entries(S.army).reduce((a, [k, n]) => a + (T[k] ? T[k].house * n : 0), 0);
+const canPay = (c) => Object.entries(c).every(([k, v]) => S[k] >= v);
+const pay = (c) => { for (const [k, v] of Object.entries(c)) S[k] -= v; };
+const costText = (c) => Object.entries(c).map(([k, v]) => `${R[k]} ${v.toLocaleString()}`).join(" ");
+// Mines, mills and quarries fill your stores (up to the storage cap).
+function produce(seconds) {
+  const got = { gold: 0, wood: 0, stone: 0 }, cap = capOf();
+  for (const b of S.buildings) {
+    const m = B[b.type].makes; if (!m) continue;
+    const add = prodPerMin(b.lvl) * seconds / 60;
+    const real = Math.max(0, Math.min(add, cap - S[m]));
+    S[m] += real; got[m] += real;
+  }
+  for (const k in got) { S[k] = Math.round(S[k] * 100) / 100; got[k] = Math.floor(got[k]); }
+  return got;
+}
+// Is (x, y) a free land tile on this island?
+const isLand = (x, y, t) => Math.hypot(x - CENTER, y - CENTER) <= landRadius(t || th());
+const tileFree = (list, x, y) => !list.some((b) => b.x === x && b.y === y);
+
+// ---- actions -----------------------------------------------------------------------------------
+function placeBuilding(type, x, y) {
+  if (!B[type] || type === "townhall") return "Can't build that.";
+  if (countOf(type) >= limitOf(type, th())) return `You can have ${limitOf(type, th())} — upgrade the Town Hall for more.`;
+  if (!isLand(x, y) || !tileFree(S.buildings, x, y)) return "Pick an empty spot on your island.";
+  const c = costOf(type, 1); if (!canPay(c)) return `Not enough: ${costText(c)}`;
+  pay(c); S.buildings.push({ type, lvl: 1, x, y }); save(); return null;
+}
+function upgradeBuilding(b) {
+  const max = b.type === "townhall" ? MAX_TH : th();
+  if (b.lvl >= max) return b.type === "townhall" ? "Your Town Hall is at the top level!" : "Upgrade the Town Hall first.";
+  const c = costOf(b.type, b.lvl + 1); if (!canPay(c)) return `Not enough: ${costText(c)}`;
+  pay(c); b.lvl++; save(); return null;
+}
+function train(kind, n) {
+  const t = T[kind]; if (!t) return "No such troop.";
+  if (barracksLvl() < t.unlock) return `Needs Barracks level ${t.unlock}.`;
+  n = n || 1;
+  if (armyUsed() + t.house * n > armyCap()) return "Army is full — build or upgrade Barracks.";
+  if (S.gold < t.cost * n) return `Not enough gold (🪙 ${t.cost * n}).`;
+  S.gold -= t.cost * n; S.army[kind] = (S.army[kind] || 0) + n; save(); return null;
+}
+
+// ---- enemy islands -----------------------------------------------------------------------------
+function rng(seed) { let s = seed >>> 0 || 1; return () => (s = (s * 1664525 + 1013904223) >>> 0) / 4294967296; }
+// A computer island for raid level `lvl`: its Town Hall and buildings scale with it.
+function genIsland(lvl, seed) {
+  const r = rng(seed || lvl * 7919), t = Math.max(1, Math.min(MAX_TH, Math.ceil(lvl / 2)));
+  const list = [{ type: "townhall", lvl: t, x: CENTER, y: CENTER }];
+  const spots = [];
+  for (let y = 0; y < GRID; y++) for (let x = 0; x < GRID; x++) if (isLand(x, y, t) && !(x === CENTER && y === CENTER)) spots.push([x, y]);
+  for (let i = spots.length - 1; i > 0; i--) { const j = Math.floor(r() * (i + 1)); [spots[i], spots[j]] = [spots[j], spots[i]]; }
+  const want = ["archer", "cannon", "wizard", "goldmine", "lumbermill", "quarry", "storage", "barracks"];
+  for (const type of want) for (let k = 0; k < limitOf(type, t); k++) {
+    const sp = spots.pop(); if (!sp) break;
+    list.push({ type, lvl: Math.max(1, t - Math.floor(r() * 2)), x: sp[0], y: sp[1] });
+  }
+  // a few walls round the middle
+  const walls = Math.min(limitOf("wall", t), 6 + lvl);
+  for (let k = 0; k < walls; k++) {
+    const a = r() * Math.PI * 2, d = 1.5 + r() * 1.2, x = Math.round(CENTER + Math.cos(a) * d), y = Math.round(CENTER + Math.sin(a) * d);
+    if (tileFree(list, x, y)) list.push({ type: "wall", lvl: Math.max(1, t - 1), x, y });
+  }
+  const loot = { gold: 150 + lvl * 120, wood: 120 + lvl * 100, stone: 80 + lvl * 70 };
+  return { name: ["Coconut Cove", "Shark Reef", "Pirate Point", "Volcano Isle", "Crab Atoll", "Mango Key", "Storm Rock", "Skull Bay"][(lvl - 1) % 8] + (lvl > 8 ? " " + Math.ceil(lvl / 8) : ""), th: t, buildings: list, loot, level: lvl };
+}
+// Your island as someone else will see it (online).
+function myIslandSnapshot() {
+  const name = (() => { try { return (JSON.parse(localStorage.getItem("daniels-arcade-account") || "null") || {}).name || ""; } catch (e) { return ""; } })() || "Friend";
+  return { name: name + "'s island", th: th(), buildings: S.buildings.map((b) => ({ type: b.type, lvl: b.lvl, x: b.x, y: b.y })),
+           loot: { gold: Math.floor(S.gold * 0.1), wood: Math.floor(S.wood * 0.1), stone: Math.floor(S.stone * 0.1) } };
+}
+
+// ---- battle ------------------------------------------------------------------------------------
+// Troops walk straight at their target (Giants: the nearest defence) and break walls in the way.
+// Defences shoot the nearest troop in range. 90 seconds. Stars: 50% destroyed, the Town Hall, 100%.
+const BATTLE_FRAMES = 90 * 60;
+let battle = null;
+function startBattle(island, opts) {
+  const army = Object.assign({}, S.army);
+  if (!Object.values(army).some((n) => n > 0)) return "Train some troops first (🛡️ Army).";
+  battle = { island, opts: opts || {}, frame: 0, army, troops: [], shots: [], fx: [], over: false, selected: Object.keys(army).find((k) => army[k] > 0),
+             blds: island.buildings.map((b) => Object.assign({}, b, { hp: hpOf(b.type, b.lvl), maxHp: hpOf(b.type, b.lvl), cd: 0 })) };
+  battle.total = battle.blds.filter((b) => b.type !== "wall").length;
+  for (const k in army) S.army[k] = 0;   // the army goes into battle (survivors don't come back)
+  save();
+  showBattleBar(); hidePanels(); hideInfo();
+  return null;
+}
+const destroyedPct = (bt) => Math.round(100 * bt.blds.filter((b) => b.type !== "wall" && b.hp <= 0).length / Math.max(1, bt.total));
+function starsOf(bt) {
+  const p = destroyedPct(bt), thDead = bt.blds.some((b) => b.type === "townhall" && b.hp <= 0);
+  return (p >= 50 ? 1 : 0) + (thDead ? 1 : 0) + (p >= 100 ? 1 : 0);
+}
+function deploy(kind, x, y) {
+  const bt = battle; if (!bt || bt.over || !(bt.army[kind] > 0)) return false;
+  if (Math.hypot(x - CENTER, y - CENTER) < landRadius(bt.island.th) - 0.2) return false;   // only from the water / the beach
+  bt.army[kind]--;
+  const t = T[kind], lv = 1 + 0.1 * Math.max(0, barracksLvl() - 1);
+  bt.troops.push({ kind, x, y, hp: t.hp * lv, maxHp: t.hp * lv, dmg: t.dmg * lv, cd: 0, target: null });
+  return true;
+}
+function pickTarget(tr) {
+  const t = T[tr.kind], alive = battle.blds.filter((b) => b.hp > 0 && b.type !== "wall");
+  let pool = alive;
+  if (t.targets === "def") { const d = alive.filter((b) => B[b.type].def); if (d.length) pool = d; }
+  let best = null, bd = 1e9;
+  for (const b of pool) { const d = Math.hypot(b.x - tr.x, b.y - tr.y); if (d < bd) { bd = d; best = b; } }
+  if (!best) return null;
+  // a wall on the way (within half a tile of the straight line, closer than the target) comes first
+  for (const w of battle.blds) {
+    if (w.type !== "wall" || w.hp <= 0) continue;
+    const dx = best.x - tr.x, dy = best.y - tr.y, L = Math.hypot(dx, dy) || 1;
+    const u = ((w.x - tr.x) * dx + (w.y - tr.y) * dy) / (L * L);
+    if (u <= 0 || u >= 1) continue;
+    const px = tr.x + u * dx, py = tr.y + u * dy;
+    if (Math.hypot(w.x - px, w.y - py) < 0.55 && Math.hypot(w.x - tr.x, w.y - tr.y) < bd) { best = w; bd = Math.hypot(w.x - tr.x, w.y - tr.y); }
+  }
+  return best;
+}
+function battleStep() {
+  const bt = battle; if (!bt || bt.over) return;
+  bt.frame++;
+  const dt = 1 / 60;
+  for (const tr of bt.troops) {
+    if (tr.hp <= 0) continue;
+    if (!tr.target || tr.target.hp <= 0) tr.target = pickTarget(tr);
+    const tg = tr.target; if (!tg) continue;
+    const t = T[tr.kind], d = Math.hypot(tg.x - tr.x, tg.y - tr.y);
+    if (d > t.range + 0.45) { tr.x += (tg.x - tr.x) / d * t.speed * dt; tr.y += (tg.y - tr.y) / d * t.speed * dt; }
+    else if (--tr.cd <= 0) {
+      tr.cd = t.rate;
+      const hit = (b, dmg) => { b.hp -= dmg; if (b.hp <= 0) { b.hp = 0; bt.fx.push({ x: b.x, y: b.y, t: 30, boom: true }); } };
+      if (t.splash) { for (const b of bt.blds) if (b.hp > 0 && Math.hypot(b.x - tg.x, b.y - tg.y) <= t.splash) hit(b, tr.dmg); }
+      else hit(tg, tr.dmg);
+      if (t.range > 1) bt.shots.push({ x: tr.x, y: tr.y, tx: tg.x, ty: tg.y, t: 10, col: t.splash ? "#a55eea" : "#feca57" });
+    }
+  }
+  for (const b of bt.blds) {
+    const D = B[b.type].def; if (!D || b.hp <= 0) continue;
+    if (--b.cd > 0) continue;
+    let tg = null, bd = D.range;
+    for (const tr of bt.troops) if (tr.hp > 0) { const d = Math.hypot(tr.x - b.x, tr.y - b.y); if (d <= bd) { bd = d; tg = tr; } }
+    if (!tg) continue;
+    b.cd = D.rate;
+    const dmg = D.dmg * (1 + 0.45 * (b.lvl - 1));
+    if (D.splash) { for (const tr of bt.troops) if (tr.hp > 0 && Math.hypot(tr.x - tg.x, tr.y - tg.y) <= D.splash) tr.hp -= dmg; }
+    else tg.hp -= dmg;
+    bt.shots.push({ x: b.x, y: b.y, tx: tg.x, ty: tg.y, t: 8, col: b.type === "cannon" ? "#2d3436" : b.type === "wizard" ? "#a55eea" : "#fff" });
+  }
+  bt.shots = bt.shots.filter((s) => --s.t > 0); bt.fx = bt.fx.filter((f) => --f.t > 0);
+  const anyTroops = bt.troops.some((t) => t.hp > 0) || Object.values(bt.army).some((n) => n > 0);
+  if (destroyedPct(bt) >= 100 || !anyTroops || bt.frame >= BATTLE_FRAMES) endBattle();
+}
+function endBattle(forced) {
+  const bt = battle; if (!bt || bt.over) return;
+  bt.over = true;
+  // troops you never deployed go home
+  for (const [k, n] of Object.entries(bt.army)) if (n > 0) S.army[k] = (S.army[k] || 0) + n;
+  const pct = destroyedPct(bt), stars = starsOf(bt);
+  const loot = {};
+  for (const [k, v] of Object.entries(bt.island.loot || {})) loot[k] = Math.floor(v * pct / 100);
+  const cap = capOf();
+  for (const k in loot) S[k] = Math.min(cap, S[k] + loot[k]);
+  let title = stars > 0 ? `⭐`.repeat(stars) + " Victory!" : "💥 Defeat";
+  let text = `You destroyed ${pct}% of ${bt.island.name}. Loot: ${costText(loot) || "none"}.`;
+  if (!bt.opts.online) {
+    if (stars > 0) { S.trophies += 8 + stars * 4; S.wins++; if (stars >= 2 && S.raidLevel === bt.island.level) S.raidLevel++; text += ` 🏆 +${8 + stars * 4}`; }
+    else { S.trophies = Math.max(0, S.trophies - 5); text += " 🏆 −5"; }
+  }
+  save();
+  if (bt.opts.online) { NET.mine = { pct, stars, frames: bt.frame }; netSend({ t: "result", pct, stars, frames: bt.frame }); onlineResult(); }
+  else showResult(title, text);
+  document.getElementById("battlebar").style.display = "none";
+  document.getElementById("bottom").style.display = "flex";
+}
+
+// ---- online (PeerJS): swap islands, both attack, compare ----------------------------------------
+const NET = { peer: null, conn: null, enemy: null, mine: null, theirs: null };
+const PEER_OPTS = { config: { iceServers: [{ urls: "stun:stun.l.google.com:19302" }, { urls: "turn:openrelay.metered.ca:80", username: "openrelayproject", credential: "openrelayproject" }, { urls: "turn:openrelay.metered.ca:443", username: "openrelayproject", credential: "openrelayproject" }] } };
+const onlineMsg = (t) => { document.getElementById("onlineMsg").textContent = t; };
+function netSend(o) { try { NET.conn && NET.conn.open && NET.conn.send(o); } catch (e) {} }
+function netReset() { try { NET.conn && NET.conn.close(); NET.peer && NET.peer.destroy(); } catch (e) {} Object.assign(NET, { peer: null, conn: null, enemy: null, mine: null, theirs: null }); }
+function wireConn(conn) {
+  NET.conn = conn;
+  conn.on("open", () => { onlineMsg("Connected! Swapping islands…"); netSend({ t: "hello", island: myIslandSnapshot() }); });
+  conn.on("data", (m) => {
+    if (!m || typeof m !== "object") return;
+    if (m.t === "hello" && m.island && Array.isArray(m.island.buildings)) {
+      NET.enemy = m.island;
+      onlineMsg(`⚔️ Attacking ${m.island.name}! Destroy as much as you can.`);
+      setTimeout(() => { const err = startBattle(NET.enemy, { online: true }); if (err) { toast(err); netSend({ t: "result", pct: 0, stars: 0, frames: BATTLE_FRAMES }); NET.mine = { pct: 0, stars: 0, frames: BATTLE_FRAMES }; onlineResult(); } }, 900);
+    } else if (m.t === "result") { NET.theirs = { pct: +m.pct || 0, stars: +m.stars || 0, frames: +m.frames || BATTLE_FRAMES }; onlineResult(); }
+  });
+  conn.on("close", () => { if (!(NET.mine && NET.theirs)) toast("🌐 Your friend left the battle."); });
+}
+const hasArmy = () => Object.values(S.army).some((n) => n > 0);
+function hostOnline() {
+  if (!hasArmy()) return onlineMsg("Train some troops first (🛡️ Army) — you need an army to fight!");
+  if (typeof Peer === "undefined") return onlineMsg("Online play needs the internet (PeerJS didn't load).");
+  netReset();
+  const code = Array.from({ length: 5 }, () => "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"[Math.floor(Math.random() * 32)]).join("");
+  NET.peer = new Peer("islandclash-" + code, PEER_OPTS);
+  NET.peer.on("open", () => onlineMsg(`Your battle code: ${code} — tell your friend to Join with it.`));
+  NET.peer.on("connection", (c) => wireConn(c));
+  NET.peer.on("error", (e) => onlineMsg("Online error: " + (e && e.type || e)));
+}
+function joinOnline(code) {
+  code = String(code || "").trim().toUpperCase();
+  if (code.length !== 5) return onlineMsg("Type the 5-letter code your friend sees.");
+  if (!hasArmy()) return onlineMsg("Train some troops first (🛡️ Army) — you need an army to fight!");
+  if (typeof Peer === "undefined") return onlineMsg("Online play needs the internet (PeerJS didn't load).");
+  netReset();
+  NET.peer = new Peer(undefined, PEER_OPTS);
+  NET.peer.on("open", () => { onlineMsg("Connecting…"); wireConn(NET.peer.connect("islandclash-" + code, { reliable: true })); });
+  NET.peer.on("error", (e) => onlineMsg(e && e.type === "peer-unavailable" ? "No battle with that code." : "Online error: " + (e && e.type || e)));
+}
+// Both done: more stars wins, then more %, then faster.
+function onlineResult() {
+  if (!NET.mine) return;
+  if (!NET.theirs) { showResult("⏳ Waiting…", `You destroyed ${NET.mine.pct}% (${"⭐".repeat(NET.mine.stars) || "no stars"}). Waiting for your friend to finish…`, true); return; }
+  const a = NET.mine, b = NET.theirs;
+  const win = a.stars !== b.stars ? a.stars > b.stars : a.pct !== b.pct ? a.pct > b.pct : a.frames < b.frames;
+  const tie = a.stars === b.stars && a.pct === b.pct && a.frames === b.frames;
+  if (tie) showResult("🤝 A draw!", `You both destroyed ${a.pct}%.`);
+  const sameScore = a.stars === b.stars && a.pct === b.pct;
+  const why = sameScore ? (win ? " You were faster!" : " They were faster!") : "";
+  if (!tie && win) { const g = 200 * th(); S.gold = Math.min(capOf(), S.gold + g); S.trophies += 20; S.wins++; save(); showResult("🏆 You win online!", `You: ${a.pct}% ${"⭐".repeat(a.stars)} · Them: ${b.pct}% ${"⭐".repeat(b.stars)}.${why} Prize: 🪙 ${g} and 🏆 +20.`); }
+  else if (!tie) { S.trophies = Math.max(0, S.trophies - 10); save(); showResult("💥 You lose online", `You: ${a.pct}% ${"⭐".repeat(a.stars)} · Them: ${b.pct}% ${"⭐".repeat(b.stars)}.${why} 🏆 −10.`); }
+}
+
+// ---- UI ------------------------------------------------------------------------------------------
+const $ = (id) => document.getElementById(id);
+let toastT = 0;
+function toast(t) { const e = $("toast"); e.textContent = t; e.style.display = "block"; clearTimeout(toastT); toastT = setTimeout(() => (e.style.display = "none"), 2600); }
+function hidePanels() { document.querySelectorAll(".panel").forEach((p) => (p.style.display = "none")); }
+function openPanel(id) { hidePanels(); $(id).style.display = "block"; }
+document.querySelectorAll("[data-close]").forEach((b) => (b.onclick = hidePanels));
+let placing = null, selected = null;
+function hideInfo() { selected = null; $("info").style.display = "none"; }
+function renderTop() {
+  $("thLv").textContent = th(); for (const k of ["gold", "wood", "stone"]) $(k).textContent = Math.floor(S[k]).toLocaleString();
+  $("trophies").textContent = S.trophies; $("armyN").textContent = armyUsed(); $("armyCap").textContent = armyCap();
+}
+function renderBuild() {
+  $("buildGrid").innerHTML = BUILD_ORDER.map((type) => {
+    const b = B[type], lim = limitOf(type, th()), have = countOf(type), c = costOf(type, 1);
+    const ok = have < lim && canPay(c);
+    return `<div class="card"><div class="e">${b.emoji}</div><div class="n">${b.name}</div><div class="d">${b.desc}</div>
+      <div class="c">${costText(c)}<br>${have}/${lim}${lim === 0 ? " (bigger Town Hall)" : ""}</div>
+      <button class="small" data-place="${type}" ${ok ? "" : "disabled"}>Place</button></div>`;
+  }).join("");
+  $("buildGrid").querySelectorAll("[data-place]").forEach((btn) => (btn.onclick = () => { placing = btn.dataset.place; hidePanels(); toast(`Tap an empty spot to place the ${B[placing].name} (tap the sea to cancel)`); }));
+}
+function renderArmy() {
+  $("armySub").textContent = `Army space ${armyUsed()}/${armyCap()} · Barracks level ${barracksLvl()} (higher levels unlock troops and make them stronger)`;
+  $("armyGrid").innerHTML = Object.entries(T).map(([k, t]) => {
+    const locked = barracksLvl() < t.unlock;
+    return `<div class="card"><div class="e">${t.emoji}</div><div class="n">${t.name} × ${S.army[k] || 0}</div><div class="d">${t.desc}<br>❤️ ${t.hp} · 💥 ${t.dmg} · space ${t.house}</div>
+      <div class="c">${locked ? `🔒 Barracks Lv ${t.unlock}` : `🪙 ${t.cost}`}</div>
+      <button class="small blue" data-train="${k}" ${locked ? "disabled" : ""}>+1</button> <button class="small blue" data-train5="${k}" ${locked ? "disabled" : ""}>+5</button></div>`;
+  }).join("");
+  $("armyGrid").querySelectorAll("[data-train]").forEach((b) => (b.onclick = () => { const e = train(b.dataset.train, 1); if (e) toast(e); renderArmy(); renderTop(); }));
+  $("armyGrid").querySelectorAll("[data-train5]").forEach((b) => (b.onclick = () => { const e = train(b.dataset.train5, 5); if (e) toast(e); renderArmy(); renderTop(); }));
+}
+function renderRaids() {
+  const lv = S.raidLevel, opts = [Math.max(1, lv - 1), lv, lv + 1, lv + 3];
+  $("raidGrid").innerHTML = [...new Set(opts)].map((l) => {
+    const isl = genIsland(l);
+    return `<div class="card"><div class="e">🏝️</div><div class="n">${isl.name}</div><div class="d">Level ${l} · Town Hall ${isl.th}<br>${isl.buildings.filter((b) => B[b.type].def).length} defences</div>
+      <div class="c">Loot up to ${costText(isl.loot)}</div><button class="small red" data-raid="${l}">Attack!</button></div>`;
+  }).join("");
+  $("raidGrid").querySelectorAll("[data-raid]").forEach((b) => (b.onclick = () => { const e = startBattle(genIsland(+b.dataset.raid)); if (e) toast(e); }));
+}
+function showInfo(b) {
+  selected = b;
+  const max = b.type === "townhall" ? MAX_TH : th(), up = b.lvl < max ? costOf(b.type, b.lvl + 1) : null, D = B[b.type].def;
+  $("infoCard").innerHTML = `<div style="font-size:1.6rem">${B[b.type].emoji} <b>${B[b.type].name}</b> Lv ${b.lvl}</div>
+    <div style="font-size:.8rem;opacity:.85;margin:4px 0">${B[b.type].desc}</div>
+    <div style="font-size:.8rem">❤️ ${hpOf(b.type, b.lvl)}${B[b.type].makes ? ` · makes ${R[B[b.type].makes]} ${prodPerMin(b.lvl)}/min` : ""}${D ? ` · 💥 ${Math.round(D.dmg * (1 + 0.45 * (b.lvl - 1)))} · range ${D.range}` : ""}</div>
+    <div style="margin-top:8px">${up ? `<button class="small green" id="upBtn" ${canPay(up) ? "" : "disabled"}>Upgrade → Lv ${b.lvl + 1}<br>${costText(up)}</button>` : `<i>${b.type === "townhall" ? "Top level!" : "Upgrade the Town Hall to go higher."}</i>`}</div>`;
+  $("info").style.display = "block";
+  const ub = $("upBtn"); if (ub) ub.onclick = () => { const e = upgradeBuilding(b); toast(e || `${B[b.type].emoji} ${B[b.type].name} is now level ${b.lvl}!`); renderTop(); showInfo(b); };
+}
+function showBattleBar() {
+  $("bottom").style.display = "none";
+  const bar = $("battlebar"); bar.style.display = "flex";
+  const draw = () => {
+    if (!battle || battle.over) return;
+    bar.innerHTML = Object.entries(battle.army).filter(([, n]) => n > 0 || battle.troops.some((t) => t.kind)).map(([k, n]) =>
+      `<button class="troop small ${battle.selected === k ? "sel" : ""}" data-sel="${k}" ${n > 0 ? "" : "disabled"}>${T[k].emoji} ${n}</button>`).join("")
+      + `<span class="pill">⏱ ${Math.max(0, Math.ceil((BATTLE_FRAMES - battle.frame) / 60))}s · 💥 ${destroyedPct(battle)}% · ${"⭐".repeat(starsOf(battle))}</span>
+         <button class="small red" id="giveUp">End battle</button>`;
+    bar.querySelectorAll("[data-sel]").forEach((b) => (b.onclick = () => { battle.selected = b.dataset.sel; }));
+    $("giveUp").onclick = () => endBattle(true);
+  };
+  draw(); battle.drawBar = draw;
+}
+function showResult(title, text, waiting) {
+  $("resTitle").textContent = title; $("resText").textContent = text;
+  $("resOk").style.display = waiting ? "none" : "inline-block";
+  openPanel("resultPanel");
+}
+$("resOk").onclick = () => { hidePanels(); battle = null; if (NET.mine && NET.theirs) netReset(); renderTop(); };
+$("btnBuild").onclick = () => { hideInfo(); renderBuild(); openPanel("buildPanel"); };
+$("btnArmy").onclick = () => { hideInfo(); renderArmy(); openPanel("armyPanel"); };
+$("btnRaid").onclick = () => { hideInfo(); renderRaids(); openPanel("raidPanel"); };
+$("btnOnline").onclick = () => { hideInfo(); onlineMsg(""); openPanel("onlinePanel"); };
+$("hostBtn").onclick = hostOnline;
+$("joinBtn").onclick = () => joinOnline($("joinCode").value);
+
+// ---- drawing -------------------------------------------------------------------------------------
+const cv = $("game"), ctx = cv.getContext("2d");
+let tile = 30, ox = 0, oy = 0;
+function resize() {
+  cv.width = innerWidth * devicePixelRatio; cv.height = innerHeight * devicePixelRatio;
+  ctx.setTransform(devicePixelRatio, 0, 0, devicePixelRatio, 0, 0);
+}
+// The camera fits the island you are looking at (it grows with its Town Hall), plus a ring of sea.
+function setView(t) {
+  const span = 2 * (landRadius(t) + 2.2);
+  tile = Math.max(14, Math.min((innerWidth - 20) / span, (innerHeight - 150) / span));
+  ox = innerWidth / 2 - (CENTER + 0.5) * tile; oy = innerHeight / 2 + 8 - (CENTER + 0.5) * tile;
+}
+addEventListener("resize", resize);
+const toScreen = (x, y) => [ox + (x + 0.5) * tile, oy + (y + 0.5) * tile];
+function drawIsland(t, list, time, opts) {
+  const W = innerWidth, H = innerHeight;
+  const sea = ctx.createLinearGradient(0, 0, 0, H); sea.addColorStop(0, "#1e90c8"); sea.addColorStop(1, "#0b3d5c");
+  ctx.fillStyle = sea; ctx.fillRect(0, 0, W, H);
+  ctx.strokeStyle = "rgba(255,255,255,0.08)"; ctx.lineWidth = 2;
+  for (let i = 0; i < 14; i++) { const y = (i * 70 + time * 12) % (H + 40) - 20; ctx.beginPath(); for (let x = 0; x <= W; x += 20) ctx.lineTo(x, y + Math.sin(x / 40 + time + i) * 4); ctx.stroke(); }
+  const [cx, cy] = toScreen(CENTER, CENTER), rr = landRadius(t) * tile;
+  ctx.fillStyle = "#f6e0a6"; ctx.beginPath(); ctx.arc(cx, cy, rr + tile * 0.9, 0, Math.PI * 2); ctx.fill();   // beach
+  ctx.fillStyle = "rgba(255,255,255,0.25)"; ctx.beginPath(); ctx.arc(cx, cy, rr + tile * 1.05 + Math.sin(time * 2) * 2, 0, Math.PI * 2); ctx.lineWidth = 3; ctx.strokeStyle = "rgba(255,255,255,0.35)"; ctx.stroke();
+  for (let y = 0; y < GRID; y++) for (let x = 0; x < GRID; x++) {
+    if (!isLand(x, y, t)) continue;
+    ctx.fillStyle = (x + y) % 2 ? "#6ab04c" : "#78c257";
+    ctx.fillRect(ox + x * tile, oy + y * tile, tile + 0.5, tile + 0.5);
+  }
+  ctx.font = `${tile * 0.6}px serif`; ctx.textAlign = "center"; ctx.textBaseline = "middle";
+  for (const p of [[-1, -1], [1, 1], [-1, 1]]) { const a = Math.atan2(p[1], p[0]); const [px, py] = [cx + Math.cos(a) * (rr + tile * 0.4), cy + Math.sin(a) * (rr + tile * 0.4)]; ctx.fillText("🌴", px, py); }
+  for (const b of list) {
+    const [sx, sy] = toScreen(b.x, b.y), dead = opts && opts.battle && b.hp <= 0;
+    ctx.globalAlpha = dead ? 0.35 : 1;
+    if (b.type !== "wall") { ctx.fillStyle = "rgba(0,0,0,0.18)"; ctx.beginPath(); ctx.ellipse(sx, sy + tile * 0.32, tile * 0.42, tile * 0.16, 0, 0, Math.PI * 2); ctx.fill(); }
+    ctx.fillStyle = b.type === "wall" ? "#95a5a6" : b.type === "townhall" ? "#f9ca24" : B[b.type].def ? "#e17055" : "#dfe6e9";
+    const s = b.type === "townhall" ? tile * 0.98 : b.type === "wall" ? tile * 0.8 : tile * 0.82;
+    ctx.beginPath(); ctx.roundRect ? ctx.roundRect(sx - s / 2, sy - s / 2, s, s, 6) : ctx.rect(sx - s / 2, sy - s / 2, s, s); ctx.fill();
+    ctx.font = `${s * (b.type === "townhall" ? 0.78 : 0.66)}px serif`; ctx.fillText(dead ? "💥" : B[b.type].emoji, sx, sy + 1);
+    ctx.globalAlpha = 1;
+    if (b.type !== "wall") { ctx.font = `bold ${tile * 0.32}px Nunito, sans-serif`; ctx.fillStyle = "#fff"; ctx.strokeStyle = "#000"; ctx.lineWidth = 3; ctx.strokeText(b.lvl, sx + s * 0.38, sy - s * 0.38); ctx.fillText(b.lvl, sx + s * 0.38, sy - s * 0.38); }
+    if (opts && opts.battle && b.hp > 0 && b.hp < b.maxHp) { ctx.fillStyle = "#2d3436"; ctx.fillRect(sx - s / 2, sy + s / 2 + 2, s, 4); ctx.fillStyle = "#2ecc71"; ctx.fillRect(sx - s / 2, sy + s / 2 + 2, s * b.hp / b.maxHp, 4); }
+    if (!opts && selected === b) { ctx.strokeStyle = "#feca57"; ctx.lineWidth = 3; ctx.strokeRect(sx - s / 2 - 3, sy - s / 2 - 3, s + 6, s + 6); }
+  }
+}
+let last = performance.now(), prodAcc = 0;
+function frame(now) {
+  const dt = Math.min(0.25, (now - last) / 1000); last = now;
+  const time = now / 1000;
+  if (battle && !battle.over) {
+    for (let i = 0; i < 2 && battle && !battle.over; i++) battleStep();   // 2 steps a frame: battles play at a lively speed
+    if (battle && battle.drawBar && battle.frame % 15 === 0) battle.drawBar();
+  } else {
+    prodAcc += dt; if (prodAcc >= 1) { produce(prodAcc); prodAcc = 0; renderTop(); if (Math.random() < 0.1) save(); }
+  }
+  setView(battle ? battle.island.th : th());
+  if (battle) {
+    drawIsland(battle.island.th, battle.blds, time, { battle: true });
+    const bt = battle;
+    ctx.font = `${tile * 0.6}px serif`;
+    for (const tr of bt.troops) {
+      if (tr.hp <= 0) continue;
+      const [sx, sy] = toScreen(tr.x, tr.y);
+      ctx.fillStyle = "rgba(255,255,255,0.85)"; ctx.beginPath(); ctx.arc(sx, sy, tile * 0.3, 0, Math.PI * 2); ctx.fill();
+      ctx.fillText(T[tr.kind].emoji, sx, sy);
+      ctx.fillStyle = "#c0392b"; ctx.fillRect(sx - tile * 0.3, sy - tile * 0.45, tile * 0.6, 3); ctx.fillStyle = "#2ecc71"; ctx.fillRect(sx - tile * 0.3, sy - tile * 0.45, tile * 0.6 * Math.max(0, tr.hp) / tr.maxHp, 3);
+    }
+    for (const s of bt.shots) { const [a, b2] = toScreen(s.x, s.y), [c, d] = toScreen(s.tx, s.ty); ctx.strokeStyle = s.col; ctx.lineWidth = 2; ctx.beginPath(); ctx.moveTo(a, b2); ctx.lineTo(c, d); ctx.stroke(); }
+    for (const f of bt.fx) { const [x, y] = toScreen(f.x, f.y); ctx.fillStyle = `rgba(255,140,0,${f.t / 30})`; ctx.beginPath(); ctx.arc(x, y, tile * (1.2 - f.t / 30), 0, Math.PI * 2); ctx.fill(); }
+    ctx.font = "bold 18px Nunito, sans-serif"; ctx.fillStyle = "#fff"; ctx.textAlign = "center";
+    ctx.fillText(`⚔️ ${bt.island.name} — tap the sea or the beach to send in your ${bt.selected ? T[bt.selected].name.toLowerCase() + "s" : "troops"}`, innerWidth / 2, 74);
+  } else {
+    drawIsland(th(), S.buildings, time, null);
+    if (placing) { ctx.font = "bold 16px Nunito, sans-serif"; ctx.fillStyle = "#fff"; ctx.textAlign = "center"; ctx.fillText(`Placing: ${B[placing].emoji} ${B[placing].name} — tap an empty green spot`, innerWidth / 2, 74); }
+  }
+  requestAnimationFrame(frame);
+}
+cv.addEventListener("click", (e) => {
+  setView(battle ? battle.island.th : th());
+  const x = Math.floor((e.clientX - ox) / tile), y = Math.floor((e.clientY - oy) / tile);
+  const fx = (e.clientX - ox) / tile - 0.5, fy = (e.clientY - oy) / tile - 0.5;
+  if (battle && !battle.over) {
+    const k = battle.selected; if (!k) return;
+    const n = e.shiftKey ? 5 : 1; let sent = 0;
+    for (let i = 0; i < n; i++) if (deploy(k, fx + (Math.random() - 0.5) * 0.4, fy + (Math.random() - 0.5) * 0.4)) sent++;
+    if (!sent) toast(battle.army[k] > 0 ? "Send troops in from the sea or the beach" : `No ${T[k].name}s left`);
+    if (battle.army[k] <= 0) battle.selected = Object.keys(battle.army).find((q) => battle.army[q] > 0) || k;
+    battle.drawBar && battle.drawBar();
+    return;
+  }
+  if (battle) return;
+  if (placing) {
+    if (!isLand(x, y)) { placing = null; toast("Cancelled"); return; }
+    const err = placeBuilding(placing, x, y);
+    if (err) toast(err); else { toast(`${B[placing].emoji} ${B[placing].name} built!`); placing = null; renderTop(); }
+    return;
+  }
+  const b = S.buildings.find((q) => q.x === x && q.y === y);
+  if (b) showInfo(b); else hideInfo();
+});
+
+// ---- the arcade: trade play coins for gold ----------------------------------------------------------
+if (window.ArcadeShop && ArcadeShop.registerCurrency) {
+  ArcadeShop.registerCurrency({ name: "Gold", emoji: "🪙", rate: 200, room: () => capOf() - S.gold, grant(n) { S.gold = Math.min(capOf(), S.gold + n); save(); renderTop(); } });
+}
+window.nullpState = () => ({ townHall: th(), gold: Math.floor(S.gold), wood: Math.floor(S.wood), stone: Math.floor(S.stone), trophies: S.trophies, army: armyUsed() + "/" + armyCap(), inBattle: !!battle });
+
+load(); resize(); setView(th()); renderTop(); save();
+requestAnimationFrame(frame);
+</script>
+<script defer src="../nullp-widget.js" data-game="Island Clash"></script>
+</body>
+</html>

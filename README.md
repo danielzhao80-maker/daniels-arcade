@@ -81,3 +81,11 @@ The arcade remembers the version you opened last (Monster Attack! uses the same 
 is no Nullp server, so accounts, the bug inbox and Nullp's AI answers only work on the home computer.
 On this Mac, the `Arcade 1 - Normal`, `Arcade 2 - Halloween` and `Arcade 3 - Christmas` shortcuts open
 this computer's arcade first (each with its own save), then the home Wi-Fi, then the online site.
+
+## 🏝️ Island Clash (in `island/`)
+
+Build up your island — Town Hall, gold mines, lumber mills, quarries, storage, barracks, archer towers, cannons,
+wizard towers and walls — upgrade everything (up to Town Hall 8) and train an army (warriors, archers, giants, mages).
+Raid computer islands offline, or tap **Fight online** and share the 5-letter code: you and a friend attack each
+other's real islands at the same time and whoever destroys more wins. Online: https://danielzhao80-maker.github.io/daniels-arcade/island/
+Tests: `node tools/test-island.js`.

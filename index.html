@@ -591,6 +591,14 @@
       tags: ["Learning"],
       art: "linear-gradient(135deg, #1b2a5e, #3f6fd8)", glow: "#4ae3ff",
     },
+    {
+      // Lives inside the arcade's own folder (island/): `local` is its path next to this page.
+      slug: "island-clash", local: "island/", pages: "daniels-arcade/island/", file: "arcade/island/index.html",
+      title: "Island Clash", emoji: "🏝️", noQuest: true,
+      desc: "Build up your island, upgrade your buildings and train an army — raid islands offline or battle a friend online.",
+      tags: ["Strategy", "Multiplayer"],
+      art: "linear-gradient(135deg, #0b4f6c, #1fa2a8)", glow: "#5ef0e0",
+    },
   ];
 
   // ---------------------------------------------------------------- shop + save (arcade-shop.js)
@@ -657,7 +665,7 @@
   } catch {}
   // openInGame: a screen to open as the game starts (the event button asks Monster Attack! for its event menu).
   let openInGame = null;
-  const srcFor = (g) => (viaFile ? "../" + g.file : onPages ? "../" + g.pages : "../" + encodeURIComponent(g.slug) + "/")
+  const srcFor = (g) => (viaFile ? "../" + g.file : onPages ? "../" + g.pages : g.local ? g.local : "../" + encodeURIComponent(g.slug) + "/")
     + "?arcadeSkins=" + encodeURIComponent(JSON.stringify(gameSkins(ArcadeShop.load())))
     + (openInGame && openInGame.slug === g.slug ? "&open=" + encodeURIComponent(openInGame.screen) : "");
   let currentTag = "All";
@@ -1038,7 +1046,7 @@
   // ---------------------------------------------------------------- hard quest + admin panel
   // The invisible corner of the shop's 🎁 Codes tab opens the quest. Beating it unlocks the Admin
   // Panel; the Admin Panel is the only place the 👑 Owner title comes from; owners may skip.
-  const QUEST_GAMES = GAMES.map((g) => g.slug);
+  const QUEST_GAMES = GAMES.filter((g) => !g.noQuest).map((g) => g.slug);   // (games added later don't change the quest)
   // 💬 Discord task. Put the server's invite link in `invite`. If `code` is set, joining only counts
   // once the player types that code — post it in the server (e.g. #welcome) so only members know it.
   // With no code, opening the invite counts as joining.
@@ -1435,7 +1443,7 @@
   // whenever it changes. Logging in loads the account's snapshot; logging out clears it here.
   const ACC_KEY = "daniels-arcade-account"; // { name, token } — never part of the snapshot
   // Monster Attack! keeps its season pass under monster_attack_ (the rest under monster_city_).
-  const SYNC_PREFIXES = ["daniels-arcade-v1", "daniels-arcade-skins", "monster_city_", "monster_attack_", "project-revive-", "buckshot_", "fps_arena_save"];
+  const SYNC_PREFIXES = ["daniels-arcade-v1", "daniels-arcade-skins", "monster_city_", "monster_attack_", "project-revive-", "buckshot_", "fps_arena_save", "island_clash_"];
   const synced = (k) => SYNC_PREFIXES.some((p) => k.startsWith(p));
   const getAcc = () => { try { return JSON.parse(localStorage.getItem(ACC_KEY) || "null"); } catch { return null; } };
   const setAcc = (a) => { try { a ? localStorage.setItem(ACC_KEY, JSON.stringify(a)) : localStorage.removeItem(ACC_KEY); } catch {} };

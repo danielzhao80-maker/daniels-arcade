@@ -32,7 +32,7 @@ const INF = 999999999;
 const DAY = 86400000;
 const T0 = Date.UTC(2026, 9, 17, 10, 0, 0); // Sat 17 Oct 2026, 10:00
 const DEFAULT_OWNED = ["galaxy", "smile", "rookie", "gun-none", "ab-none", "bg-none"];
-const SLUGS = ["monster-city", "rebuild", "shooting-game", "Pocket-Dice", "english-program"];
+const SLUGS = ["monster-city", "rebuild", "shooting-game", "Pocket-Dice", "english-program", "island-clash"];
 const HOOK = "window.__hook = { DISCORD, GAMES, get save() { return save; }, " +
   "get discordStatus() { return discordStatus; }, set discordStatus(v) { discordStatus = v; } };";
 
@@ -169,18 +169,18 @@ sect("1. boot, grid, filters, play route");
 let r = boot({ seed: { [KEY]: withDefaults({ coins: 5, owned: [...DEFAULT_OWNED, "gun-ruby"], equipped: { gun: "gun-ruby" } }) } });
 ok("no load errors: " + r.errs.join(" | "), r.errs.length === 0);
 ok("ArcadeShop + hook loaded", !!r.S && !!r.H);
-ok("5 game cards", r.$$("#grid .card").length === 5);
-ok("game count text", r.id("gameCount").textContent === "5 games");
+ok("6 game cards", r.$$("#grid .card").length === 6);
+ok("game count text", r.id("gameCount").textContent === "6 games");
 ok("wallet shows 5", r.$("[data-coins]").textContent === "5");
 ok("filters: All + every tag", JSON.stringify(r.$$("#filters button").map((b) => b.textContent)) ===
   JSON.stringify(["All", "Action", "Shooter", "Strategy", "Spelling", "Story", "3D", "Multiplayer", "Board", "Learning"]));
 r.$$("#filters button").find((b) => b.textContent === "Multiplayer").click();
-ok("Multiplayer filter -> Buckshot + Track Run", JSON.stringify(r.$$("#grid .card h2").map((h) => h.textContent)) === JSON.stringify(["Buckshot Roulette", "Track Run"]));
-ok("filter button on + count", r.$("#filters .on").textContent === "Multiplayer" && r.id("gameCount").textContent === "2 games");
+ok("Multiplayer filter -> Buckshot + Track Run + Island Clash", JSON.stringify(r.$$("#grid .card h2").map((h) => h.textContent)) === JSON.stringify(["Buckshot Roulette", "Track Run", "Island Clash"]));
+ok("filter button on + count", r.$("#filters .on").textContent === "Multiplayer" && r.id("gameCount").textContent === "3 games");
 r.$$("#filters button").find((b) => b.textContent === "Learning").click();
 ok("Learning filter -> 1 game (singular)", r.id("gameCount").textContent === "1 game");
 r.$$("#filters button")[0].click();
-ok("All -> 5 cards", r.$$("#grid .card").length === 5);
+ok("All -> 6 cards", r.$$("#grid .card").length === 6);
 ok("card links go to #play/<slug>", JSON.stringify(r.$$("#grid .card").map((a) => a.getAttribute("href"))) === JSON.stringify(SLUGS.map((s) => "#play/" + s)));
 ok("skins shared at boot", JSON.parse(r.w.localStorage.getItem(SKINS_KEY)).gun.id === "gun-ruby");
 ok("not playing at boot", !r.d.body.classList.contains("playing"));
@@ -883,7 +883,7 @@ ok("no errors: " + r.errs.join(" | "), r.errs.length === 0);
 sect("8. bug reports");
 r = boot({ seed: { [KEY]: {} } });
 r.id("bugBtn").click();
-ok("bug form opens, game = arcade at home", r.id("bugVeil").classList.contains("open") && r.id("bugGame").value === "arcade" && r.$$("#bugGame option").length === 6);
+ok("bug form opens, game = arcade at home", r.id("bugVeil").classList.contains("open") && r.id("bugGame").value === "arcade" && r.$$("#bugGame option").length === 7);
 r.id("bugText").value = "  too short ".slice(0, 11);
 r.id("bugText").value = "123456789";
 r.submit(r.id("bugForm"));

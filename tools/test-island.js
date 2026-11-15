@@ -202,7 +202,7 @@ check(zap.ok && zap.dmg === 260 && zap.left === 0 && zap.again === false, '⚡ L
 q(`endBattle(true); battle = null;`);
 reset({ army: { warrior: 4 }, gold: 1e6, wood: 1e6, stone: 1e6 });
 q(`for (var i = 0; i < 5; i++) upgradeBuilding(S.buildings[0]); startBattle(genIsland(2, 9));`);
-check(q('th()') === 6 && q(`Object.keys(battle.abil).join()`) === 'lightning,heal,rage,freeze,barricade' && q(`battle.abil.heal`) === 2, 'Town Hall 6: all five, 2 uses each');
+check(q('th()') === 6 && q(`Object.keys(battle.abil).join()`) === 'lightning,heal,rage,freeze,barricade,agent' && q(`battle.abil.heal`) === 2, 'Town Hall 6: all six (with 🕵️ Agent), 2 uses each');
 const h = JSON.parse(q(`(function(){ deploy('warrior', 0.5, CENTER); var tr = battle.troops[0]; tr.hp = 10; castAbility('heal', tr.x, tr.y); return JSON.stringify({ hp: tr.hp, max: tr.maxHp }); })()`));
 check(h.hp > 10 && h.hp <= h.max, '💚 Heal heals your troops', JSON.stringify(h));
 const rg = JSON.parse(q(`(function(){ var tr = battle.troops[0]; castAbility('rage', tr.x, tr.y); var x0 = tr.x; tr.target = null; battleStep(); var moved = Math.abs(tr.x - x0); tr.rageUntil = 0; var x1 = tr.x; battleStep(); return JSON.stringify({ raged: moved, normal: Math.abs(tr.x - x1) }); })()`));
@@ -221,6 +221,21 @@ const bar = JSON.parse(q(`(function(){ var d = battle.blds.find(function(b){ ret
   return JSON.stringify({ shots: shots, hits: br.hits, hurtWhileUp: hurtWhileUp, hurtAfter: h0 - tr.hp }); })()`));
 check(bar.shots === 10 && bar.hits === 0 && bar.hurtWhileUp === 0, '🧱 Barricade: a large wall blocks 10 attacks, then breaks', JSON.stringify(bar));
 check(bar.hurtAfter > 0, '…after that the defences hit your troops again');
+const ag = JSON.parse(q(`(function(){ var defs = battle.blds.filter(function(b){ return B[b.type].def && b.hp > 0; }); defs.forEach(function(b){ b.hp = b.maxHp; b.frozenUntil = 0; });
+  var strongest = defs.slice().sort(function(a, b){ return (B[b.type].def.dmg * (1 + 0.45 * (b.lvl - 1))) - (B[a.type].def.dmg * (1 + 0.45 * (a.lvl - 1))); })[0];
+  var thb = battle.blds.find(function(b){ return b.type === 'townhall'; }); thb.hp = thb.maxHp;
+  battle.troops.forEach(function(t){ t.hp = 0; }); battle.army = { warrior: 1 };
+  castAbility('agent', 0.5, CENTER); var shotAt = 0;
+  for (var i = 0; i < 3000 && battle.agents[0].phase !== 'done'; i++) { var n0 = battle.shots.length; battleStep(); }
+  return JSON.stringify({ phase: battle.agents[0].phase, defHp: strongest.hp / strongest.maxHp, thHp: Math.round(thb.hp / thb.maxHp * 100) / 100, frozen: strongest.frozenUntil > 0 }); })()`));
+check(ag.phase === 'done' && Math.abs(ag.defHp - 0.6) < 0.01 && ag.frozen, '🕵️ Agent: sneaks to the strongest defence and sabotages it (−40%, knocked out)', JSON.stringify(ag));
+check(Math.abs(ag.thHp - 0.65) < 0.01, '…then bombs the Town Hall (−35%)');
+reset({ army: { warrior: 2 } });
+q(`S.codes = Object.keys(CODES); startBattle(genIsland(1, 3));`);
+check(q('th()') === 1 && q(`battle.abil.agent`) === 1, 'secret: use all 20 codes and you get the Agent even at Town Hall 1');
+q(`endBattle(true); battle = null;`); reset({ army: { warrior: 2 } }); q(`startBattle(genIsland(1, 3));`);
+check(q(`battle.abil.agent`) === undefined, '…otherwise it waits for Town Hall 6');
+q(`endBattle(true); battle = null;`); reset({ army: { warrior: 4 }, gold: 1e6, wood: 1e6, stone: 1e6 }); q(`for (var i = 0; i < 5; i++) upgradeBuilding(S.buildings[0]); startBattle(genIsland(2, 9)); deploy('warrior', 0.5, CENTER);`);
 q(`battle.selected = 'ab:lightning'; battle.drawBar();`);
 check(/data-sel="ab:lightning"/.test(q(`document.getElementById('battlebar').innerHTML`)), 'the abilities are buttons in the battle bar');
 q(`frame(performance.now()); endBattle(true); battle = null;`);

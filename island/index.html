@@ -146,7 +146,10 @@ const AB = {
   rage:      { name: "Rage",      emoji: "🔥", th: 3, radius: 2.2, color: "#e84118", desc: "Troops in the area: +60% damage, +40% speed for 8 s." },
   freeze:    { name: "Freeze",    emoji: "❄️", th: 4, radius: 2.2, color: "#74b9ff", desc: "Defences in the area stop shooting for 5 s." },
   barricade: { name: "Barricade", emoji: "🧱", th: 5, radius: 1.5, color: "#b2bec3", desc: "Summons a large wall that blocks 10 attacks from the defences." },
+  agent:     { name: "Agent",     emoji: "🕵️", th: 6, radius: 0.8, color: "#2d3436", desc: "A secret agent the defences can't see: sabotages the strongest defence, then bombs the Town Hall. (Town Hall 6 — or use all 20 codes.)" },
 };
+// 🕵️ the Agent is also a secret reward for using every code
+const agentUnlocked = () => th() >= AB.agent.th || (S.codes || []).length >= Object.keys(CODES).length;
 const BARRICADE_HITS = 10;
 // Does the shot a→b cross the barricade's wall segment?
 function crossesBarricade(br, ax, ay, bx, by) {
@@ -260,8 +263,8 @@ let battle = null;
 function startBattle(island, opts) {
   const army = Object.assign({}, S.army);
   if (!Object.values(army).some((n) => n > 0)) return "Train some troops first (🛡️ Army).";
-  const abil = {}; for (const [k, a] of Object.entries(AB)) if (th() >= a.th) abil[k] = abilityUses(th());
-  battle = { island, opts: opts || {}, frame: 0, army, abil, casts: [], barricades: [], troops: [], shots: [], fx: [], over: false, selected: Object.keys(army).find((k) => army[k] > 0),
+  const abil = {}; for (const [k, a] of Object.entries(AB)) if (k === "agent" ? agentUnlocked() : th() >= a.th) abil[k] = abilityUses(th());
+  battle = { island, opts: opts || {}, frame: 0, army, abil, casts: [], barricades: [], agents: [], troops: [], shots: [], fx: [], over: false, selected: Object.keys(army).find((k) => army[k] > 0),
              blds: island.buildings.map((b) => Object.assign({}, b, { hp: hpOf(b.type, b.lvl), maxHp: hpOf(b.type, b.lvl), cd: 0 })) };
   battle.total = battle.blds.filter((b) => b.type !== "wall").length;
   for (const k in army) S.army[k] = 0;   // the army goes into battle (survivors don't come back)
@@ -294,12 +297,42 @@ function castAbility(kind, x, y) {
   } else if (kind === "heal") { for (const tr of bt.troops) if (tr.hp > 0 && inR(tr)) tr.hp = Math.min(tr.maxHp, tr.hp + tr.maxHp * 0.6); }
   else if (kind === "rage") { for (const tr of bt.troops) if (tr.hp > 0 && inR(tr)) tr.rageUntil = bt.frame + 480; }
   else if (kind === "freeze") { for (const b of bt.blds) if (b.hp > 0 && B[b.type].def && inR(b)) b.frozenUntil = bt.frame + 300; }
+  else if (kind === "agent") bt.agents.push({ x, y, phase: "sabotage", target: null, t: 0 });
   else if (kind === "barricade") {   // a 3-tile wall, turned to face the island (across the way to its middle)
     const ang = Math.atan2(y - CENTER, x - CENTER), px = -Math.sin(ang) * a.radius, py = Math.cos(ang) * a.radius;
     bt.barricades.push({ x, y, x1: x - px, y1: y - py, x2: x + px, y2: y + py, hits: BARRICADE_HITS });
   }
   bt.casts.push({ x, y, r: a.radius, color: a.color, t: 180, emoji: a.emoji });   // the ring shows ~1.5 s
   return true;
+}
+// 🕵️ The Agent (invisible to defences): walks to the strongest defence and sabotages it (40% of its health,
+// knocked out 10 s), then to the Town Hall, plants a bomb, and 3 s later it blows for 35% of the Town Hall.
+const AGENT_SPEED = 2.2, AGENT_SABOTAGE = 0.4, AGENT_BOMB = 0.35;
+function agentStep(bt) {
+  for (const ag of bt.agents) {
+    if (ag.phase === "done") continue;
+    if (ag.phase === "sabotage" && (!ag.target || ag.target.hp <= 0)) {
+      const defs = bt.blds.filter((b) => b.hp > 0 && B[b.type].def).sort((a, b) => (B[b.type].def.dmg * (1 + 0.45 * (b.lvl - 1))) - (B[a.type].def.dmg * (1 + 0.45 * (a.lvl - 1))));
+      ag.target = defs[0] || null; if (!ag.target) ag.phase = "bomb";
+    }
+    if (ag.phase === "bomb" && (!ag.target || ag.target.type !== "townhall")) {
+      ag.target = bt.blds.find((b) => b.type === "townhall" && b.hp > 0) || null;
+      if (!ag.target) { ag.phase = "done"; continue; }
+    }
+    if (ag.phase === "ticking") {
+      if (--ag.t > 0) continue;
+      const tg = ag.target; if (tg && tg.hp > 0) { tg.hp = Math.max(0, tg.hp - tg.maxHp * AGENT_BOMB); bt.fx.push({ x: tg.x, y: tg.y, t: 30, boom: true }); }
+      ag.phase = "done"; continue;
+    }
+    const tg = ag.target, d = Math.hypot(tg.x - ag.x, tg.y - ag.y);
+    if (d > 0.6) { ag.x += (tg.x - ag.x) / d * AGENT_SPEED / 60; ag.y += (tg.y - ag.y) / d * AGENT_SPEED / 60; continue; }
+    if (ag.phase === "sabotage") {
+      tg.hp = Math.max(0, tg.hp - tg.maxHp * AGENT_SABOTAGE); tg.frozenUntil = bt.frame + 600;
+      if (tg.hp <= 0) bt.fx.push({ x: tg.x, y: tg.y, t: 30, boom: true });
+      bt.casts.push({ x: tg.x, y: tg.y, r: 0.8, color: "#2d3436", t: 90, emoji: "🔧" });
+      ag.phase = "bomb"; ag.target = null;
+    } else if (ag.phase === "bomb") { ag.phase = "ticking"; ag.t = 180; }
+  }
 }
 function pickTarget(tr) {
   const t = T[tr.kind], alive = battle.blds.filter((b) => b.hp > 0 && b.type !== "wall");
@@ -358,8 +391,9 @@ function battleStep() {
     else tg.hp -= dmg;
     bt.shots.push({ x: b.x, y: b.y, tx: tg.x, ty: tg.y, t: 8, col: b.type === "cannon" ? "#2d3436" : b.type === "wizard" ? "#a55eea" : "#fff" });
   }
+  agentStep(bt);
   bt.shots = bt.shots.filter((s) => --s.t > 0); bt.fx = bt.fx.filter((f) => --f.t > 0); bt.casts = bt.casts.filter((c) => --c.t > 0);
-  const anyTroops = bt.troops.some((t) => t.hp > 0) || Object.values(bt.army).some((n) => n > 0);
+  const anyTroops = bt.troops.some((t) => t.hp > 0) || Object.values(bt.army).some((n) => n > 0) || bt.agents.some((a) => a.phase !== "done");
   if (destroyedPct(bt) >= 100 || !anyTroops || bt.frame >= BATTLE_FRAMES) endBattle();
 }
 function endBattle(forced) {
@@ -541,7 +575,7 @@ function renderInfo() {
     sec("💰 Resources", ["gold", "wood", "stone"].map((k) => `${R[k]} <b>${I.res[k].toLocaleString()}</b> / ${I.cap.toLocaleString()} &nbsp;·&nbsp; +${I.make[k]}/min`).join("<br>")) +
     sec("🏗️ Buildings", I.blds.map((b) => `${B[b.type].emoji} ${B[b.type].name}: <b>${b.n}</b>/${b.lim}${b.type === "wall" ? "" : ` &nbsp;·&nbsp; Lv ${b.levels.join(", ")}`}`).join("<br>")) +
     sec("🛡️ Army", `${I.used}/${I.armyCap} space · Barracks Lv ${barracksLvl()}<br>` + (I.army.length ? I.army.map(([k, n]) => `${T[k].emoji} ${T[k].name} × <b>${n}</b>`).join(" &nbsp; ") : "<i>No troops — train some in 🛡️ Army</i>")) +
-    sec("✨ Mini abilities (in battle)", Object.values(AB).map((a) => `${a.emoji} ${a.name}: ${I.th >= a.th ? `<b>${abilityUses(I.th)}</b> per battle` : `🔒 Town Hall ${a.th}`} — ${a.desc}`).join("<br>")) +
+    sec("✨ Mini abilities (in battle)", Object.entries(AB).map(([k, a]) => `${a.emoji} ${a.name}: ${(k === "agent" ? agentUnlocked() : I.th >= a.th) ? `<b>${abilityUses(I.th)}</b> per battle` : `🔒 Town Hall ${a.th}`} — ${a.desc}`).join("<br>")) +
     sec("⚔️ Record", `🏆 <b>${I.trophies}</b> trophies · <b>${I.wins}</b> wins · raid level <b>${I.raid}</b> reached`);
 }
 function showInfo(b) {
@@ -671,6 +705,13 @@ function frame(now) {
       const [x, y] = toScreen(c.x, c.y);
       ctx.globalAlpha = Math.min(1, c.t / 60); ctx.strokeStyle = c.color; ctx.lineWidth = 4; ctx.beginPath(); ctx.arc(x, y, c.r * tile, 0, Math.PI * 2); ctx.stroke();
       ctx.fillStyle = c.color + "33"; ctx.fill(); ctx.font = `${tile * 0.9}px serif`; ctx.fillText(c.emoji, x, y); ctx.globalAlpha = 1;
+    }
+    for (const ag of bt.agents) {   // 🕵️ the agent (see-through: the defences can't see him) and his ticking bomb
+      if (ag.phase === "done") continue;
+      const [ax, ay] = toScreen(ag.x, ag.y);
+      ctx.globalAlpha = 0.75; ctx.fillStyle = "#2d3436"; ctx.beginPath(); ctx.arc(ax, ay, tile * 0.3, 0, Math.PI * 2); ctx.fill();
+      ctx.font = `${tile * 0.6}px serif`; ctx.fillText("🕵️", ax, ay); ctx.globalAlpha = 1;
+      if (ag.phase === "ticking") { ctx.font = `${tile * (0.5 + 0.1 * Math.sin(bt.frame / 4))}px serif`; ctx.fillText("💣", ax + tile * 0.4, ay - tile * 0.3); ctx.font = `bold ${tile * 0.32}px Nunito, sans-serif`; ctx.fillStyle = "#ff4757"; ctx.fillText(Math.ceil(ag.t / 60), ax + tile * 0.4, ay - tile * 0.75); }
     }
     for (const br of bt.barricades) {   // 🧱 a thick stone wall with its hits left
       if (br.hits <= 0) continue;

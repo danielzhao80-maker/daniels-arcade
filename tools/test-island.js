@@ -240,12 +240,14 @@ q(`battle.selected = 'ab:lightning'; battle.drawBar();`);
 check(/data-sel="ab:lightning"/.test(q(`document.getElementById('battlebar').innerHTML`)), 'the abilities are buttons in the battle bar');
 q(`frame(performance.now()); endBattle(true); battle = null;`);
 q(`document.getElementById('btnInfo').onclick();`);
-check(/Mini abilities/.test(q(`document.getElementById('infoBody').innerHTML`)), '📊 My Island lists them');
+check(/Mini abilities/.test(q(`document.getElementById('infoBody').innerHTML`)) && /Your island's defenders/.test(q(`document.getElementById('infoBody').innerHTML`)), '📊 My Island lists the abilities and your defenders');
 
 // ---- 🐺 defending mobs ----
 check(q(`spawnMobs([{ type: 'barracks', lvl: 1, x: 5, y: 5 }]).length`) === 2 && q(`spawnMobs([{ type: 'barracks', lvl: 3, x: 5, y: 5 }, { type: 'barracks', lvl: 9, x: 6, y: 6 }]).length`) === 10, 'each Barracks sends out 1 + its level (max 6)');
 check(q(`spawnMobs([{ type: 'barracks', lvl: 2, x: 5, y: 5 }]).map(function(m){ return m.kind; }).join()`) === 'wolf,monkey,raccoon', 'wolves, monkeys and raccoons');
-check(q(`spawnMobs([{ type: 'barracks', lvl: 3, x: 5, y: 5 }]).map(function(m){ return m.kind; }).join()`) === 'golem,monkey,raccoon,wolf', '…and from Barracks level 3 an Earth Golem');
+check(q(`spawnMobs([{ type: 'barracks', lvl: 3, x: 5, y: 5 }])[0].kind`) === 'golem', '…and from Barracks level 3 an Earth Golem leads them');
+check(q(`mobPool(1).join()`) === 'wolf,monkey,raccoon' && q(`mobPool(2).join()`) === 'wolf,monkey,raccoon,boar,bee' && q(`mobPool(5).length`) === 9, 'bigger Barracks unlock more animals (🐗 🐝 at 2, 🐍 🦂 at 3, 🐻 at 4, 🦅 at 5)');
+check(q(`(function(){ var k = {}; spawnMobs([{ type: 'barracks', lvl: 5, x: 5, y: 5 }, { type: 'barracks', lvl: 5, x: 7, y: 7 }]).forEach(function(m){ k[m.kind] = 1; }); return Object.keys(k).length; })()`) >= 5, 'a level-5 Barracks sends a varied pack');
 check(q(`MOB.golem.hp > MOB.wolf.hp * 4 && MOB.golem.speed < MOB.wolf.speed && MOB.raccoon.rate < MOB.wolf.rate && MOB.monkey.range > 2`), 'the golem is huge and slow, the raccoon attacks fastest, the monkey throws from range');
 reset({ army: { warrior: 1 } });
 const mb = JSON.parse(q(`(function(){ var isl = { name: 'Camp', th: 2, loot: {}, buildings: [{ type: 'townhall', lvl: 2, x: CENTER, y: CENTER }, { type: 'barracks', lvl: 2, x: CENTER - 2, y: CENTER }] };
@@ -261,6 +263,25 @@ const home = JSON.parse(q(`(function(){ var isl = { name: 'Camp', th: 2, loot: {
   startBattle(isl); var m = battle.mobs[0]; m.x += 3; for (var i = 0; i < 400; i++) battleStep(); return JSON.stringify({ back: Math.hypot(m.x - m.homeX, m.y - m.homeY) < 0.2 }); })()`));
 check(home.back, 'with nothing near, mobs walk back home');
 q(`endBattle(true); battle = null;`);
+// each animal's trick, one at a time
+const trick = (kind, troop) => JSON.parse(q(`(function(){ var isl = { name: 'Zoo', th: 2, loot: {}, buildings: [{ type: 'townhall', lvl: 2, x: CENTER, y: CENTER }, { type: 'barracks', lvl: 1, x: CENTER - 2, y: CENTER }] };
+  S.army = { ${troop || 'warrior'}: 1 }; startBattle(isl); var m0 = battle.mobs[0]; m0.kind = '${kind}'; m0.dmg = MOB['${kind}'].dmg; m0.hp = m0.maxHp = 1e9; battle.mobs = [m0]; m0.cd = 0;
+  deploy('${troop || 'warrior'}', CENTER - 5.5, CENTER); var tr = battle.troops[0]; tr.hp = tr.maxHp = 1e6; tr.x = m0.x - 0.6; tr.y = m0.y; tr.target = null;
+  var first = null, o = {}; for (var i = 0; i < 2; i++) { var h = tr.hp; m0.cd = 0; tr.x = m0.x - 0.6; tr.y = m0.y; battleStep(); if (first === null && tr.hp < h) first = h - tr.hp; }
+  o.first = first; o.poison = tr.poisonLeft || 0; o.slow = tr.slowUntil > battle.frame; o.stun = tr.stunUntil > battle.frame; o.mobHp = m0.hp; o.mobMax = m0.maxHp;
+  for (var i = 0; i < 120; i++) { tr.x = m0.x - 0.6; tr.y = m0.y; m0.cd = 999; battleStep(); } o.mobHurt = m0.hp < m0.maxHp; endBattle(true); battle = null; return JSON.stringify(o); })()`));
+reset({ army: {} });
+const boar = trick('boar');
+check(Math.round(boar.first) === 36, '🐗 Boar: CHARGE — its first hit does 3× damage', JSON.stringify(boar));
+const snake = trick('snake');
+check(snake.poison > 0, '🐍 Snake: POISON keeps hurting your troop', JSON.stringify(snake));
+const scorp = trick('scorpion');
+check(scorp.slow, '🦂 Scorpion: STING slows your troop');
+const bear = trick('bear');
+check(bear.stun, '🐻 Bear: ROAR knocks your troop out');
+const eagleW = trick('eagle', 'warrior'), eagleA = trick('eagle', 'archer');
+check(!eagleW.mobHurt && eagleA.mobHurt, '🦅 Eagle: FLIES — warriors cannot hit it, archers can', JSON.stringify({ warrior: eagleW.mobHurt, archer: eagleA.mobHurt }));
+check(q(`MOB.bee.speed > MOB.wolf.speed && MOB.bee.hp < MOB.raccoon.hp`), '🐝 Bee: tiny and the fastest');
 reset({ army: { warrior: 1 }, gold: 1000, wood: 1000, stone: 1000 });
 const st = JSON.parse(q(`(function(){ var isl = { name: 'Monkey Isle', th: 2, loot: {}, buildings: [{ type: 'townhall', lvl: 2, x: CENTER, y: CENTER }, { type: 'barracks', lvl: 1, x: CENTER - 2, y: CENTER }] };
   startBattle(isl); battle.mobs = battle.mobs.filter(function(m){ return m.kind === 'monkey'; }); battle.mobs.forEach(function(m){ m.hp = m.maxHp = 1e9; });

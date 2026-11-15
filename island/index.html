@@ -145,7 +145,16 @@ const AB = {
   heal:      { name: "Heal",      emoji: "💚", th: 2, radius: 2.0, color: "#2ecc71", desc: "Heals your troops in the area (60%)." },
   rage:      { name: "Rage",      emoji: "🔥", th: 3, radius: 2.2, color: "#e84118", desc: "Troops in the area: +60% damage, +40% speed for 8 s." },
   freeze:    { name: "Freeze",    emoji: "❄️", th: 4, radius: 2.2, color: "#74b9ff", desc: "Defences in the area stop shooting for 5 s." },
+  barricade: { name: "Barricade", emoji: "🧱", th: 5, radius: 1.5, color: "#b2bec3", desc: "Summons a large wall that blocks 10 attacks from the defences." },
 };
+const BARRICADE_HITS = 10;
+// Does the shot a→b cross the barricade's wall segment?
+function crossesBarricade(br, ax, ay, bx, by) {
+  const cross = (px, py, qx, qy, rx, ry) => (qx - px) * (ry - py) - (qy - py) * (rx - px);
+  const d1 = cross(br.x1, br.y1, br.x2, br.y2, ax, ay), d2 = cross(br.x1, br.y1, br.x2, br.y2, bx, by);
+  const d3 = cross(ax, ay, bx, by, br.x1, br.y1), d4 = cross(ax, ay, bx, by, br.x2, br.y2);
+  return d1 * d2 < 0 && d3 * d4 < 0;
+}
 const abilityUses = (t) => t >= 6 ? 2 : 1;
 const lightningDmg = (t) => 200 + 60 * t;
 
@@ -252,7 +261,7 @@ function startBattle(island, opts) {
   const army = Object.assign({}, S.army);
   if (!Object.values(army).some((n) => n > 0)) return "Train some troops first (🛡️ Army).";
   const abil = {}; for (const [k, a] of Object.entries(AB)) if (th() >= a.th) abil[k] = abilityUses(th());
-  battle = { island, opts: opts || {}, frame: 0, army, abil, casts: [], troops: [], shots: [], fx: [], over: false, selected: Object.keys(army).find((k) => army[k] > 0),
+  battle = { island, opts: opts || {}, frame: 0, army, abil, casts: [], barricades: [], troops: [], shots: [], fx: [], over: false, selected: Object.keys(army).find((k) => army[k] > 0),
              blds: island.buildings.map((b) => Object.assign({}, b, { hp: hpOf(b.type, b.lvl), maxHp: hpOf(b.type, b.lvl), cd: 0 })) };
   battle.total = battle.blds.filter((b) => b.type !== "wall").length;
   for (const k in army) S.army[k] = 0;   // the army goes into battle (survivors don't come back)
@@ -285,6 +294,10 @@ function castAbility(kind, x, y) {
   } else if (kind === "heal") { for (const tr of bt.troops) if (tr.hp > 0 && inR(tr)) tr.hp = Math.min(tr.maxHp, tr.hp + tr.maxHp * 0.6); }
   else if (kind === "rage") { for (const tr of bt.troops) if (tr.hp > 0 && inR(tr)) tr.rageUntil = bt.frame + 480; }
   else if (kind === "freeze") { for (const b of bt.blds) if (b.hp > 0 && B[b.type].def && inR(b)) b.frozenUntil = bt.frame + 300; }
+  else if (kind === "barricade") {   // a 3-tile wall, turned to face the island (across the way to its middle)
+    const ang = Math.atan2(y - CENTER, x - CENTER), px = -Math.sin(ang) * a.radius, py = Math.cos(ang) * a.radius;
+    bt.barricades.push({ x, y, x1: x - px, y1: y - py, x2: x + px, y2: y + py, hits: BARRICADE_HITS });
+  }
   bt.casts.push({ x, y, r: a.radius, color: a.color, t: 180, emoji: a.emoji });   // the ring shows ~1.5 s
   return true;
 }
@@ -333,6 +346,13 @@ function battleStep() {
     for (const tr of bt.troops) if (tr.hp > 0) { const d = Math.hypot(tr.x - b.x, tr.y - b.y); if (d <= bd) { bd = d; tg = tr; } }
     if (!tg) continue;
     b.cd = D.rate;
+    const wall = bt.barricades.find((br) => br.hits > 0 && crossesBarricade(br, b.x, b.y, tg.x, tg.y));
+    if (wall) {   // 🧱 the barricade takes the hit instead
+      wall.hits--;
+      bt.shots.push({ x: b.x, y: b.y, tx: wall.x, ty: wall.y, t: 8, col: "#b2bec3" });
+      if (wall.hits <= 0) bt.fx.push({ x: wall.x, y: wall.y, t: 30, boom: true });
+      continue;
+    }
     const dmg = D.dmg * (1 + 0.45 * (b.lvl - 1));
     if (D.splash) { for (const tr of bt.troops) if (tr.hp > 0 && Math.hypot(tr.x - tg.x, tr.y - tg.y) <= D.splash) tr.hp -= dmg; }
     else tg.hp -= dmg;
@@ -651,6 +671,14 @@ function frame(now) {
       const [x, y] = toScreen(c.x, c.y);
       ctx.globalAlpha = Math.min(1, c.t / 60); ctx.strokeStyle = c.color; ctx.lineWidth = 4; ctx.beginPath(); ctx.arc(x, y, c.r * tile, 0, Math.PI * 2); ctx.stroke();
       ctx.fillStyle = c.color + "33"; ctx.fill(); ctx.font = `${tile * 0.9}px serif`; ctx.fillText(c.emoji, x, y); ctx.globalAlpha = 1;
+    }
+    for (const br of bt.barricades) {   // 🧱 a thick stone wall with its hits left
+      if (br.hits <= 0) continue;
+      const [x1, y1] = toScreen(br.x1, br.y1), [x2, y2] = toScreen(br.x2, br.y2), [mx, my] = toScreen(br.x, br.y);
+      ctx.lineCap = "round"; ctx.strokeStyle = "#57606f"; ctx.lineWidth = tile * 0.62; ctx.beginPath(); ctx.moveTo(x1, y1); ctx.lineTo(x2, y2); ctx.stroke();
+      ctx.strokeStyle = "#a4b0be"; ctx.lineWidth = tile * 0.45; ctx.beginPath(); ctx.moveTo(x1, y1); ctx.lineTo(x2, y2); ctx.stroke(); ctx.lineCap = "butt";
+      ctx.font = `bold ${tile * 0.42}px Nunito, sans-serif`; ctx.fillStyle = "#fff"; ctx.strokeStyle = "#000"; ctx.lineWidth = 3;
+      ctx.strokeText("🧱 " + br.hits, mx, my); ctx.fillText("🧱 " + br.hits, mx, my);
     }
     for (const b of bt.blds) if (b.frozenUntil > bt.frame && b.hp > 0) { const [x, y] = toScreen(b.x, b.y); ctx.fillStyle = "rgba(116,185,255,0.45)"; ctx.fillRect(x - tile * 0.45, y - tile * 0.45, tile * 0.9, tile * 0.9); }
     ctx.font = "bold 18px Nunito, sans-serif"; ctx.fillStyle = "#fff"; ctx.textAlign = "center";

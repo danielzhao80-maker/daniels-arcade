@@ -202,13 +202,25 @@ check(zap.ok && zap.dmg === 260 && zap.left === 0 && zap.again === false, '⚡ L
 q(`endBattle(true); battle = null;`);
 reset({ army: { warrior: 4 }, gold: 1e6, wood: 1e6, stone: 1e6 });
 q(`for (var i = 0; i < 5; i++) upgradeBuilding(S.buildings[0]); startBattle(genIsland(2, 9));`);
-check(q('th()') === 6 && q(`Object.keys(battle.abil).join()`) === 'lightning,heal,rage,freeze' && q(`battle.abil.heal`) === 2, 'Town Hall 6: all four, 2 uses each');
+check(q('th()') === 6 && q(`Object.keys(battle.abil).join()`) === 'lightning,heal,rage,freeze,barricade' && q(`battle.abil.heal`) === 2, 'Town Hall 6: all five, 2 uses each');
 const h = JSON.parse(q(`(function(){ deploy('warrior', 0.5, CENTER); var tr = battle.troops[0]; tr.hp = 10; castAbility('heal', tr.x, tr.y); return JSON.stringify({ hp: tr.hp, max: tr.maxHp }); })()`));
 check(h.hp > 10 && h.hp <= h.max, '💚 Heal heals your troops', JSON.stringify(h));
 const rg = JSON.parse(q(`(function(){ var tr = battle.troops[0]; castAbility('rage', tr.x, tr.y); var x0 = tr.x; tr.target = null; battleStep(); var moved = Math.abs(tr.x - x0); tr.rageUntil = 0; var x1 = tr.x; battleStep(); return JSON.stringify({ raged: moved, normal: Math.abs(tr.x - x1) }); })()`));
 check(rg.raged > rg.normal * 1.3, '🔥 Rage: troops move faster (and hit harder)', JSON.stringify(rg));
 const fz = JSON.parse(q(`(function(){ var d = battle.blds.find(function(b){ return B[b.type].def; }); castAbility('freeze', d.x, d.y); d.cd = 0; var tr = battle.troops[0]; tr.x = d.x + 0.5; tr.y = d.y; tr.hp = tr.maxHp = 1e9; var h0 = tr.hp; for (var i = 0; i < 100; i++) { tr.x = d.x + 0.5; tr.y = d.y; battleStep(); } return JSON.stringify({ frozen: d.frozenUntil > battle.frame, hurt: h0 - tr.hp }); })()`));
 check(fz.frozen && fz.hurt === 0, '❄️ Freeze: the defences in the area stop shooting', JSON.stringify(fz));
+const bar = JSON.parse(q(`(function(){ var d = battle.blds.find(function(b){ return B[b.type].def; }); d.frozenUntil = 0; d.cd = 0;
+  var tr = battle.troops[0]; tr.x = d.x - 2; tr.y = d.y; tr.hp = tr.maxHp = 1e9; tr.dmg = 0; var h0 = tr.hp;
+  castAbility('barricade', d.x - 1, d.y);
+  var br = battle.barricades[0];
+  // force a vertical wall between the defence and the troop for the test
+  br.x1 = d.x - 1; br.y1 = d.y - 1.5; br.x2 = d.x - 1; br.y2 = d.y + 1.5;
+  var shots = 0; for (var i = 0; i < 2000 && br.hits > 0; i++) { tr.x = d.x - 2; tr.y = d.y; tr.target = d; var c0 = d.cd; battleStep(); if (d.cd > c0) shots++; }
+  var hurtWhileUp = h0 - tr.hp;
+  for (var i = 0; i < 200; i++) { tr.x = d.x - 2; tr.y = d.y; battleStep(); }
+  return JSON.stringify({ shots: shots, hits: br.hits, hurtWhileUp: hurtWhileUp, hurtAfter: h0 - tr.hp }); })()`));
+check(bar.shots === 10 && bar.hits === 0 && bar.hurtWhileUp === 0, '🧱 Barricade: a large wall blocks 10 attacks, then breaks', JSON.stringify(bar));
+check(bar.hurtAfter > 0, '…after that the defences hit your troops again');
 q(`battle.selected = 'ab:lightning'; battle.drawBar();`);
 check(/data-sel="ab:lightning"/.test(q(`document.getElementById('battlebar').innerHTML`)), 'the abilities are buttons in the battle bar');
 q(`frame(performance.now()); endBattle(true); battle = null;`);

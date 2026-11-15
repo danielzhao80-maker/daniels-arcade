@@ -211,6 +211,22 @@ const info = q(`document.getElementById('infoBody').innerHTML`);
 check(q(`document.getElementById('infoPanel').style.display`) === 'block', '📊 the My Island button opens your game info');
 check(/Town Hall level 1/.test(info) && /1,234/.test(info) && /\+18\/min/.test(info) && /Gold Mine: <b>1<\/b>\/1/.test(info) && /Warrior × <b>5<\/b>/.test(info) && /<b>42<\/b> trophies/.test(info) && /<b>3<\/b> wins/.test(info) && /raid level <b>4<\/b>/.test(info),
       'it shows the Town Hall, resources and what you make a minute, buildings, army, trophies, wins and raid level');
+// ---- 🎁 codes ----
+reset({ gold: 0, wood: 0, stone: 0, army: {} });
+check(/doesn't exist/.test(q(`redeemCode('NOPE')`)), 'a wrong code: nothing');
+check(/ISLAND/.test(q(`redeemCode(' island ')`)) && q('S.gold') === 500, 'ISLAND: 🪙 +500 (any case, spaces ignored)');
+check(/already used/.test(q(`redeemCode('ISLAND')`)) && q('S.gold') === 500, 'each code works once');
+q(`redeemCode('TREASURE')`);
+check(q('S.gold') === 1500 && q('S.wood') === 500 && q('S.stone') === 500, 'TREASURE: gold, wood and stone');
+q(`redeemCode('DANIEL')`);
+check(q('S.gold') === q('capOf()'), 'never more than your storage holds');
+q(`redeemCode('PIRATE')`);
+check(q('S.army.warrior') === 10, 'PIRATE: 10 warriors');
+reset({ gold: 0, army: { warrior: 18 } });
+const kr = q(`redeemCode('KRAKEN')`);
+check(!q('S.army.giant') && q('S.gold') > 0 && /no army space/.test(kr), 'troops that do not fit come as gold instead', kr);
+check(q(`(function(){ document.getElementById('codeIn').value = 'coconut'; document.getElementById('codeBtn').onclick(); return S.wood; })()`) > 300, 'the code bar at the top redeems it');
+check(/id="codebar"/.test(html) && html.indexOf('id="codebar"') < html.indexOf('id="bottom"'), 'the code bar sits at the top of the game');
 // ---- drawing ----
 q(`for (var i = 0; i < 3; i++) frame(performance.now() + i * 16);`);
 check(true, 'the island and a battle draw without errors');

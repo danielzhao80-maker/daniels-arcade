@@ -35,7 +35,7 @@
   .card .d { font-size: .75rem; opacity: .8; min-height: 2.2em; }
   .card .c { font-size: .8rem; margin: 6px 0; }
   .close { position: absolute; right: 14px; top: 12px; background: rgba(255,255,255,.15); box-shadow: none; padding: 4px 11px; border-width: 2px; }
-  #toast { position: fixed; top: 64px; left: 50%; transform: translateX(-50%); background: rgba(0,0,0,.75); padding: 8px 18px; border-radius: 20px; font-weight: 900; z-index: 20; display: none; text-align: center; max-width: 90vw; }
+  #toast { position: fixed; top: 96px; left: 50%; transform: translateX(-50%); background: rgba(0,0,0,.75); padding: 8px 18px; border-radius: 20px; font-weight: 900; z-index: 20; display: none; text-align: center; max-width: 90vw; }
   #info { position: fixed; left: 14px; bottom: 80px; width: 260px; z-index: 6; display: none; }
   #info .card { text-align: left; background: rgba(10,30,50,.88); }
   #battlebar { display: none; }
@@ -56,6 +56,10 @@
   <span class="pill">🏆 <b id="trophies">0</b></span>
   <span class="pill">⚔️ <b id="armyN">0</b>/<b id="armyCap">0</b></span>
   <button id="btnInfo" class="blue small">📊 My Island</button>
+</div>
+<div id="codebar" class="bar" style="top:52px">
+  <input id="codeIn" maxlength="16" placeholder="🎁 CODE" style="width:140px;font-size:.9rem;padding:5px 10px">
+  <button id="codeBtn" class="small">Redeem</button>
 </div>
 <div id="bottom" class="bar">
   <button id="btnBuild">🏗️ Build</button>
@@ -326,7 +330,7 @@ function endBattle(forced) {
   if (bt.opts.online) { NET.mine = { pct, stars, frames: bt.frame }; netSend({ t: "result", pct, stars, frames: bt.frame }); onlineResult(); }
   else showResult(title, text);
   document.getElementById("battlebar").style.display = "none";
-  document.getElementById("bottom").style.display = "flex";
+  document.getElementById("bottom").style.display = "flex"; document.getElementById("codebar").style.display = "flex";
 }
 
 // ---- online (PeerJS): swap islands, both attack, compare ----------------------------------------
@@ -349,6 +353,34 @@ function wireConn(conn) {
   conn.on("close", () => { if (!(NET.mine && NET.theirs)) toast("🌐 Your friend left the battle."); });
 }
 const hasArmy = () => Object.values(S.army).some((n) => n > 0);
+// ---- 🎁 codes (each once per island) ------------------------------------------------------------------
+const CODES = {
+  ISLAND:    { gold: 500 },
+  COCONUT:   { wood: 400 },
+  ROCKSOLID: { stone: 400 },
+  TREASURE:  { gold: 1000, wood: 500, stone: 500 },
+  PIRATE:    { troops: { warrior: 10 } },
+  ARCHERS:   { troops: { archer: 6 } },
+  KRAKEN:    { troops: { giant: 2 } },
+  DANIEL:    { gold: 2000, wood: 2000, stone: 2000 },
+};
+function redeemCode(raw) {
+  const code = String(raw || "").trim().toUpperCase().replace(/\s+/g, "");
+  if (!code) return "Type a code first.";
+  const c = CODES[code]; if (!c) return "❌ That code doesn't exist.";
+  S.codes = S.codes || [];
+  if (S.codes.includes(code)) return "You already used that code.";
+  S.codes.push(code);
+  const cap = capOf(), parts = [];
+  for (const k of ["gold", "wood", "stone"]) if (c[k]) { const add = Math.max(0, Math.min(c[k], cap - S[k])); S[k] += add; parts.push(`${R[k]} +${Math.floor(add)}`); }
+  for (const [kind, n] of Object.entries(c.troops || {})) {
+    const fit = Math.max(0, Math.min(n, Math.floor((armyCap() - armyUsed()) / T[kind].house)));
+    if (fit) { S.army[kind] = (S.army[kind] || 0) + fit; parts.push(`${T[kind].emoji} ${T[kind].name} ×${fit}`); }
+    if (n > fit) { const g = Math.min((n - fit) * T[kind].cost, cap - S.gold); S.gold += g; parts.push(`🪙 +${g} (no army space)`); }
+  }
+  save();
+  return `🎁 ${code}: ${parts.join(" · ") || "your storage is full!"}`;
+}
 function hostOnline() {
   if (!hasArmy()) return onlineMsg("Train some troops first (🛡️ Army) — you need an army to fight!");
   if (typeof Peer === "undefined") return onlineMsg("Online play needs the internet (PeerJS didn't load).");
@@ -458,7 +490,7 @@ function showInfo(b) {
   const ub = $("upBtn"); if (ub) ub.onclick = () => { const e = upgradeBuilding(b); toast(e || `${B[b.type].emoji} ${B[b.type].name} is now level ${b.lvl}!`); renderTop(); showInfo(b); };
 }
 function showBattleBar() {
-  $("bottom").style.display = "none";
+  $("bottom").style.display = "none"; $("codebar").style.display = "none";
   const bar = $("battlebar"); bar.style.display = "flex";
   const draw = () => {
     if (!battle || battle.over) return;
@@ -482,6 +514,8 @@ $("btnArmy").onclick = () => { hideInfo(); renderArmy(); openPanel("armyPanel");
 $("btnRaid").onclick = () => { hideInfo(); renderRaids(); openPanel("raidPanel"); };
 $("btnOnline").onclick = () => { hideInfo(); onlineMsg(""); openPanel("onlinePanel"); };
 $("btnInfo").onclick = () => { hideInfo(); renderInfo(); openPanel("infoPanel"); };
+$("codeBtn").onclick = () => { toast(redeemCode($("codeIn").value)); $("codeIn").value = ""; renderTop(); };
+$("codeIn").addEventListener("keydown", (e) => { e.stopPropagation(); if (e.key === "Enter") $("codeBtn").onclick(); });
 $("hostBtn").onclick = hostOnline;
 $("joinBtn").onclick = () => joinOnline($("joinCode").value);
 

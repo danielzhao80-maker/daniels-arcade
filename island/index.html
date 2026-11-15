@@ -11,8 +11,10 @@
   * { box-sizing: border-box; margin: 0; padding: 0; }
   html, body { height: 100%; overflow: hidden; background: #0b3d5c; font-family: Nunito, system-ui, sans-serif; color: #fff; user-select: none; }
   #game { display: block; width: 100vw; height: 100vh; cursor: pointer; }
-  .bar { position: fixed; left: 50%; transform: translateX(-50%); display: flex; gap: 8px; align-items: center; flex-wrap: wrap; justify-content: center; z-index: 5; }
-  #top { top: 10px; }
+  .bar { position: fixed; left: 50%; transform: translateX(-50%); width: max-content; max-width: 96vw; display: flex; gap: 8px; align-items: center; flex-wrap: wrap; justify-content: center; z-index: 5; }
+  /* the top bar and the code bar stack in one column, so a wrapped top bar never covers the code bar */
+  #topwrap { position: fixed; top: 10px; left: 0; right: 0; display: flex; flex-direction: column; align-items: center; gap: 6px; z-index: 5; pointer-events: none; }
+  #topwrap .bar { position: static; transform: none; pointer-events: auto; }
   #bottom { bottom: 14px; }
   .pill { background: rgba(10, 30, 50, .78); border: 2px solid rgba(255,255,255,.25); border-radius: 30px; padding: 6px 14px; font-weight: 900; font-size: .95rem; white-space: nowrap; }
   .pill b { font-family: "Fredoka One", cursive; font-weight: 400; }
@@ -48,25 +50,28 @@
 <body>
 <canvas id="game"></canvas>
 
+<div id="topwrap">
 <div id="top" class="bar">
   <span class="pill">🏰 Lv <b id="thLv">1</b></span>
   <span class="pill">🪙 <b id="gold">0</b></span>
   <span class="pill">🪵 <b id="wood">0</b></span>
   <span class="pill">🪨 <b id="stone">0</b></span>
   <span class="pill">🏆 <b id="trophies">0</b></span>
+  <span class="pill">🎖️ <b id="rankN">1</b></span>
   <span class="pill">⚔️ <b id="armyN">0</b>/<b id="armyCap">0</b></span>
   <button id="btnInfo" class="blue small">📊 My Island</button>
 </div>
-<div id="codebar" class="bar" style="top:52px">
+<div id="codebar" class="bar">
   <input id="codeIn" maxlength="16" placeholder="🎁 CODE" style="width:140px;font-size:.9rem;padding:5px 10px">
   <button id="codeBtn" class="small">Redeem</button>
-  <button id="codeList" class="small blue">📜 Codes</button>
+</div>
 </div>
 <div id="bottom" class="bar">
   <button id="btnBuild">🏗️ Build</button>
   <button id="btnArmy" class="blue">🛡️ Army</button>
   <button id="btnRaid" class="red">⚔️ Raid (offline)</button>
   <button id="btnOnline" class="green">🌐 Fight online</button>
+  <button id="btnRank" style="background:linear-gradient(180deg,#f9ca24,#d35400);box-shadow:0 4px 0 #7a3a00">🎖️ Rank Up</button>
 </div>
 <div id="battlebar" class="bar" style="bottom:14px"></div>
 <div id="info"><div class="card" id="infoCard"></div></div>
@@ -82,7 +87,7 @@
   <div class="sub" id="onlineMsg" style="font-size:1rem;font-weight:900;margin-top:10px"></div>
 </div>
 <div class="panel" id="infoPanel"><button class="close" data-close>✕</button><h2>📊 My Island</h2><div class="sub">Everything about your island.</div><div id="infoBody"></div></div>
-<div class="panel" id="codesPanel"><button class="close" data-close>✕</button><h2>📜 Codes</h2><div class="sub">Type one in the 🎁 bar at the top. Each works once per island.</div><div class="grid" id="codesGrid"></div></div>
+<div class="panel" id="rankPanel"><button class="close" data-close>✕</button><h2>🎖️ Rank Up</h2><div id="rankBody"></div></div>
 <div class="panel" id="resultPanel"><h2 id="resTitle"></h2><div class="sub" id="resText" style="font-size:1rem"></div><div class="row"><button id="resOk">Back to my island</button></div></div>
 
 <script>
@@ -249,13 +254,15 @@ const lightningDmg = (t) => 200 + 60 * t;
 
 // ---- save --------------------------------------------------------------------------------------
 function freshSave() {
-  return { gold: 300, wood: 300, stone: 200, trophies: 0, army: { warrior: 6 }, raidLevel: 1, wins: 0, last: Date.now(),
+  return { gold: 300, wood: 300, stone: 200, trophies: 0, rank: 1, army: { warrior: 6 }, raidLevel: 1, wins: 0, last: Date.now(),
            buildings: [ { type: "townhall", lvl: 1, x: CENTER, y: CENTER }, { type: "goldmine", lvl: 1, x: CENTER + 2, y: CENTER }, { type: "lumbermill", lvl: 1, x: CENTER - 2, y: CENTER }, { type: "barracks", lvl: 1, x: CENTER, y: CENTER + 2 } ] };
 }
 let S;
 function load() {
   try { S = Object.assign(freshSave(), JSON.parse(localStorage.getItem(SAVE_KEY) || "null") || {}); } catch (e) { S = freshSave(); }
   if (!Array.isArray(S.buildings) || !S.buildings.some((b) => b.type === "townhall")) S.buildings = freshSave().buildings;
+  S.rank = Math.max(S.rank || 1, th());   // 🎖️ islands from before ranks: start at your Town Hall level
+  if ((S.codesReset || 0) < 1) { S.codes = []; S.codesReset = 1; }   // the owner asked for every code to work again (once)
   // Earnings while you were away (up to 8 hours).
   const away = Math.min(OFFLINE_CAP_S, Math.max(0, (Date.now() - (S.last || Date.now())) / 1000));
   const got = produce(away);
@@ -264,6 +271,20 @@ function load() {
 }
 function save() { S.last = Date.now(); try { localStorage.setItem(SAVE_KEY, JSON.stringify(S)); } catch (e) {} }
 const th = () => (S.buildings.find((b) => b.type === "townhall") || { lvl: 1 }).lvl;
+// 🎖️ Rank: your Town Hall can't go higher than it. Rank up by destroying (⭐⭐: its Town Hall and half the base)
+// a base with a Town Hall ONE level higher than yours.
+const rank = () => Math.max(1, Math.min(MAX_TH, S.rank || 1));
+function rankIsland() {
+  const t = Math.min(MAX_TH, th() + 1), isl = genIsland(t * 2, 4242 + t * 17);
+  isl.name = `🎖️ Rank ${rank() + 1} Challenge`; isl.rankUp = true; isl.th = t;
+  isl.loot = { gold: 300 * t, wood: 250 * t, stone: 200 * t };
+  return isl;
+}
+function startRankUp() {
+  if (rank() >= MAX_TH) return "🎖️ You are at the top rank!";
+  if (rank() > th()) return `🎖️ Upgrade your Town Hall to level ${rank()} first — then you can rank up again.`;
+  return startBattle(rankIsland(), { rankUp: true });
+}
 const countOf = (type) => S.buildings.filter((b) => b.type === type).length;
 // 📦 How much of each resource you can hold: a base, plus what every building adds per level —
 // Storage the most, the Town Hall, and the towers, mines and walls too.
@@ -303,6 +324,7 @@ function placeBuilding(type, x, y) {
 function upgradeBuilding(b) {
   const max = b.type === "townhall" ? MAX_TH : th();
   if (b.lvl >= max) return b.type === "townhall" ? "Your Town Hall is at the top level!" : "Upgrade the Town Hall first.";
+  if (b.type === "townhall" && b.lvl >= rank()) return `🎖️ Rank up first: destroy a Town Hall ${b.lvl + 1} base (🎖️ Rank Up).`;
   const c = costOf(b.type, b.lvl + 1); if (!canPay(c)) return `Not enough: ${costText(c)}`;
   pay(c); b.lvl++; save(); return null;
 }
@@ -318,6 +340,18 @@ function train(kind, n) {
 // ---- enemy islands -----------------------------------------------------------------------------
 function rng(seed) { let s = seed >>> 0 || 1; return () => (s = (s * 1664525 + 1013904223) >>> 0) / 4294967296; }
 // A computer island for raid level `lvl`: its Town Hall and buildings scale with it.
+// 🏝️ Island themes (how a computer island looks) and lots of names.
+const THEMES = {
+  tropical: { name: "Tropical", emoji: "🌴", grass: ["#6ab04c", "#78c257"], beach: "#f6e0a6", sea: ["#1e90c8", "#0b3d5c"], deco: "🌴" },
+  jungle:   { name: "Jungle",   emoji: "🌿", grass: ["#2d8a3e", "#38a14a"], beach: "#d9c48a", sea: ["#138d75", "#0b4f42"], deco: "🌳" },
+  desert:   { name: "Desert",   emoji: "🏜️", grass: ["#e1b866", "#ebc778"], beach: "#f3dfa2", sea: ["#2e9fd1", "#13607f"], deco: "🌵" },
+  volcano:  { name: "Volcano",  emoji: "🌋", grass: ["#5d4037", "#6d4c41"], beach: "#3e2723", sea: ["#8e3b2e", "#3b1a14"], deco: "🌋" },
+  ice:      { name: "Ice",      emoji: "❄️", grass: ["#dfe9f3", "#eef4fa"], beach: "#c7dceb", sea: ["#5fa8d3", "#1c4e6e"], deco: "🧊" },
+};
+const THEME_ORDER = ["tropical", "jungle", "desert", "volcano", "ice"];
+const ISLAND_NAMES = ["Coconut Cove", "Shark Reef", "Pirate Point", "Crab Atoll", "Mango Key", "Storm Rock", "Skull Bay", "Turtle Beach",
+  "Parrot Peak", "Treasure Isle", "Kraken's Rest", "Seagull Sands", "Lagoon Lair", "Coral Crown", "Thunder Cay", "Whale Bay",
+  "Banana Bluff", "Mermaid Reef", "Cannonball Key", "Firefly Isle", "Driftwood Dunes", "Smuggler's Den", "Lighthouse Rock", "Dragon Atoll"];
 function genIsland(lvl, seed) {
   const r = rng(seed || lvl * 7919), t = Math.max(1, Math.min(MAX_TH, Math.ceil(lvl / 2)));
   const list = [{ type: "townhall", lvl: t, x: CENTER, y: CENTER }];
@@ -338,7 +372,9 @@ function genIsland(lvl, seed) {
     if (tileFree(list, x, y)) list.push({ type: "wall", lvl: Math.max(1, t - 1), x, y });
   }
   const loot = { gold: 150 + lvl * 120, wood: 120 + lvl * 100, stone: 80 + lvl * 70 };
-  return { name: ["Coconut Cove", "Shark Reef", "Pirate Point", "Volcano Isle", "Crab Atoll", "Mango Key", "Storm Rock", "Skull Bay"][(lvl - 1) % 8] + (lvl > 8 ? " " + Math.ceil(lvl / 8) : ""), th: t, buildings: list, loot, level: lvl };
+  const ni = (lvl * 7 + (seed || 0) * 13) % ISLAND_NAMES.length;   // 7 and 24 share no factor: every name comes up
+  return { name: ISLAND_NAMES[ni] + (lvl > ISLAND_NAMES.length ? " " + Math.ceil(lvl / ISLAND_NAMES.length) : ""), th: t, buildings: list, loot, level: lvl,
+           theme: THEME_ORDER[((seed || lvl) + lvl) % THEME_ORDER.length] };
 }
 // Your island as someone else will see it (online).
 function myIslandSnapshot() {
@@ -581,7 +617,13 @@ function endBattle(forced) {
   const stoleText = costText(Object.fromEntries(Object.entries(stolen).filter(([, v]) => v > 0)));
   let title = stars > 0 ? `⭐`.repeat(stars) + " Victory!" : "💥 Defeat";
   let text = `You destroyed ${pct}% of ${bt.island.name}. Loot: ${costText(loot) || "none"}.${stoleText ? ` 🐒 Monkeys stole ${stoleText}!` : ""}`;
-  if (!bt.opts.online) {
+  if (bt.opts.rankUp) {   // 🎖️ the rank challenge: ⭐⭐ (its Town Hall + half) ranks you up
+    if (stars >= 2) {
+      S.rank = rank() + 1; S.trophies += 25;
+      const bonus = 500 * S.rank; for (const k of ["gold", "wood", "stone"]) S[k] = Math.min(capOf(), S[k] + bonus);
+      title = `🎖️ RANK UP! You are rank ${S.rank}`; text += ` 🏆 +25 and ${costText({ gold: bonus, wood: bonus, stone: bonus })}. Now you can upgrade your Town Hall to level ${S.rank}!`;
+    } else { title = "🎖️ Not this time"; text += " You need ⭐⭐ (its Town Hall and half the base) to rank up. Try again!"; }
+  } else if (!bt.opts.online) {
     if (stars > 0) { S.trophies += 8 + stars * 4; S.wins++; if (stars >= 2 && S.raidLevel === bt.island.level) S.raidLevel++; text += ` 🏆 +${8 + stars * 4}`; }
     else { S.trophies = Math.max(0, S.trophies - 5); text += " 🏆 −5"; }
   }
@@ -711,7 +753,7 @@ function moveBuilding(b, x, y) {
 function hideInfo() { selected = null; $("info").style.display = "none"; }
 function renderTop() {
   $("thLv").textContent = th(); for (const k of ["gold", "wood", "stone"]) $(k).textContent = Math.floor(S[k]).toLocaleString();
-  $("trophies").textContent = S.trophies; $("armyN").textContent = armyUsed(); $("armyCap").textContent = armyCap();
+  $("trophies").textContent = S.trophies; $("rankN").textContent = rank(); $("armyN").textContent = armyUsed(); $("armyCap").textContent = armyCap();
 }
 function renderBuild() {
   $("buildGrid").innerHTML = BUILD_ORDER.map((type) => {
@@ -742,10 +784,10 @@ function renderArmy() {
   $("armyGrid").querySelectorAll("[data-train5]").forEach((b) => (b.onclick = () => { const e = train(b.dataset.train5, 5); if (e) toast(e); renderArmy(); renderTop(); }));
 }
 function renderRaids() {
-  const lv = S.raidLevel, opts = [Math.max(1, lv - 1), lv, lv + 1, lv + 3];
+  const lv = S.raidLevel, opts = lv > 1 ? [lv - 1, lv, lv + 1, lv + 2, lv + 4, lv + 6] : [1, 2, 3, 4, 6, 8];   // 6 islands
   $("raidGrid").innerHTML = [...new Set(opts)].map((l) => {
     const isl = genIsland(l);
-    return `<div class="card"><div class="e">🏝️</div><div class="n">${isl.name}</div><div class="d">Level ${l} · Town Hall ${isl.th}<br>${isl.buildings.filter((b) => B[b.type].def).length} defences · ${spawnMobs(isl.buildings).length} 🐺 mobs</div>
+    return `<div class="card"><div class="e">${THEMES[isl.theme].emoji}</div><div class="n">${isl.name}</div><div class="d">${THEMES[isl.theme].name} · Level ${l} · Town Hall ${isl.th}<br>${isl.buildings.filter((b) => B[b.type].def).length} defences · ${spawnMobs(isl.buildings).length} 🐺 mobs</div>
       <div class="c">Loot up to ${costText(isl.loot)}</div><button class="small red" data-raid="${l}">Attack!</button></div>`;
   }).join("");
   $("raidGrid").querySelectorAll("[data-raid]").forEach((b) => (b.onclick = () => { const e = startBattle(genIsland(+b.dataset.raid)); if (e) toast(e); }));
@@ -765,7 +807,7 @@ function renderInfo() {
   const I = islandInfo();
   const sec = (title, body) => `<div class="card" style="text-align:left;margin-bottom:10px"><div class="n" style="font-size:1.05rem">${title}</div><div style="font-size:.9rem;line-height:1.6">${body}</div></div>`;
   $("infoBody").innerHTML =
-    sec(`🏰 Town Hall level ${I.th}${I.th >= MAX_TH ? " (top level!)" : ""}`, `${I.land} buildings on your island · land radius ${landRadius(I.th).toFixed(1)} tiles`) +
+    sec(`🏰 Town Hall level ${I.th}${I.th >= MAX_TH ? " (top level!)" : ""} · 🎖️ Rank ${rank()}`, `${I.land} buildings on your island · land radius ${landRadius(I.th).toFixed(1)} tiles<br>` + (rank() > I.th ? `You can upgrade your Town Hall to level ${rank()}.` : rank() >= MAX_TH ? "Top rank!" : `To upgrade your Town Hall, 🎖️ Rank Up: destroy a Town Hall ${I.th + 1} base.`)) +
     sec("💰 Resources", ["gold", "wood", "stone"].map((k) => `${R[k]} <b>${I.res[k].toLocaleString()}</b> / ${I.cap.toLocaleString()} &nbsp;·&nbsp; +${I.make[k]}/min`).join("<br>")
       + `<br><span style="opacity:.8">📦 Storage ${I.cap.toLocaleString()} = 1,000 base` + Object.keys(STORE_PER_LVL).map((t) => { const v = S.buildings.filter((b) => b.type === t).reduce((a, b) => a + storeOf(b), 0); return v ? ` + ${B[t].emoji} ${v.toLocaleString()}` : ""; }).join("") + `</span>`) +
     sec("🏗️ Buildings", I.blds.map((b) => `${B[b.type].emoji} ${B[b.type].name}: <b>${b.n}</b>/${b.lim}${b.type === "wall" ? "" : ` &nbsp;·&nbsp; Lv ${b.levels.join(", ")}`}`).join("<br>")) +
@@ -826,18 +868,18 @@ $("btnArmy").onclick = () => { hideInfo(); renderArmy(); openPanel("armyPanel");
 $("btnRaid").onclick = () => { hideInfo(); renderRaids(); openPanel("raidPanel"); };
 $("btnOnline").onclick = () => { hideInfo(); onlineMsg(""); openPanel("onlinePanel"); };
 $("btnInfo").onclick = () => { hideInfo(); renderInfo(); openPanel("infoPanel"); };
-function renderCodes() {
-  const used = S.codes || [];
-  $("codesGrid").innerHTML = Object.entries(CODES).map(([code, c]) => {
-    const gives = [...["gold", "wood", "stone"].filter((k) => c[k]).map((k) => `${R[k]} ${c[k].toLocaleString()}`),
-                   ...Object.entries(c.troops || {}).map(([k, n]) => `${T[k].emoji} ${n} ${T[k].name.toLowerCase()}${n === 1 ? "" : "s"}`)].join(" · ");
-    const done = used.includes(code);
-    return `<div class="card" style="${done ? "opacity:.55" : ""}"><div class="n" style="font-family:'Fredoka One',cursive;font-size:1.1rem">${code}${done ? " ✓" : ""}</div>
-      <div class="d">${gives}</div>${done ? `<div class="c">Used</div>` : `<button class="small" data-use="${code}">Use</button>`}</div>`;
-  }).join("");
-  $("codesGrid").querySelectorAll("[data-use]").forEach((b) => (b.onclick = () => { toast(redeemCode(b.dataset.use)); renderTop(); renderCodes(); }));
-}
-$("codeList").onclick = () => { hideInfo(); renderCodes(); openPanel("codesPanel"); };
+$("btnRank").onclick = () => {
+  hideInfo();
+  const isl = rankIsland();
+  const msg = rank() >= MAX_TH ? "🎖️ You are at the top rank!" : rank() > th() ? `Upgrade your Town Hall to level ${rank()} first.` : null;
+  $("rankBody").innerHTML = msg ? `<div class="sub" style="font-size:1rem">${msg}</div>` :
+    `<div class="sub" style="font-size:1rem">Destroy a <b>Town Hall ${isl.th}</b> base (one level higher than yours) — get ⭐⭐: its Town Hall and half the base.<br>
+     Win: <b>rank ${rank() + 1}</b>, 🏆 +25 and 🪙🪵🪨 ${(500 * (rank() + 1)).toLocaleString()} each — and your Town Hall can go up to level ${rank() + 1}.</div>
+     <div class="sub">${isl.buildings.filter((b) => B[b.type].def).length} defences · ${spawnMobs(isl.buildings).length} 🐺 mobs</div>
+     <div class="row"><button class="red" id="rankGo">⚔️ Fight the challenge</button></div>`;
+  openPanel("rankPanel");
+  const go = $("rankGo"); if (go) go.onclick = () => { const e = startRankUp(); if (e) toast(e); };
+};
 $("codeBtn").onclick = () => { toast(redeemCode($("codeIn").value)); $("codeIn").value = ""; renderTop(); };
 $("codeIn").addEventListener("keydown", (e) => { e.stopPropagation(); if (e.key === "Enter") $("codeBtn").onclick(); });
 $("hostBtn").onclick = hostOnline;
@@ -859,21 +901,21 @@ function setView(t) {
 addEventListener("resize", resize);
 const toScreen = (x, y) => [ox + (x + 0.5) * tile, oy + (y + 0.5) * tile];
 function drawIsland(t, list, time, opts) {
-  const W = innerWidth, H = innerHeight;
-  const sea = ctx.createLinearGradient(0, 0, 0, H); sea.addColorStop(0, "#1e90c8"); sea.addColorStop(1, "#0b3d5c");
+  const W = innerWidth, H = innerHeight, TH_ = THEMES[(opts && opts.theme) || "tropical"] || THEMES.tropical;
+  const sea = ctx.createLinearGradient(0, 0, 0, H); sea.addColorStop(0, TH_.sea[0]); sea.addColorStop(1, TH_.sea[1]);
   ctx.fillStyle = sea; ctx.fillRect(0, 0, W, H);
   ctx.strokeStyle = "rgba(255,255,255,0.08)"; ctx.lineWidth = 2;
   for (let i = 0; i < 14; i++) { const y = (i * 70 + time * 12) % (H + 40) - 20; ctx.beginPath(); for (let x = 0; x <= W; x += 20) ctx.lineTo(x, y + Math.sin(x / 40 + time + i) * 4); ctx.stroke(); }
   const [cx, cy] = toScreen(CENTER, CENTER), rr = landRadius(t) * tile;
-  ctx.fillStyle = "#f6e0a6"; ctx.beginPath(); ctx.arc(cx, cy, rr + tile * 0.9, 0, Math.PI * 2); ctx.fill();   // beach
+  ctx.fillStyle = TH_.beach; ctx.beginPath(); ctx.arc(cx, cy, rr + tile * 0.9, 0, Math.PI * 2); ctx.fill();   // beach
   ctx.fillStyle = "rgba(255,255,255,0.25)"; ctx.beginPath(); ctx.arc(cx, cy, rr + tile * 1.05 + Math.sin(time * 2) * 2, 0, Math.PI * 2); ctx.lineWidth = 3; ctx.strokeStyle = "rgba(255,255,255,0.35)"; ctx.stroke();
   for (let y = 0; y < GRID; y++) for (let x = 0; x < GRID; x++) {
     if (!isLand(x, y, t)) continue;
-    ctx.fillStyle = (x + y) % 2 ? "#6ab04c" : "#78c257";
+    ctx.fillStyle = TH_.grass[(x + y) % 2];
     ctx.fillRect(ox + x * tile, oy + y * tile, tile + 0.5, tile + 0.5);
   }
   ctx.font = `${tile * 0.6}px serif`; ctx.textAlign = "center"; ctx.textBaseline = "middle";
-  for (const p of [[-1, -1], [1, 1], [-1, 1]]) { const a = Math.atan2(p[1], p[0]); const [px, py] = [cx + Math.cos(a) * (rr + tile * 0.4), cy + Math.sin(a) * (rr + tile * 0.4)]; ctx.fillText("🌴", px, py); }
+  for (const p of [[-1, -1], [1, 1], [-1, 1]]) { const a = Math.atan2(p[1], p[0]); const [px, py] = [cx + Math.cos(a) * (rr + tile * 0.4), cy + Math.sin(a) * (rr + tile * 0.4)]; ctx.fillText(TH_.deco, px, py); }
   for (const b of list) {
     const [sx, sy] = toScreen(b.x, b.y), dead = opts && opts.battle && b.hp <= 0;
     ctx.globalAlpha = dead ? 0.35 : 1;
@@ -929,7 +971,7 @@ function frame(now) {
   prodAcc += dt; if (prodAcc >= 1) { produce(prodAcc); prodAcc = 0; if (!battle) renderTop(); if (Math.random() < 0.1) save(); }
   setView(battle ? battle.island.th : th());
   if (battle) {
-    drawIsland(battle.island.th, battle.blds, time, { battle: true });
+    drawIsland(battle.island.th, battle.blds, time, { battle: true, theme: battle.island.theme });
     const bt = battle;
     ctx.font = `${tile * 0.6}px serif`;
     for (const tr of bt.troops) {

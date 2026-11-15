@@ -133,7 +133,8 @@ function check(pass, label, extra) {
 const ARC = 'daniels-arcade-v1';
 const setArcade = obj => { if (obj === null) delete store[ARC]; else store[ARC] = JSON.stringify(obj); };
 // The special-maps grid as the Worlds menu drew it: [title, grid], grid.children = cards.
-const reset = (extra) => q(`localStorage.removeItem(SAVE_KEY); S = freshSave(); Object.assign(S, ${JSON.stringify(extra || {})}); save();`);
+// (rank 8 by default so the older tests can upgrade the Town Hall freely; the 🎖️ Rank tests set it themselves)
+const reset = (extra) => q(`localStorage.removeItem(SAVE_KEY); S = freshSave(); Object.assign(S, { rank: 8 }, ${JSON.stringify(extra || {})}); save();`);
 // ---- start ----
 reset();
 check(q('th()') === 1 && q(`S.buildings.length`) === 4 && q(`S.army.warrior`) === 6 && q('barracksLvl()') === 1, 'a new island: Town Hall 1, a gold mine, a lumber mill, a barracks and 6 warriors');
@@ -433,11 +434,12 @@ check(q(`Object.keys(CODES).length`) === 20, '20 codes');
 reset({ gold: 0, wood: 0, stone: 0, army: {} });
 q(`S.buildings.push({ type: 'storage', lvl: 5, x: CENTER + 1, y: CENTER + 1 }, { type: 'barracks', lvl: 5, x: CENTER - 1, y: CENTER + 1 }); redeemCode('TSUNAMI'); redeemCode('ARMADA'); redeemCode('WIZARDS');`);
 check(q('S.gold') === 5000 && q('S.army.warrior') === 15 && q('S.army.archer') === 5 && q('S.army.mage') === 2, 'TSUNAMI (5,000 of each), ARMADA (15 warriors + 5 archers), WIZARDS (2 mages)');
-reset({ gold: 0 });
-q(`redeemCode('SHARK'); document.getElementById('codeList').onclick();`);
-const cl = q(`document.getElementById('codesGrid').innerHTML`);
-check(q(`document.getElementById('codesPanel').style.display`) === 'block' && (cl.match(/class="card"/g) || []).length === 20 && /SHARK ✓/.test(cl) && /TSUNAMI/.test(cl), '📜 the Codes button lists all 20 codes, with ✓ on the used ones');
-check(q(`(function(){ document.querySelector ? 0 : 0; redeemCode('ISLAND'); return S.codes.includes('ISLAND'); })()`), 'its Use buttons redeem them');
+check(!/id="codeList"/.test(html) && /id="codeIn"/.test(html), 'no 📜 Codes button — just the box where you type a code');
+reset({ codes: ['ISLAND', 'SHARK'] });
+q(`S.codesReset = 0; save(); load();`);
+check(q(`S.codes.length`) === 0 && q('S.codesReset') === 1, 'used codes were reset once (they all work again)');
+q(`redeemCode('ISLAND'); save(); load();`);
+check(q(`S.codes.join()`) === 'ISLAND', '…only once: codes you use after that stay used');
 check(/id="codebar"/.test(html) && html.indexOf('id="codebar"') < html.indexOf('id="bottom"'), 'the code bar sits at the top of the game');
 // ---- fixes ----
 reset({ army: { warrior: 5 } });
@@ -472,6 +474,33 @@ const pet = q(`(function(){ var m = homeDefenders()[1]; var t = performance.now(
 check(pet === 'wolf', 'you can tap one to see what it does');
 q(`S.golems.push('windgolem');`);
 check(q(`homeDefenders().filter(function(m){ return MOB[m.kind].golem; }).length`) === 2, 'buy another golem and it shows up straight away');
+
+// ---- 🎖️ Rank Up ----
+reset({ rank: 1, gold: 1e5, wood: 1e5, stone: 1e5 });
+q(`S.buildings.push({ type: 'storage', lvl: 1, x: CENTER + 3, y: CENTER }); S.gold = S.wood = S.stone = 3000;`);
+check(/Rank up first/.test(q(`upgradeBuilding(S.buildings[0])`)) && q('th()') === 1, 'your Town Hall cannot go past your rank');
+const ri = JSON.parse(q(`JSON.stringify((function(){ var i = rankIsland(); return { th: i.th, rank: i.rankUp, name: i.name }; })())`));
+check(ri.th === 2 && ri.rank, '🎖️ the rank challenge is a base with a Town Hall one level higher than yours', JSON.stringify(ri));
+q(`S.army = { warrior: 1 }; startRankUp(); battle.troops = []; battle.army = {}; endBattle(true);`);
+check(q('rank()') === 1 && /Not this time/.test(q(`document.getElementById('resTitle').textContent`)), 'lose (fewer than ⭐⭐): no rank up');
+q(`hidePanels(); battle = null;`);
+q(`S.army = { warrior: 1 }; startRankUp(); battle.blds.forEach(function(b){ if (b.type !== 'wall') b.hp = 0; }); var g0 = S.gold; battle.army = {}; endBattle(true); window.__g0 = g0;`);
+check(q('rank()') === 2 && /RANK UP/.test(q(`document.getElementById('resTitle').textContent`)) && q('S.trophies') === 25, 'destroy it (⭐⭐): RANK UP, 🏆 +25 and a pile of resources');
+q(`hidePanels(); battle = null;`);
+check(q(`upgradeBuilding(S.buildings[0])`) === null && q('th()') === 2, '…and now the Town Hall can go to level 2');
+check(/Upgrade your Town Hall/.test(q(`(function(){ S.rank = 3; return startRankUp(); })()`) || ''), 'you can rank up again only once your Town Hall has caught up');
+reset({ rank: 1 });
+q(`S.buildings[0].lvl = 5; save(); load();`);
+check(q('rank()') === 5, 'islands from before ranks start at their Town Hall level');
+q(`document.getElementById('btnRank').onclick();`);
+check(q(`document.getElementById('rankPanel').style.display`) === 'block' && /Town Hall 6/.test(q(`document.getElementById('rankBody').innerHTML`)), 'the 🎖️ Rank Up button explains the challenge');
+q(`hidePanels();`);
+// ---- 🏝️ more islands ----
+q(`renderRaids();`);
+const cards = (q(`document.getElementById('raidGrid').innerHTML`).match(/class="card"/g) || []).length;
+check(cards === 6, 'the raid list shows 6 islands', cards);
+const th5 = JSON.parse(q(`JSON.stringify((function(){ var t = {}, n = {}; for (var l = 1; l <= 30; l++) { var i = genIsland(l); t[i.theme] = 1; n[i.name] = 1; } return { themes: Object.keys(t).length, names: Object.keys(n).length }; })())`));
+check(th5.themes === 5 && th5.names >= 20, 'islands come in 5 themes (🌴 🌿 🏜️ 🌋 ❄️) with lots of names', JSON.stringify(th5));
 
 // ---- drawing ----
 q(`for (var i = 0; i < 3; i++) frame(performance.now() + i * 16);`);

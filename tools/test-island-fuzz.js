@@ -148,6 +148,7 @@ const result = q(`(function(){
     S.buildings.forEach(function(b){ var key = b.x + ',' + b.y; if (tiles[key]) errors.push(where + ': two buildings on ' + key); tiles[key] = 1; if (!isLand(b.x, b.y)) errors.push(where + ': ' + b.type + ' in the sea'); if (!(b.lvl >= 1)) errors.push(where + ': bad level'); });
     Object.keys(B).forEach(function(t){ if (t !== 'townhall' && countOf(t) > limitOf(t, th())) errors.push(where + ': too many ' + t); });
     if (armyUsed() > armyCap()) errors.push(where + ': army ' + armyUsed() + '/' + armyCap());
+    if (th() > rank()) errors.push(where + ': Town Hall ' + th() + ' above rank ' + rank());
     Object.keys(S.army).forEach(function(k){ if (!(S.army[k] >= 0)) errors.push(where + ': army ' + k + '=' + S.army[k]); });
   }
   function fightOnce() {
@@ -184,10 +185,12 @@ const result = q(`(function(){
     produce: function(){ produce(Math.random() * 600); },
     rich: function(){ var c = capOf(); S.gold = Math.min(c, S.gold + 2000); S.wood = Math.min(c, S.wood + 2000); S.stone = Math.min(c, S.stone + 2000); },
     fight: fightOnce,
+    rankup: function(){ if (Math.random() < 0.5) { S.rank = Math.min(MAX_TH, rank() + 1); return; }   // half the time: a won challenge
+      var e = startRankUp(); if (e) return; var n = 0; while (battle && !battle.over && n++ < BATTLE_FRAMES + 50) { if (Math.random() < 0.1) { var k = pick(Object.keys(battle.army)); deploy(k, CENTER - landRadius(battle.island.th) - 1, CENTER + Math.random() * 2 - 1); } battleStep(); } battle = null; hidePanels(); },
     reload: function(){ save(); load(); },
-    ui: function(){ renderTop(); renderBuild(); renderArmy(); renderRaids(); renderInfo(); renderCodes(); showInfo(pick(S.buildings)); hideInfo(); hidePanels(); frame(performance.now()); },
+    ui: function(){ renderTop(); renderBuild(); renderArmy(); renderRaids(); renderInfo(); showInfo(pick(S.buildings)); hideInfo(); hidePanels(); frame(performance.now()); },
   };
-  var names = Object.keys(actions), weights = { rich: 2, build: 4, upgrade: 4, train: 3 };
+  var names = Object.keys(actions), weights = { rich: 2, build: 4, upgrade: 4, train: 3, rankup: 2 };
   var bag = []; names.forEach(function(n){ for (var i = 0; i < (weights[n] || 1); i++) bag.push(n); });
   for (var i = 0; i < ${ROUNDS}; i++) {
     var name = pick(bag);

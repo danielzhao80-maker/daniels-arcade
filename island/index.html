@@ -103,7 +103,7 @@ const B = {
   lumbermill: { name: "Lumber Mill",  emoji: "🪓", hp: 260, base: { gold: 60 },                 makes: "wood",  desc: "Chops wood." },
   quarry:     { name: "Quarry",       emoji: "⚒️", hp: 260, base: { gold: 60, wood: 40 },       makes: "stone", desc: "Cuts stone." },
   storage:    { name: "Storage",      emoji: "📦", hp: 320, base: { gold: 100, wood: 100 },     desc: "Holds more of every resource." },
-  barracks:   { name: "Barracks",     emoji: "⛺", hp: 320, base: { gold: 150, wood: 80 },      desc: "More army space and new troops — and it sends out animals to defend your island: 🐺 🐒 🦝, then 🐗 🐝 (Lv 2), 🐍 🦂 (Lv 3), 🐻 (Lv 4), 🦅 (Lv 5) — led by a golem: 🪨 Earth (Lv 3), 🔥 Fire (Lv 4), 💧 Water (Lv 5), 🌪️ Wind (Lv 6), two from Lv 7." },
+  barracks:   { name: "Barracks",     emoji: "⛺", hp: 320, base: { gold: 150, wood: 80 },      desc: "More army space and new troops — and it sends out animals to defend your island: 🐺 🐒 🦝, then 🐗 🐝 (Lv 2), 🐍 🦂 (Lv 3), 🐻 (Lv 4), 🦅 (Lv 5). (Buy 🗿 golems in 🛡️ Army to guard your island too.)" },
   archer:     { name: "Archer Tower", emoji: "🏹", hp: 300, base: { gold: 120, wood: 60, stone: 30 }, def: { range: 4.5, dmg: 9, rate: 40 }, desc: "Shoots troops from far away." },
   cannon:     { name: "Cannon",       emoji: "💣", hp: 340, base: { gold: 200, stone: 80 },     def: { range: 3.5, dmg: 24, rate: 70 }, desc: "Big hits, shorter range." },
   wizard:     { name: "Wizard Tower", emoji: "🔮", hp: 300, base: { gold: 500, stone: 200 },    def: { range: 3.5, dmg: 14, rate: 60, splash: 1.3 }, desc: "Blasts groups of troops." },
@@ -153,7 +153,7 @@ const MOB = {
   eagle:    { name: "Eagle",    emoji: "🦅", hp: 80,  dmg: 11, range: 1.2, speed: 2.2, rate: 30, sight: 6,   ring: "#dcdde1", flying: true, desc: "FLIES: only archers and mages can hit it." },
   firegolem:  { name: "Fire Golem",  emoji: "🔥", hp: 480, dmg: 22, range: 0.9, speed: 0.8, rate: 55, sight: 4,   ring: "#e84118", big: true, golem: true, burn: 40, splash: 0.9, desc: "BURN: sets troops on fire, and each hit splashes the troops around." },
   watergolem: { name: "Water Golem", emoji: "💧", hp: 560, dmg: 18, range: 0.9, speed: 0.8, rate: 55, sight: 4,   ring: "#0097e6", big: true, golem: true, heals: 0.04, push: 0.8, desc: "HEALS every animal near it, and its hits push your troops back." },
-  windgolem:  { name: "Wind Golem",  emoji: "🌪️", hp: 420, dmg: 16, range: 2.2, speed: 1.5, rate: 45, sight: 5,   ring: "#7f8fa6", big: true, golem: true, push: 1.6, desc: "GUSTS from range that blow your troops far away. Fast." },
+  windgolem:  { name: "Wind Golem",  emoji: "🌪️", hp: 420, dmg: 16, range: 2.2, speed: 1.5, rate: 45, sight: 5,   ring: "#7f8fa6", big: true, golem: true, push: 1.6, catch: 0.7, desc: "GUSTS from range that blow your troops away — and a 70% chance to CATCH an attack and throw it back." },
 };
 MOB.golem.golem = true;
 // The golem that leads a Barracks' pack: Earth (Lv 3), Fire (Lv 4), Water (Lv 5), Wind (Lv 6+); two from Lv 7.
@@ -162,15 +162,29 @@ const golemsFor = (lvl) => lvl >= 7 ? ["firegolem", "windgolem"] : lvl >= 6 ? ["
 const MOB_UNLOCK = [["wolf", 1], ["monkey", 1], ["raccoon", 1], ["boar", 2], ["bee", 2], ["snake", 3], ["scorpion", 3], ["bear", 4], ["eagle", 5]];
 const mobPool = (lvl) => MOB_UNLOCK.filter(([, l]) => lvl >= l).map(([k]) => k);
 const MOB_CYCLE = mobPool(1);
-function spawnMobs(blds) {
-  const mobs = [];
+// 🗿 Golems for YOUR island are bought with gold (one of each); computer islands get theirs from their
+// Barracks level (golemsFor). Bought golems (`golems`) stand by the Town Hall.
+const GOLEM_COST = { golem: 3000, firegolem: 3500, watergolem: 4000, windgolem: 5000 };
+function buyGolem(kind) {
+  if (!GOLEM_COST[kind]) return "No such golem.";
+  S.golems = S.golems || [];
+  if (S.golems.includes(kind)) return `You already have the ${MOB[kind].name}.`;
+  if (S.gold < GOLEM_COST[kind]) return `Not enough gold (🪙 ${GOLEM_COST[kind].toLocaleString()}) — you can hold ${capOf().toLocaleString()}: build Storage for more.`;
+  S.gold -= GOLEM_COST[kind]; S.golems.push(kind); save(); return null;
+}
+function spawnMobs(blds, golems) {
+  const mobs = [], bought = Array.isArray(golems);
+  const add = (kind, x, y, lv) => { const m = MOB[kind]; mobs.push({ kind, x, y, homeX: x, homeY: y, hp: m.hp * lv, maxHp: m.hp * lv, dmg: m.dmg * lv, cd: 0, steal: m.steal ? Math.round(m.steal * lv) : 0 }); };
+  if (bought) {
+    const hall = blds.find((b) => b.type === "townhall") || { x: CENTER, y: CENTER, lvl: 1 };
+    golems.filter((k) => GOLEM_COST[k]).forEach((k, i, all) => { const a = (Math.PI * 2 / all.length) * i + 0.4; add(k, hall.x + Math.cos(a) * 1.1, hall.y + Math.sin(a) * 1.1, 1 + 0.15 * (hall.lvl - 1)); });
+  }
   for (const b of blds) {
     if (b.type !== "barracks") continue;
     const n = Math.min(6, 1 + b.lvl), lv = 1 + 0.3 * (b.lvl - 1);
     for (let i = 0; i < n; i++) {
-      const pool = mobPool(b.lvl), gl = golemsFor(b.lvl), kind = i < gl.length ? gl[i] : pool[(i + (gl.length ? 2 : 0)) % pool.length], m = MOB[kind], a = (Math.PI * 2 / n) * i;
-      const x = b.x + Math.cos(a) * 0.6, y = b.y + Math.sin(a) * 0.6;
-      mobs.push({ kind, x, y, homeX: x, homeY: y, hp: m.hp * lv, maxHp: m.hp * lv, dmg: m.dmg * lv, cd: 0, steal: m.steal ? Math.round(m.steal * lv) : 0 });
+      const pool = mobPool(b.lvl), gl = bought ? [] : golemsFor(b.lvl), kind = i < gl.length ? gl[i] : pool[(i + (gl.length ? 2 : 0)) % pool.length], a = (Math.PI * 2 / n) * i;
+      add(kind, b.x + Math.cos(a) * 0.6, b.y + Math.sin(a) * 0.6, lv);
     }
   }
   return mobs;
@@ -290,7 +304,7 @@ function genIsland(lvl, seed) {
 // Your island as someone else will see it (online).
 function myIslandSnapshot() {
   const name = (() => { try { return (JSON.parse(localStorage.getItem("daniels-arcade-account") || "null") || {}).name || ""; } catch (e) { return ""; } })() || "Friend";
-  return { name: name + "'s island", th: th(), buildings: S.buildings.map((b) => ({ type: b.type, lvl: b.lvl, x: b.x, y: b.y })),
+  return { name: name + "'s island", th: th(), golems: (S.golems || []).slice(), buildings: S.buildings.map((b) => ({ type: b.type, lvl: b.lvl, x: b.x, y: b.y })),
            loot: { gold: Math.floor(S.gold * 0.1), wood: Math.floor(S.wood * 0.1), stone: Math.floor(S.stone * 0.1) } };
 }
 
@@ -306,7 +320,7 @@ function startBattle(island, opts) {
   battle = { island, opts: opts || {}, frame: 0, army, abil, casts: [], barricades: [], agents: [], troops: [], shots: [], fx: [], over: false, selected: Object.keys(army).find((k) => army[k] > 0),
              blds: island.buildings.map((b) => Object.assign({}, b, { hp: hpOf(b.type, b.lvl), maxHp: hpOf(b.type, b.lvl), cd: 0 })) };
   battle.total = battle.blds.filter((b) => b.type !== "wall").length;
-  battle.mobs = spawnMobs(battle.blds);   // 🐺 the island's defenders
+  battle.mobs = spawnMobs(battle.blds, island.golems);   // 🐺 the island's defenders (+ its bought golems)
   battle.stolen = { gold: 0, wood: 0, stone: 0 }; battle.texts = [];   // 🐒 what the monkeys took
   for (const k in army) S.army[k] = 0;   // the army goes into battle (survivors don't come back)
   save();
@@ -459,7 +473,11 @@ function battleStep() {
     else if (--tr.cd <= 0) {
       tr.cd = t.rate;
       const hit = (b, dmg) => { b.hp -= dmg; if (b.hp <= 0) { b.hp = 0; bt.fx.push({ x: b.x, y: b.y, t: 30, boom: true }); } };
-      if (foe) { foe.hp -= dmgNow; if (foe.hp <= 0) bt.fx.push({ x: foe.x, y: foe.y, t: 16 }); }
+      if (foe && MOB[foe.kind].catch && Math.random() < MOB[foe.kind].catch) {   // 🌪️ caught — and thrown back at the troop
+        tr.hp -= dmgNow; bt.texts && bt.texts.push({ x: foe.x, y: foe.y - 0.5, t: 40, text: "CAUGHT!" });
+        bt.shots.push({ x: foe.x, y: foe.y, tx: tr.x, ty: tr.y, t: 10, col: "#dcdde1" });
+      }
+      else if (foe) { foe.hp -= dmgNow; if (foe.hp <= 0) bt.fx.push({ x: foe.x, y: foe.y, t: 16 }); }
       else if (t.splash) { for (const b of bt.blds) if (b.hp > 0 && Math.hypot(b.x - tg.x, b.y - tg.y) <= t.splash) hit(b, dmgNow); }
       else hit(tg, dmgNow);
       if (t.range > 1) bt.shots.push({ x: tr.x, y: tr.y, tx: tg.x, ty: tg.y, t: 10, col: t.splash ? "#a55eea" : "#feca57" });
@@ -643,6 +661,13 @@ function renderArmy() {
       <div class="c">${locked ? `🔒 Barracks Lv ${t.unlock}` : `🪙 ${t.cost}`}</div>
       <button class="small blue" data-train="${k}" ${locked ? "disabled" : ""}>+1</button> <button class="small blue" data-train5="${k}" ${locked ? "disabled" : ""}>+5</button></div>`;
   }).join("");
+  $("armyGrid").innerHTML += `<div class="card" style="grid-column:1/-1;background:rgba(255,255,255,.04)"><div class="n">🗿 Golems — they guard YOUR island (one of each)</div><div class="d">They stand by your Town Hall and fight anyone who attacks you online.</div></div>`
+    + Object.entries(GOLEM_COST).map(([k, cost]) => {
+      const M = MOB[k], have = (S.golems || []).includes(k);
+      return `<div class="card"><div class="e">${M.emoji}${k === "golem" ? "" : "🗿"}</div><div class="n">${M.name}</div><div class="d">${M.desc}<br>❤️ ${M.hp} · 💥 ${M.dmg}</div>
+        <div class="c">${have ? "✅ Guarding your island" : `🪙 ${cost.toLocaleString()}`}</div><button class="small green" data-golem="${k}" ${have || S.gold < cost ? "disabled" : ""}>${have ? "Owned" : "Buy"}</button></div>`;
+    }).join("");
+  $("armyGrid").querySelectorAll("[data-golem]").forEach((b) => (b.onclick = () => { const e = buyGolem(b.dataset.golem); toast(e || `${MOB[b.dataset.golem].emoji} The ${MOB[b.dataset.golem].name} now guards your island!`); renderArmy(); renderTop(); }));
   $("armyGrid").querySelectorAll("[data-train]").forEach((b) => (b.onclick = () => { const e = train(b.dataset.train, 1); if (e) toast(e); renderArmy(); renderTop(); }));
   $("armyGrid").querySelectorAll("[data-train5]").forEach((b) => (b.onclick = () => { const e = train(b.dataset.train5, 5); if (e) toast(e); renderArmy(); renderTop(); }));
 }
@@ -674,7 +699,8 @@ function renderInfo() {
     sec("💰 Resources", ["gold", "wood", "stone"].map((k) => `${R[k]} <b>${I.res[k].toLocaleString()}</b> / ${I.cap.toLocaleString()} &nbsp;·&nbsp; +${I.make[k]}/min`).join("<br>")) +
     sec("🏗️ Buildings", I.blds.map((b) => `${B[b.type].emoji} ${B[b.type].name}: <b>${b.n}</b>/${b.lim}${b.type === "wall" ? "" : ` &nbsp;·&nbsp; Lv ${b.levels.join(", ")}`}`).join("<br>")) +
     sec("🛡️ Army", `${I.used}/${I.armyCap} space · Barracks Lv ${barracksLvl()}<br>` + (I.army.length ? I.army.map(([k, n]) => `${T[k].emoji} ${T[k].name} × <b>${n}</b>`).join(" &nbsp; ") : "<i>No troops — train some in 🛡️ Army</i>")) +
-    sec("🐾 Your island's defenders", `Your best Barracks (Lv ${barracksLvl()}) sends out: ` + (barracksLvl() ? [...golemsFor(barracksLvl()), ...mobPool(barracksLvl())].map((k) => `${MOB[k].emoji} ${MOB[k].name}`).join(", ") : "nothing yet") +
+    sec("🐾 Your island's defenders", `Your best Barracks (Lv ${barracksLvl()}) sends out: ` + (barracksLvl() ? mobPool(barracksLvl()).map((k) => `${MOB[k].emoji} ${MOB[k].name}`).join(", ") : "nothing yet") +
+      "<br>🗿 Your golems: " + ((S.golems || []).length ? S.golems.map((k) => `${MOB[k].emoji} ${MOB[k].name}`).join(", ") : "none yet — buy them in 🛡️ Army") +
       "<br>" + Object.values(MOB).map((m) => `${m.emoji} <b>${m.name}</b>: ${m.desc}`).join("<br>")) +
     sec("✨ Mini abilities (in battle)", Object.entries(AB).map(([k, a]) => `${a.emoji} ${a.name}: ${(k === "agent" ? agentUnlocked() : I.th >= a.th) ? `<b>${abilityUses(I.th)}</b> per battle` : `🔒 Town Hall ${a.th}`} — ${a.desc}`).join("<br>")) +
     sec("⚔️ Record", `🏆 <b>${I.trophies}</b> trophies · <b>${I.wins}</b> wins · raid level <b>${I.raid}</b> reached`);

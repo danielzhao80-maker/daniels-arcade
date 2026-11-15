@@ -323,6 +323,33 @@ check(q(`battle.mobs[0].hp`) < q(`battle.mobs[0].maxHp`), '⚡ Lightning hits mo
 q(`endBattle(true); battle = null;`);
 check(/🐺 mobs/.test(q(`(function(){ renderRaids(); return document.getElementById('raidGrid').innerHTML; })()`)), 'the raid list shows how many mobs an island has');
 
+// ---- 🗿 buying golems ----
+check(JSON.stringify(q(`JSON.stringify(GOLEM_COST)`)) === JSON.stringify(JSON.stringify({ golem: 3000, firegolem: 3500, watergolem: 4000, windgolem: 5000 })), 'golems cost 🪙 3,000 / 3,500 / 4,000 / 5,000');
+reset({ gold: 2999 });
+check(/Not enough gold/.test(q(`buyGolem('golem')`)), 'not enough gold: no golem');
+reset({ gold: 6000 });
+q(`S.buildings.push({ type: 'storage', lvl: 2, x: CENTER + 1, y: CENTER + 1 }); S.gold = 6000;`);
+check(q(`buyGolem('golem')`) === null && q('S.gold') === 3000 && q(`S.golems.join()`) === 'golem', 'buy the Earth Golem for 🪙 3,000');
+check(/already have/.test(q(`buyGolem('golem')`)), 'one of each');
+q(`S.gold = 5000;`);
+check(q(`buyGolem('windgolem')`) === null && q('S.gold') === 0, 'the Wind Golem costs 🪙 5,000');
+check(q(`myIslandSnapshot().golems.join()`) === 'golem,windgolem', 'your golems go with your island online');
+const og = JSON.parse(q(`(function(){ var snap = myIslandSnapshot(); snap.buildings.push({ type: 'barracks', lvl: 5, x: CENTER - 3, y: CENTER }); var m = spawnMobs(snap.buildings, snap.golems);
+  return JSON.stringify({ kinds: m.map(function(x){ return x.kind; }), byHall: m.filter(function(x){ return MOB[x.kind].golem; }).every(function(x){ return Math.hypot(x.x - CENTER, x.y - CENTER) < 1.5; }) }); })()`));
+check(og.kinds.slice(0, 2).join() === 'golem,windgolem' && og.kinds.filter(k => /golem/.test(k)).length === 2 && og.byHall, 'attacking your island: your bought golems guard the Town Hall (your Barracks send only animals)', JSON.stringify(og.kinds));
+check(q(`spawnMobs([{ type: 'barracks', lvl: 4, x: 5, y: 5 }])[0].kind`) === 'firegolem', 'computer islands still get golems from their Barracks level');
+q(`document.getElementById('btnArmy').onclick();`);
+check(/Golems — they guard YOUR island/.test(q(`document.getElementById('armyGrid').innerHTML`)) && /data-golem="watergolem"/.test(q(`document.getElementById('armyGrid').innerHTML`)), 'the 🛡️ Army panel sells them');
+// 🌪️ catch 70%
+reset({ army: { warrior: 1 } });
+const ct = JSON.parse(q(`(function(){ var isl = { name: 'Gale', th: 2, loot: {}, golems: ['windgolem'], buildings: [{ type: 'townhall', lvl: 2, x: CENTER, y: CENTER }] };
+  startBattle(isl); var g = battle.mobs[0]; g.hp = g.maxHp = 1e12; g.dmg = 0; g.cd = 1e9;
+  deploy('warrior', CENTER - 5.5, CENTER); var tr = battle.troops[0]; tr.hp = tr.maxHp = 1e12;
+  var hits = 0, caught = 0;
+  for (var i = 0; i < 20000 && hits < 2000; i++) { tr.x = g.x - 0.5; tr.y = g.y; tr.cd = Math.min(tr.cd, 1); var gh = g.hp, th0 = tr.hp; battleStep(); if (tr.hp < th0) { caught++; hits++; } else if (g.hp < gh) hits++; }
+  endBattle(true); battle = null; return JSON.stringify({ rate: caught / hits, hits: hits }); })()`));
+check(ct.rate > 0.65 && ct.rate < 0.75, '🌪️ Wind Golem: catches about 70% of attacks and throws them back', JSON.stringify(ct));
+
 // ---- online result ----
 reset();
 q(`NET.mine = { pct: 80, stars: 2, frames: 3000 }; NET.theirs = { pct: 60, stars: 1, frames: 2000 }; onlineResult();`);

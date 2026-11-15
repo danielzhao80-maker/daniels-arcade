@@ -204,6 +204,13 @@ q(`NET.mine = null; NET.theirs = null;`);
 q(`S.army = {}; hostOnline();`);
 check(/Train some troops/.test(q(`document.getElementById('onlineMsg').textContent`)) && q('NET.peer') === null, 'no army: you cannot start or join an online battle');
 check(q(`myIslandSnapshot().buildings.length`) === q(`S.buildings.length`) && q(`myIslandSnapshot().th`) === q('th()'), 'online you send your real island');
+// ---- 📊 My Island ----
+reset({ gold: 1234, trophies: 42, wins: 3, raidLevel: 4, army: { warrior: 5, archer: 2 } });
+q(`document.getElementById('btnInfo').onclick()`);
+const info = q(`document.getElementById('infoBody').innerHTML`);
+check(q(`document.getElementById('infoPanel').style.display`) === 'block', '📊 the My Island button opens your game info');
+check(/Town Hall level 1/.test(info) && /1,234/.test(info) && /\+18\/min/.test(info) && /Gold Mine: <b>1<\/b>\/1/.test(info) && /Warrior × <b>5<\/b>/.test(info) && /<b>42<\/b> trophies/.test(info) && /<b>3<\/b> wins/.test(info) && /raid level <b>4<\/b>/.test(info),
+      'it shows the Town Hall, resources and what you make a minute, buildings, army, trophies, wins and raid level');
 // ---- drawing ----
 q(`for (var i = 0; i < 3; i++) frame(performance.now() + i * 16);`);
 check(true, 'the island and a battle draw without errors');

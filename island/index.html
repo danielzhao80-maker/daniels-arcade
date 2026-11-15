@@ -55,6 +55,7 @@
   <span class="pill">🪨 <b id="stone">0</b></span>
   <span class="pill">🏆 <b id="trophies">0</b></span>
   <span class="pill">⚔️ <b id="armyN">0</b>/<b id="armyCap">0</b></span>
+  <button id="btnInfo" class="blue small">📊 My Island</button>
 </div>
 <div id="bottom" class="bar">
   <button id="btnBuild">🏗️ Build</button>
@@ -75,6 +76,7 @@
   <div class="row"><input id="joinCode" maxlength="5" placeholder="CODE"><button id="joinBtn" class="blue">Join</button></div>
   <div class="sub" id="onlineMsg" style="font-size:1rem;font-weight:900;margin-top:10px"></div>
 </div>
+<div class="panel" id="infoPanel"><button class="close" data-close>✕</button><h2>📊 My Island</h2><div class="sub">Everything about your island.</div><div id="infoBody"></div></div>
 <div class="panel" id="resultPanel"><h2 id="resTitle"></h2><div class="sub" id="resText" style="font-size:1rem"></div><div class="row"><button id="resOk">Back to my island</button></div></div>
 
 <script>
@@ -424,6 +426,27 @@ function renderRaids() {
   }).join("");
   $("raidGrid").querySelectorAll("[data-raid]").forEach((b) => (b.onclick = () => { const e = startBattle(genIsland(+b.dataset.raid)); if (e) toast(e); }));
 }
+// 📊 My Island: your Town Hall, resources (and what you make a minute), buildings, army and record.
+function islandInfo() {
+  const t = th(), cap = capOf(), make = { gold: 0, wood: 0, stone: 0 };
+  for (const b of S.buildings) { const m = B[b.type].makes; if (m) make[m] += prodPerMin(b.lvl); }
+  const blds = Object.keys(B).map((type) => {
+    const list = S.buildings.filter((b) => b.type === type); if (!list.length) return null;
+    return { type, n: list.length, lim: limitOf(type, t), levels: list.map((b) => b.lvl).sort((a, b) => b - a) };
+  }).filter(Boolean);
+  return { th: t, land: S.buildings.length, cap, make, res: { gold: Math.floor(S.gold), wood: Math.floor(S.wood), stone: Math.floor(S.stone) },
+           blds, army: Object.entries(S.army).filter(([, n]) => n > 0), used: armyUsed(), armyCap: armyCap(), trophies: S.trophies, wins: S.wins || 0, raid: S.raidLevel };
+}
+function renderInfo() {
+  const I = islandInfo();
+  const sec = (title, body) => `<div class="card" style="text-align:left;margin-bottom:10px"><div class="n" style="font-size:1.05rem">${title}</div><div style="font-size:.9rem;line-height:1.6">${body}</div></div>`;
+  $("infoBody").innerHTML =
+    sec(`🏰 Town Hall level ${I.th}${I.th >= MAX_TH ? " (top level!)" : ""}`, `${I.land} buildings on your island · land radius ${landRadius(I.th).toFixed(1)} tiles`) +
+    sec("💰 Resources", ["gold", "wood", "stone"].map((k) => `${R[k]} <b>${I.res[k].toLocaleString()}</b> / ${I.cap.toLocaleString()} &nbsp;·&nbsp; +${I.make[k]}/min`).join("<br>")) +
+    sec("🏗️ Buildings", I.blds.map((b) => `${B[b.type].emoji} ${B[b.type].name}: <b>${b.n}</b>/${b.lim}${b.type === "wall" ? "" : ` &nbsp;·&nbsp; Lv ${b.levels.join(", ")}`}`).join("<br>")) +
+    sec("🛡️ Army", `${I.used}/${I.armyCap} space · Barracks Lv ${barracksLvl()}<br>` + (I.army.length ? I.army.map(([k, n]) => `${T[k].emoji} ${T[k].name} × <b>${n}</b>`).join(" &nbsp; ") : "<i>No troops — train some in 🛡️ Army</i>")) +
+    sec("⚔️ Record", `🏆 <b>${I.trophies}</b> trophies · <b>${I.wins}</b> wins · raid level <b>${I.raid}</b> reached`);
+}
 function showInfo(b) {
   selected = b;
   const max = b.type === "townhall" ? MAX_TH : th(), up = b.lvl < max ? costOf(b.type, b.lvl + 1) : null, D = B[b.type].def;
@@ -458,6 +481,7 @@ $("btnBuild").onclick = () => { hideInfo(); renderBuild(); openPanel("buildPanel
 $("btnArmy").onclick = () => { hideInfo(); renderArmy(); openPanel("armyPanel"); };
 $("btnRaid").onclick = () => { hideInfo(); renderRaids(); openPanel("raidPanel"); };
 $("btnOnline").onclick = () => { hideInfo(); onlineMsg(""); openPanel("onlinePanel"); };
+$("btnInfo").onclick = () => { hideInfo(); renderInfo(); openPanel("infoPanel"); };
 $("hostBtn").onclick = hostOnline;
 $("joinBtn").onclick = () => joinOnline($("joinCode").value);
 

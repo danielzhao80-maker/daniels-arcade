@@ -356,7 +356,7 @@ function startBattle(island, opts) {
   const army = Object.assign({}, S.army);
   if (!Object.values(army).some((n) => n > 0)) return "Train some troops first (🛡️ Army).";
   const abil = {}; for (const [k, a] of Object.entries(AB)) if (k === "agent" ? agentUnlocked() : th() >= a.th) abil[k] = abilityUses(th());
-  battle = { island, opts: opts || {}, frame: 0, army, abil, casts: [], barricades: [], agents: [], troops: [], shots: [], fx: [], over: false, selected: Object.keys(army).find((k) => army[k] > 0),
+  battle = { island, opts: opts || {}, frame: 0, army, brought: Object.assign({}, army), five: false, abil, casts: [], barricades: [], agents: [], troops: [], shots: [], fx: [], over: false, selected: Object.keys(army).find((k) => army[k] > 0),
              blds: island.buildings.map((b) => Object.assign({}, b, { hp: hpOf(b.type, b.lvl), maxHp: hpOf(b.type, b.lvl), cd: 0 })) };
   battle.total = battle.blds.filter((b) => b.type !== "wall").length;
   battle.mobs = spawnMobs(battle.blds, island.golems);   // 🐺 the island's defenders (+ its bought golems)
@@ -586,7 +586,7 @@ function endBattle(forced) {
     else { S.trophies = Math.max(0, S.trophies - 5); text += " 🏆 −5"; }
   }
   save();
-  if (bt.opts.online) { NET.mine = { pct, stars, frames: bt.frame }; netSend({ t: "result", pct, stars, frames: bt.frame }); onlineResult(); }
+  if (bt.opts.online) { NET.mine = { pct, stars, frames: bt.frame }; NET.mineAt = Date.now(); netSend({ t: "result", pct, stars, frames: bt.frame }); onlineResult(); }
   else showResult(title, text);
   document.getElementById("battlebar").style.display = "none";
   document.getElementById("bottom").style.display = "flex"; document.getElementById("codebar").style.display = "flex";
@@ -609,7 +609,15 @@ function wireConn(conn) {
       setTimeout(() => { const err = startBattle(NET.enemy, { online: true }); if (err) { toast(err); netSend({ t: "result", pct: 0, stars: 0, frames: BATTLE_FRAMES }); NET.mine = { pct: 0, stars: 0, frames: BATTLE_FRAMES }; onlineResult(); } }, 900);
     } else if (m.t === "result") { NET.theirs = { pct: +m.pct || 0, stars: +m.stars || 0, frames: +m.frames || BATTLE_FRAMES }; onlineResult(); }
   });
-  conn.on("close", () => { if (!(NET.mine && NET.theirs)) toast("🌐 Your friend left the battle."); });
+  conn.on("close", () => {
+    if (NET.mine && NET.theirs) return;
+    toast("🌐 Your friend left the battle.");
+    if (NET.mine && !NET.theirs) {   // you finished and were waiting: you win by default
+      const g = 100 * th(); S.gold = Math.min(capOf(), S.gold + g); S.trophies += 10; save();
+      NET.theirs = { pct: 0, stars: 0, frames: BATTLE_FRAMES, left: true };
+      showResult("🏆 You win — your friend left", `You destroyed ${NET.mine.pct}%. Prize: 🪙 ${g} and 🏆 +10.`);
+    }
+  });
 }
 const hasArmy = () => Object.values(S.army).some((n) => n > 0);
 // ---- 🎁 codes (each once per island) ------------------------------------------------------------------
@@ -693,7 +701,13 @@ function toast(t) { const e = $("toast"); e.textContent = t; e.style.display = "
 function hidePanels() { document.querySelectorAll(".panel").forEach((p) => (p.style.display = "none")); }
 function openPanel(id) { hidePanels(); $(id).style.display = "block"; }
 document.querySelectorAll("[data-close]").forEach((b) => (b.onclick = hidePanels));
-let placing = null, selected = null;
+let placing = null, selected = null, moving = null;
+// Move a building to another empty spot on your island.
+function moveBuilding(b, x, y) {
+  if (!b) return "Nothing to move.";
+  if (!isLand(x, y) || !tileFree(S.buildings, x, y)) return "Pick an empty spot on your island.";
+  b.x = x; b.y = y; save(); return null;
+}
 function hideInfo() { selected = null; $("info").style.display = "none"; }
 function renderTop() {
   $("thLv").textContent = th(); for (const k of ["gold", "wood", "stone"]) $(k).textContent = Math.floor(S[k]).toLocaleString();
@@ -776,7 +790,9 @@ function showInfo(b) {
     }).join("");
     $("infoCard").querySelectorAll("[data-perk]").forEach((btn) => (btn.onclick = () => { const e = buyPerk(b, +btn.dataset.perk); toast(e || `${PERKS[b.type][+btn.dataset.perk].emoji} ${PERKS[b.type][+btn.dataset.perk].name} added!`); renderTop(); showInfo(b); }));
   }
+  $("infoCard").innerHTML += `<div style="margin-top:8px"><button class="small blue" id="moveBtn">✋ Move</button></div>`;
   $("info").style.display = "block";
+  $("moveBtn").onclick = () => { moving = b; hideInfo(); toast(`Tap an empty spot to move the ${B[b.type].name} (tap the sea to cancel)`); };
   const ub = $("upBtn"); if (ub) ub.onclick = () => { const e = upgradeBuilding(b); toast(e || `${B[b.type].emoji} ${B[b.type].name} is now level ${b.lvl}!`); renderTop(); showInfo(b); };
 }
 function showBattleBar() {
@@ -784,14 +800,16 @@ function showBattleBar() {
   const bar = $("battlebar"); bar.style.display = "flex";
   const draw = () => {
     if (!battle || battle.over) return;
-    bar.innerHTML = Object.entries(battle.army).filter(([, n]) => n > 0 || battle.troops.some((t) => t.kind)).map(([k, n]) =>
+    bar.innerHTML = Object.entries(battle.army).filter(([k]) => battle.brought[k] > 0).map(([k, n]) =>
       `<button class="troop small ${battle.selected === k ? "sel" : ""}" data-sel="${k}" ${n > 0 ? "" : "disabled"}>${T[k].emoji} ${n}</button>`).join("")
       + Object.entries(battle.abil).map(([k, n]) =>
       `<button class="troop small blue ${battle.selected === "ab:" + k ? "sel" : ""}" data-sel="ab:${k}" title="${AB[k].name}: ${AB[k].desc}" ${n > 0 ? "" : "disabled"}>${AB[k].emoji} ${n}</button>`).join("")
-      + `<span class="pill">⏱ ${Math.max(0, Math.ceil((BATTLE_FRAMES - battle.frame) / 60))}s · 💥 ${destroyedPct(battle)}% · ${"⭐".repeat(starsOf(battle))}</span>
+      + `<span class="pill">⏱ ${Math.max(0, Math.ceil((BATTLE_FRAMES - battle.frame) / 120))}s · 💥 ${destroyedPct(battle)}% · ${"⭐".repeat(starsOf(battle))}</span>
+         <button class="small ${battle.five ? "green" : "blue"}" id="five" title="Send 5 troops a tap">×5 ${battle.five ? "ON" : "off"}</button>
          <button class="small red" id="giveUp">End battle</button>`;
     bar.querySelectorAll("[data-sel]").forEach((b) => (b.onclick = () => { battle.selected = b.dataset.sel; }));
     $("giveUp").onclick = () => endBattle(true);
+    $("five").onclick = () => { battle.five = !battle.five; draw(); };
   };
   draw(); battle.drawBar = draw;
 }
@@ -801,6 +819,8 @@ function showResult(title, text, waiting) {
   openPanel("resultPanel");
 }
 $("resOk").onclick = () => { hidePanels(); battle = null; if (NET.mine && NET.theirs) netReset(); renderTop(); };
+// Waiting too long for a friend's result? After 2 minutes you can leave (you keep what you looted).
+setInterval(() => { if (NET.mine && !NET.theirs && $("resultPanel").style.display === "block" && Date.now() - (NET.mineAt || Date.now()) > 120000) $("resOk").style.display = "inline-block"; }, 2000);
 $("btnBuild").onclick = () => { hideInfo(); renderBuild(); openPanel("buildPanel"); };
 $("btnArmy").onclick = () => { hideInfo(); renderArmy(); openPanel("armyPanel"); };
 $("btnRaid").onclick = () => { hideInfo(); renderRaids(); openPanel("raidPanel"); };
@@ -876,9 +896,9 @@ function frame(now) {
   if (battle && !battle.over) {
     for (let i = 0; i < 2 && battle && !battle.over; i++) battleStep();   // 2 steps a frame: battles play at a lively speed
     if (battle && battle.drawBar && battle.frame % 15 === 0) battle.drawBar();
-  } else {
-    prodAcc += dt; if (prodAcc >= 1) { produce(prodAcc); prodAcc = 0; renderTop(); if (Math.random() < 0.1) save(); }
   }
+  // your mines keep working while you fight
+  prodAcc += dt; if (prodAcc >= 1) { produce(prodAcc); prodAcc = 0; if (!battle) renderTop(); if (Math.random() < 0.1) save(); }
   setView(battle ? battle.island.th : th());
   if (battle) {
     drawIsland(battle.island.th, battle.blds, time, { battle: true });
@@ -935,7 +955,7 @@ function frame(now) {
     ctx.fillText(bt.selected && bt.selected.startsWith("ab:") ? `${AB[bt.selected.slice(3)].emoji} Tap anywhere to cast ${AB[bt.selected.slice(3)].name}` : `⚔️ ${bt.island.name} — tap the sea or the beach to send in your ${bt.selected ? T[bt.selected].name.toLowerCase() + "s" : "troops"}`, innerWidth / 2, 74);
   } else {
     drawIsland(th(), S.buildings, time, null);
-    if (placing) { ctx.font = "bold 16px Nunito, sans-serif"; ctx.fillStyle = "#fff"; ctx.textAlign = "center"; ctx.fillText(`Placing: ${B[placing].emoji} ${B[placing].name} — tap an empty green spot`, innerWidth / 2, 74); }
+    if (placing || moving) { ctx.font = "bold 16px Nunito, sans-serif"; ctx.fillStyle = "#fff"; ctx.textAlign = "center"; const k = placing || moving.type; ctx.fillText(`${placing ? "Placing" : "Moving"}: ${B[k].emoji} ${B[k].name} — tap an empty green spot`, innerWidth / 2, 104); }
   }
   requestAnimationFrame(frame);
 }
@@ -952,7 +972,7 @@ cv.addEventListener("click", (e) => {
       battle.drawBar && battle.drawBar();
       return;
     }
-    const n = e.shiftKey ? 5 : 1; let sent = 0;
+    const n = (e.shiftKey || battle.five) ? 5 : 1; let sent = 0;   // ×5 toggle (or Shift)
     for (let i = 0; i < n; i++) if (deploy(k, fx + (Math.random() - 0.5) * 0.4, fy + (Math.random() - 0.5) * 0.4)) sent++;
     if (!sent) toast(battle.army[k] > 0 ? "Send troops in from the sea or the beach" : `No ${T[k].name}s left`);
     if (battle.army[k] <= 0) battle.selected = Object.keys(battle.army).find((q) => battle.army[q] > 0) || k;
@@ -960,6 +980,12 @@ cv.addEventListener("click", (e) => {
     return;
   }
   if (battle) return;
+  if (moving) {
+    const err = moveBuilding(moving, x, y);
+    if (err && !isLand(x, y)) { moving = null; toast("Move cancelled"); return; }
+    if (err) toast(err); else { toast(`${B[moving.type].emoji} ${B[moving.type].name} moved`); moving = null; }
+    return;
+  }
   if (placing) {
     if (!isLand(x, y)) { placing = null; toast("Cancelled"); return; }
     const err = placeBuilding(placing, x, y);

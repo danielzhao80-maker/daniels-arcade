@@ -439,6 +439,29 @@ const cl = q(`document.getElementById('codesGrid').innerHTML`);
 check(q(`document.getElementById('codesPanel').style.display`) === 'block' && (cl.match(/class="card"/g) || []).length === 20 && /SHARK ✓/.test(cl) && /TSUNAMI/.test(cl), '📜 the Codes button lists all 20 codes, with ✓ on the used ones');
 check(q(`(function(){ document.querySelector ? 0 : 0; redeemCode('ISLAND'); return S.codes.includes('ISLAND'); })()`), 'its Use buttons redeem them');
 check(/id="codebar"/.test(html) && html.indexOf('id="codebar"') < html.indexOf('id="bottom"'), 'the code bar sits at the top of the game');
+// ---- fixes ----
+reset({ army: { warrior: 5 } });
+q(`startBattle(genIsland(1, 3)); battle.drawBar();`);
+check(/⏱ 45s/.test(q(`document.getElementById('battlebar').innerHTML`)), 'the battle timer shows real seconds (battles run at double speed: 45 s)');
+check(!/data-sel="archer"/.test(q(`document.getElementById('battlebar').innerHTML`)), 'the battle bar only shows troop types you brought');
+q(`battle.five = true;`);
+check(/×5 ON/.test(q(`(function(){ battle.drawBar(); return document.getElementById('battlebar').innerHTML; })()`)), 'the ×5 button: send 5 troops a tap (no Shift needed on a phone)');
+q(`endBattle(true); battle = null; hidePanels();`);
+reset({ gold: 0, wood: 0, stone: 0 });
+q(`startBattle(genIsland(1, 3)); var t0 = performance.now(); frame(t0); frame(t0 + 250); frame(t0 + 500); frame(t0 + 750); frame(t0 + 1000); frame(t0 + 1250);`);
+check(q('S.gold') > 0, 'your mines keep producing while you fight');
+q(`endBattle(true); battle = null; hidePanels();`);
+reset();
+check(q(`moveBuilding(S.buildings[1], CENTER + 1, CENTER + 1)`) === null && q(`S.buildings[1].x === CENTER + 1`), '✋ Move a building to an empty spot');
+check(/empty spot/.test(q(`moveBuilding(S.buildings[1], CENTER, CENTER)`)) && /empty spot/.test(q(`moveBuilding(S.buildings[1], 0, 0)`)), '…not onto another building or into the sea');
+check(/moveBtn/.test(q(`(function(){ showInfo(S.buildings[1]); return document.getElementById('infoCard').innerHTML; })()`)), 'every building has a ✋ Move button');
+q(`hideInfo();`);
+reset({ gold: 0 });
+q(`NET.mine = { pct: 40, stars: 0, frames: 100 }; NET.theirs = null; NET.conn = { open: true, send: function(){} };`);
+const left = q(`(function(){ var h = {}; var fake = { on: function(ev, f){ h[ev] = f; } }; wireConn(fake); h.close(); return JSON.stringify({ title: document.getElementById('resTitle').textContent, ok: document.getElementById('resOk').style.display, gold: S.gold }); })()`);
+check(/friend left/.test(JSON.parse(left).title) && JSON.parse(left).ok !== 'none' && JSON.parse(left).gold > 0, 'online: if your friend leaves while you wait, you win and can go back (no more stuck "Waiting…")', left);
+q(`netReset(); hidePanels();`);
+
 // ---- drawing ----
 q(`for (var i = 0; i < 3; i++) frame(performance.now() + i * 16);`);
 check(true, 'the island and a battle draw without errors');

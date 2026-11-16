@@ -280,6 +280,16 @@ function load() {
   S.last = Date.now();
 }
 function save() { S.last = Date.now(); try { localStorage.setItem(SAVE_KEY, JSON.stringify(S)); } catch (e) {} }
+// 🔄 Two tabs (or the arcade + a direct tab) open at once: when another tab saves the island, this one takes
+// that version instead of saving its own older copy over it. (The browser only tells the OTHER tabs.)
+function adoptSavedIsland(json) {
+  if (!json || battle) return false;
+  try { const n = JSON.parse(json); if (!n || !Array.isArray(n.buildings)) return false; S = Object.assign(freshSave(), n); } catch (e) { return false; }
+  homeMobsKey = ""; placing = null; moving = null;
+  try { renderTop(); refreshPanelButtons(); hideInfo(); } catch (e) {}
+  return true;
+}
+addEventListener("storage", (e) => { if (e.key === SAVE_KEY) adoptSavedIsland(e.newValue); });
 const th = () => (S.buildings.find((b) => b.type === "townhall") || { lvl: 1 }).lvl;
 // 🎖️ Rank: your Town Hall can't go higher than it. Rank up by destroying (⭐⭐: its Town Hall and half the base)
 // a base with a Town Hall ONE level higher than yours.

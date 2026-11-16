@@ -630,6 +630,15 @@ q(`panelAction('infinite', '', true); S.gold = 5; renderTop();`);
 check(q('S.infinite') === false && q(`document.getElementById('gold').textContent`) === '5', 'turn it off again any time');
 q(`S.owner = false;`);
 
+// ---- 🔄 two tabs ----
+reset({ gold: 100 });
+const other = JSON.stringify(Object.assign(JSON.parse(q(`JSON.stringify(S)`)), { gold: 777, infinite: true }));
+check(q(`adoptSavedIsland(${JSON.stringify(other)})`) === true && q('S.gold') === 777 && q('S.infinite') === true, 'another tab saved the island: this tab takes that version (no overwriting it with an old copy)');
+q(`S.army = { warrior: 2 }; startBattle(genIsland(1, 3));`);
+check(q(`adoptSavedIsland(${JSON.stringify(other)})`) === false, '…but not in the middle of a battle');
+q(`endBattle(true); battle = null; hidePanels();`);
+check(q(`adoptSavedIsland('not json')`) === false && q(`adoptSavedIsland(null)`) === false, '…and ignores anything broken');
+
 // ---- drawing ----
 q(`for (var i = 0; i < 3; i++) frame(performance.now() + i * 16);`);
 check(true, 'the island and a battle draw without errors');

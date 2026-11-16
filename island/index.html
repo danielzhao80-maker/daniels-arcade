@@ -1118,7 +1118,7 @@ function merchantTrade(from, to, amount) {
 }
 // ⭐ Deals: 3 a window, the same for everyone in that 10 minutes.
 const DEAL_EVERY = 10 * 60 * 1000;
-const dealWindow = () => Math.floor(Date.now() / DEAL_EVERY);
+const dealWindow = () => Math.floor(Date.now() / DEAL_EVERY) + ((typeof S === "object" && S && S.dealShift) || 0);   // (👑 "New deals" moves it on)
 function dealsNow() {
   const r = rng(dealWindow() * 7 + 3), pick = (a) => a[Math.floor(r() * a.length)], out = [];
   const kinds = ["swap", "troops", "sell", "swap", "bundle"];
@@ -1348,6 +1348,21 @@ function panelAction(act, arg, owner) {
     homeMobsKey = ""; save();
     return added ? `🏯 ${added} tower${added > 1 ? "s" : ""} placed (level ${th()})` : arg === "all" ? "You already have every tower (or no room left)." : `You already have the most ${B[arg].name}s (or no room left).`;
   }
+  if (act === "allon" || act === "alloff") {   // 👑 every infinite switch at once
+    const on = act === "allon"; S.infinite = S.infTroops = S.infPets = S.allPetsInf = on; refillInfinite(); homeMobsKey = ""; save();
+    return on ? "👑 EVERYTHING ON: ♾️ resources, ♾️ troops, ♾️ pets (free, no limit, can't die) and ∞ of every pet!" : "👑 Every infinite switch is off";
+  }
+  if (act === "maxstore") {   // 📦 every Storage you can have, at the top level (×1.5 each)
+    const want = limitOf("storage", MAX_TH) - countOf("storage");
+    for (let i = 0; i < want; i++) {
+      const free = []; for (let y = 0; y < GRID; y++) for (let x = 0; x < GRID; x++) if (isLand(x, y) && tileFree(S.buildings, x, y)) free.push([x, y, Math.hypot(x - CENTER, y - CENTER) + Math.random() * 0.5]);
+      if (!free.length) break; free.sort((a, b) => a[2] - b[2]); S.buildings.push({ type: "storage", lvl: MAX_TH, x: free[0][0], y: free[0][1] });
+    }
+    S.buildings.forEach((b) => { if (b.type === "storage") b.lvl = MAX_TH; });
+    refillInfinite(); save();
+    return `📦 ${maxedStorages()} maxed-out Storages: storage ×${storeBoost().toFixed(2).replace(/\.?0+$/, "")} = ${capOf().toLocaleString()} of each`;
+  }
+  if (act === "newdeals") { S.dealShift = (S.dealShift || 0) + 1; S.deals = null; save(); return "⭐ New special deals are in the 🤝 Trade panel!"; }
   if (act === "army0") { S.army = {}; save(); return "⚔️ Army emptied"; }
   if (act === "golem0") { S.golems = []; save(); homeMobsKey = ""; return "🗿 Golems sent away"; }
   if (act === "reset") { const keepOwner = S.owner; S = freshSave(); S.owner = keepOwner; S.nextRaidAt = Date.now() + RAID_EVERY; homeMobsKey = ""; save(); hidePanels(); return "🔄 Your island started over"; }
@@ -1389,24 +1404,31 @@ function maxOutBase(keep) {
   for (const b of list) { if (PERKS[b.type]) b.perks = PERKS[b.type].map((p) => p.id); else delete b.perks; }   // every tower fully upgraded
   S.buildings = list; S.rank = MAX_TH;
   S.golems = Object.keys(GOLEM_COST);
+  S.allPetsInf = true;   // 🐾 ∞ of every pet (and they can't die)
   const cap = capOf(); S.gold = S.wood = S.stone = cap;
   S.army = {}; const fill = [["giant", 10], ["mage", 15], ["archer", 30], ["warrior", 999]];
   for (const [k, n] of fill) { const fit = Math.min(n, Math.floor((armyCap() - armyUsed()) / T[k].house)); if (fit > 0) S.army[k] = fit; }
   save(); homeMobsKey = "";
-  return `${keep ? "⬆️ Maxed out — your layout kept" : "🏆 Your base is maxed out"}: Town Hall ${T8}, ${list.length} buildings at level ${T8}, every tower upgrade, 🌟 Prestige ${MAX_PRESTIGE} (all ${MAX_PRESTIGE * 2} prestige towers, and every Barracks sends all ${MAX_PRESTIGE} prestige animals), all 4 golems, ${cap.toLocaleString()} of everything and a full army (${armyUsed()}/${armyCap()}).`;
+  return `${keep ? "⬆️ Maxed out — your layout kept" : "🏆 Your base is maxed out"}: Town Hall ${T8}, ${list.length} buildings at level ${T8}, every tower upgrade, 🌟 Prestige ${MAX_PRESTIGE} (all ${MAX_PRESTIGE * 2} prestige towers, and every Barracks sends all ${MAX_PRESTIGE} prestige animals), all 4 golems, ♾️ ∞ of every pet (they can't die), ${maxedStorages()} maxed-out Storages (storage ×${storeBoost().toFixed(2).replace(/\.?0+$/, "")}), ${cap.toLocaleString()} of everything and a full army (${armyUsed()}/${armyCap()}).`;
 }
 function renderAdmin(owner) {
   $("admTitle").textContent = owner ? "👑 Owner Panel" : "🛠️ Admin Panel";
-  $("admSub").textContent = owner ? "♾️ No limits." : `⏳ Daily limits: ${R.gold} ${R.wood} ${R.stone} 3,000 each · 20 troops · 1 golem. They reset every day.`;
+  const onOff = (v) => (v ? "✅" : "⬜");
+  $("admSub").textContent = owner ? `♾️ No limits. ${onOff(infinite())} ∞ resources · ${onOff(infTroops())} ∞ troops · ${onOff(infPets())} ∞ pets · ${onOff(allPetsInf())} ∞ of ALL pets · ${onOff(!S.noRaids)} raids · 📦 storage ×${storeBoost().toFixed(2).replace(/\.?0+$/, "")}` : `⏳ Daily limits: ${R.gold} ${R.wood} ${R.stone} 3,000 each · 20 troops · 1 golem. They reset every day.`;
   const btn = (act, arg, label, cls) => `<button class="small ${cls || ""}" data-act="${act}" data-arg="${arg}">${label}</button>`;
   const sec = (t, body) => `<div class="card" style="text-align:left;margin-bottom:10px"><div class="n">${t}</div><div class="row" style="justify-content:flex-start;margin:6px 0 0">${body}</div></div>`;
   const left = (k) => owner ? "" : ` <span style="opacity:.7;font-size:.8rem">(${Math.max(0, adminLeft(k))} left)</span>`;
   $("admBody").innerHTML =
+    (owner ? sec("👑 Everything", btn("allon", "", "👑 EVERYTHING ON", "green") + btn("alloff", "", "Everything off") +
+      `<span style="font-size:.75rem;opacity:.75">ON = ♾️ resources, ♾️ troops, ♾️ pets (free, no limit, can't die) and ∞ of every pet.</span>`) : "") +
     sec("💰 Resources" + (owner ? "" : " — +500 a click"), ["gold", "wood", "stone"].map((k) => btn("res", k, `${R[k]} ${owner ? "Fill" : "+500"}`)).join("") + (owner ? btn("infinite", "", infinite() ? "♾️ Infinite: ON" : "♾️ Infinite: off", infinite() ? "green" : "") : left("gold"))) +
     sec("⚔️ Troops" + (owner ? " — fill your army" : " — 5 a click") + left("troops"), Object.entries(T).map(([k, t]) => btn("troops", k, `${t.emoji} ${t.name}`, "blue")).join("") + (owner ? btn("inftroops", "", infTroops() ? "♾️ Infinite troops: ON" : "♾️ Infinite troops: off", infTroops() ? "green" : "") : "")) +
     (owner ? sec(`🐾 Pets — you have ${allPetsInf() ? "∞ of every pet · " : ""}${(S.pets || []).length}/${petLimit() === Infinity ? "∞" : petLimit()}`, btn("infpets", "", infPets() ? "♾️ Infinite pets: ON" : "♾️ Infinite pets: off", infPets() ? "green" : "") + btn("allpets", "", "🐾 One of every pet", "green") + btn("allpetsinf", "", allPetsInf() ? "♾️ ∞ of ALL pets: ON" : "♾️ ∞ of ALL pets: off", allPetsInf() ? "green" : "") + btn("pets0", "", "Release all pets")) : "") +
     sec("🗿 Golems" + left("golems"), Object.keys(GOLEM_COST).map((k) => btn("golem", k, `${MOB[k].emoji} ${MOB[k].name}`, "green")).join("") + (owner ? btn("golem", "all", "All golems", "green") : "")) +
     sec("🎁 Codes", btn("codes", "", "Reset my codes")) +
+    (owner ? sec(`📦 Storage — ${maxedStorages()} maxed (×${storeBoost().toFixed(2).replace(/\.?0+$/, "")}) · ${capOf().toLocaleString()} each`, btn("maxstore", "", "📦 Max out all Storage", "green") +
+      `<span style="font-size:.75rem;opacity:.75">Every Storage you can have, at level ${MAX_TH}. Each maxed one makes your whole storage ×1.5.</span>`) +
+      sec("🤝 Trade", btn("newdeals", "", "⭐ New deals now", "green")) : "") +
     (owner ? sec("🏰 Town Hall · 🎖️ Rank · 🌟 Prestige (0–8) · 🗺️ Raid · 🏆", `<input id="admNum" type="number" min="1" value="${th()}" style="width:90px;text-transform:none">` +
       btn("th", "#", "Set Town Hall") + btn("rank", "#", "Set Rank") + btn("prestige", "#", "Set 🌟 Prestige") + btn("raid", "#", "Set Raid level") + btn("trophies", "#", "Add 🏆")) +
       sec("🏴‍☠️ Raids & 😠 revenge", btn("raidnow", "", "🏴‍☠️ Raid now", "red") + btn("revengenow", "", "😠 Revenge now", "red") + btn("noraids", "", S.noRaids ? "🏴‍☠️ Raids: OFF" : "🏴‍☠️ Raids: on", S.noRaids ? "" : "green")) +
@@ -1416,7 +1438,7 @@ function renderAdmin(owner) {
       sec("⚔️ In battle", btn("win", "", "⚡ Win this battle", "green") + btn("abil", "", "✨ Refill abilities", "blue")) +
       sec("🧹 Clear", btn("army0", "", "Empty my army") + btn("golem0", "", "Remove golems") + btn("reset", "", "🔄 Start my island over", "red")) +
       sec("🏆 The best base", btn("maxkeep", "", "⬆️ Max out (keep my layout)", "green") + btn("maxbase", "", "🏆 Max out with a new layout", "green") +
-        `<span style="font-size:.75rem;opacity:.75">Town Hall ${MAX_TH}, 🎖️ rank ${MAX_TH}, 🌟 Prestige ${MAX_PRESTIGE} with every prestige tower and animal, everything level ${MAX_TH}, every tower upgrade, all golems, full stores and army. "Keep my layout" leaves your buildings where they are and only adds what's missing.</span>`) : "");
+        `<span style="font-size:.75rem;opacity:.75">Town Hall ${MAX_TH}, 🎖️ rank ${MAX_TH}, 🌟 Prestige ${MAX_PRESTIGE} with every prestige tower and animal, every tower (2 of each new one), everything level ${MAX_TH} with every upgrade, 📦 4 maxed Storages (×5 storage), ♾️ ∞ of every pet (can't die), all golems, full stores and army. "Keep my layout" leaves your buildings where they are and only adds what's missing.</span>`) : "");
   $("admBody").querySelectorAll("[data-act]").forEach((b) => (b.onclick = () => {
     const arg = b.dataset.arg === "#" ? $("admNum").value : b.dataset.arg;
     const msg = panelAction(b.dataset.act, arg, owner); renderTop();

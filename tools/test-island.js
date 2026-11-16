@@ -961,6 +961,20 @@ q(`panelAction('win', '', true); battle = null; hidePanels(); panelAction('infpe
 check(q(`battle.homeMobs.filter(function(m){ return m.pet; }).every(function(m){ return m.immortal; })`), '∞ of ALL pets: immortal too');
 q(`endBattle(true); battle = null; hidePanels(); panelAction('allpetsinf', '', true); S.pets = [];`);
 
+// ---- 👑 owner panel update ----
+reset({}); q(`S.owner = true;`);
+check(/EVERYTHING ON/.test(q(`panelAction('allon', '', true)`)) && q('infinite() && infTroops() && infPets() && allPetsInf()') && q(`panelAction('allon', '', false)`) === '👑 Owner only.', '👑 EVERYTHING ON (owner only)');
+check(/off/.test(q(`panelAction('alloff', '', true)`)) && !q('infinite() || infTroops() || infPets() || allPetsInf()'), '…and everything off');
+q(`panelAction('th', '10', true);`);
+check(/4 maxed-out/.test(q(`panelAction('maxstore', '', true)`)) && q('maxedStorages()') === 4 && q(`new Set(S.buildings.map(function(b){ return b.x + ',' + b.y; })).size === S.buildings.length`), '📦 Max out all Storage: 4 at level 10 (×5)');
+const dl = q(`JSON.stringify(dealsNow())`);
+check(/New special deals/.test(q(`panelAction('newdeals', '', true)`)) && q(`JSON.stringify(dealsNow())`) !== dl, '⭐ New deals now');
+q(`panelAction('maxbase', '', true);`);
+check(q('allPetsInf()') && q('maxedStorages()') === 4, 'the best base now has ∞ of every pet and 4 maxed Storages');
+q(`renderAdmin(true);`);
+check(/EVERYTHING ON/.test(q(`document.getElementById('admBody').innerHTML`)) && /Max out all Storage/.test(q(`document.getElementById('admBody').innerHTML`)) && /∞ of ALL pets/.test(q(`document.getElementById('admSub').textContent`)), 'the owner panel shows the new buttons and what is switched on');
+q(`panelAction('alloff', '', true);`);
+
 // ---- ♾️ owner: infinite troops ----
 reset({ army: {} }); q(`S.owner = true;`);
 check(/ON/.test(q(`panelAction('inftroops', '', true)`)) && q(`panelAction('inftroops', '', false)`) === '👑 Owner only.', 'owner switches on infinite troops (admins cannot)');

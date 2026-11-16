@@ -206,7 +206,7 @@ function towerStats(b) {
 const BUILD_ORDER = ["goldmine", "lumbermill", "quarry", "storage", "barracks", "archer", "cannon", "wizard", "boomerang", "poison", "beehive", "dojo", "dragonstatue", "wall", "flame", "frost", "tesla", "meteor", "crystal", "trident", "ufo", "sun", "rainbow", "blackhole", "gate"];
 // p: the island's Prestige (yours if left out) — prestige towers need it
 function limitOf(type, th, p) {
-  if (B[type] && B[type].ownerOnly) return typeof S === "object" && S && S.owner ? 1 : 0;   // ⛩️
+  if (B[type] && B[type].ownerOnly) return typeof S === "object" && S && S.owner ? Infinity : 0;   // ⛩️ the owner can place as many as they like
   if (B[type] && B[type].th) return th >= Math.min(B[type].th + 2, MAX_TH) ? 2 : th >= B[type].th ? 1 : 0;   // 🏯 the Town Hall towers (2 at the top Town Hall)
   if (B[type] && B[type].prestige) return (p === undefined ? prest() : p) >= B[type].prestige ? 2 : 0;
   switch (type) {
@@ -1404,7 +1404,7 @@ function panelAction(act, arg, owner) {
     if (!kinds.every((t) => B[t] && (B[t].def || B[t].summon))) return "No such tower.";
     let added = 0;
     for (const t of kinds) {
-      const want = limitOf(t, MAX_TH, MAX_PRESTIGE) - countOf(t);
+      const want = B[t].ownerOnly ? (arg === "all" && countOf(t) ? 0 : 1) : limitOf(t, MAX_TH, MAX_PRESTIGE) - countOf(t);   // ⛩️ (no limit: one a click)
       for (let i = 0; i < want; i++) {
         const free = []; for (let y = 0; y < GRID; y++) for (let x = 0; x < GRID; x++) if (isLand(x, y) && tileFree(S.buildings, x, y)) free.push([x, y, Math.abs(Math.hypot(x - CENTER, y - CENTER) - landRadius(th()) * 0.55) + Math.random() * 0.8]);
         if (!free.length) break;
@@ -1430,7 +1430,7 @@ function panelAction(act, arg, owner) {
     return `📦 ${maxedStorages()} maxed-out Storages: storage ×${storeBoost().toFixed(2).replace(/\.?0+$/, "")} = ${capOf().toLocaleString()} of each`;
   }
   if (act === "newdeals") { S.dealShift = (S.dealShift || 0) + 1; S.deals = null; save(); return "⭐ New special deals are in the 🤝 Trade panel!"; }
-  if (act === "gateplace") { if (countOf("gate")) return "⛩️ You already have the Summoning Gate."; return panelAction("tower", "gate", true); }
+  if (act === "gateplace") { const r = panelAction("tower", "gate", true); return /placed/.test(r) ? `⛩️ Summoning Gate placed — you have ${countOf("gate")}!` : r; }
   if (act === "gatenow") {   // summon right now (in a battle)
     if (!battle || battle.over) return "Start a battle first — then summon.";
     const list = battle.foes ? battle.homeBlds : battle.opts.defense ? battle.blds : null;
@@ -1474,7 +1474,7 @@ function maxOutBase(keep) {
   place("cannon", limitOf("cannon", T8), 4.6, 1.2);
   place("barracks", limitOf("barracks", T8), 5.8, 0.8);
   ["boomerang", "poison", "beehive", "dojo", "dragonstatue"].forEach((t, i) => place(t, limitOf(t, T8), 6.7, 0.15 + i * 0.6));
-  place("gate", limitOf("gate", T8), 2.4, 3.1);   // ⛩️ (owner only)
+  if (S.owner) place("gate", 1, 2.4, 3.1);   // ⛩️ (owner only — place more from the Owner Panel)
   for (const P of PRESTIGE) place(P.tower, limitOf(P.tower, T8), 3.9, 0.2 + PRESTIGE.indexOf(P) * 0.35);   // 🌟 the prestige towers you've unlocked
   place("goldmine", limitOf("goldmine", T8), 7.6, 0);
   place("lumbermill", limitOf("lumbermill", T8), 7.6, 0.42);
@@ -1518,9 +1518,9 @@ function renderAdmin(owner) {
       sec("🏴‍☠️ Raids & 😠 revenge", btn("raidnow", "", "🏴‍☠️ Raid now", "red") + btn("revengenow", "", "😠 Revenge now", "red") + btn("noraids", "", S.noRaids ? "🏴‍☠️ Raids: OFF" : "🏴‍☠️ Raids: on", S.noRaids ? "" : "green")) +
       sec(`🌟 Prestige — you are ${prest()}/${MAX_PRESTIGE}`, btn("pnext", "", "🌟 +1 Prestige", "green") + btn("pmax", "", `🌟 Max (${MAX_PRESTIGE})`, "green") + btn("ptrial", "", "⚔️ Fight the next trial", "red") +
         PRESTIGE.map((P, i) => btn("pmap", i + 1, `${P.emoji} ${P.map}`, "red")).join("")) +
-      sec("🏯 Towers — free, at your Town Hall level (even locked ones)", Object.keys(B).filter((t) => B[t].def || B[t].summon).map((t) => btn("tower", t, `${B[t].emoji} ${B[t].name} ${countOf(t)}/${limitOf(t, MAX_TH, MAX_PRESTIGE)}`, B[t].prestige ? "" : B[t].th ? "blue" : "green")).join("") + btn("tower", "all", "🏯 ALL towers", "red")) +
-      sec(`⛩️ Summoning Gate — ${countOf("gate") ? "on your island" : "not placed yet"} · ${gateN()} of every troop every ${gateEvery() / 60} s (up to ${gateMax()})`,
-        btn("gateplace", "", countOf("gate") ? "⛩️ Placed ✅" : "⛩️ Place the Gate", "green") + btn("gatenow", "", "⛩️ Summon now (in battle)", "red") +
+      sec("🏯 Towers — free, at your Town Hall level (even locked ones)", Object.keys(B).filter((t) => B[t].def || B[t].summon).map((t) => btn("tower", t, `${B[t].emoji} ${B[t].name} ${countOf(t)}/${B[t].ownerOnly ? "∞" : limitOf(t, MAX_TH, MAX_PRESTIGE)}`, B[t].prestige ? "" : B[t].th ? "blue" : "green")).join("") + btn("tower", "all", "🏯 ALL towers", "red")) +
+      sec(`⛩️ Summoning Gate — ${countOf("gate") ? `${countOf("gate")} on your island` : "not placed yet"} · ${gateN()} of every troop every ${gateEvery() / 60} s (up to ${gateMax()})`,
+        btn("gateplace", "", `⛩️ Place a Gate (you have ${countOf("gate")})`, "green") + btn("gatenow", "", "⛩️ Summon now (in battle)", "red") +
         btn("gatespeed", "", `⏱ Every ${gateEvery() / 60} s`, "blue") + btn("gateamount", "", `👥 ${gateN()} of each`, "blue") +
         `<span style="font-size:.75rem;opacity:.75">Owner only. In offline fights its troops cross the bridge and smash the enemy's towers; in raids they fight the raiders. Tap ⏱ / 👥 to change them.</span>`) +
       sec("⚔️ In battle", btn("win", "", "⚡ Win this battle", "green") + btn("abil", "", "✨ Refill abilities", "blue")) +
@@ -1600,7 +1600,7 @@ function renderBuild() {
     const b = B[type], lim = limitOf(type, th()), have = countOf(type), c = costOf(type, 1);
     const ok = have < lim && canPay(c);
     return `<div class="card"><div class="e">${b.emoji}</div><div class="n">${b.name}</div><div class="d">${b.desc}</div>
-      <div class="c">${costText(c)}<br>${have}/${lim}${lim === 0 ? (b.ownerOnly ? " (👑 owner only)" : b.prestige ? ` (🌟 Prestige ${b.prestige})` : " (bigger Town Hall)") : ""}</div>
+      <div class="c">${costText(c)}<br>${have}/${lim === Infinity ? "∞" : lim}${lim === 0 ? (b.ownerOnly ? " (👑 owner only)" : b.prestige ? ` (🌟 Prestige ${b.prestige})` : " (bigger Town Hall)") : ""}</div>
       <button class="small" data-place="${type}" ${ok ? "" : "disabled"}>Place</button></div>`;
   }).join("");
   // ⬆️ every tower you own, with its upgrades to buy

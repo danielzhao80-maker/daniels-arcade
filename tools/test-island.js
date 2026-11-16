@@ -602,7 +602,7 @@ check(/Owner only|Not allowed/.test(q(`panelAction('maxbase', '', false)`)), 'ad
 q(`S.owner = true;`);
 const mx = q(`panelAction('maxbase', '', true)`);
 const mxs = JSON.parse(q(`JSON.stringify({ th: th(), rank: rank(), n: S.buildings.length, allMax: S.buildings.every(function(b){ return b.lvl === MAX_TH; }), golems: S.golems.length, full: S.gold === capOf() && S.wood === capOf() && S.stone === capOf(), army: armyUsed() + '/' + armyCap(),
-  limits: Object.keys(B).every(function(t){ return t === 'townhall' || countOf(t) === limitOf(t, MAX_TH); }), perks: S.buildings.filter(function(b){ return PERKS[b.type]; }).every(function(b){ return b.perks.length === 3; }),
+  limits: Object.keys(B).every(function(t){ return t === 'townhall' || B[t].ownerOnly || countOf(t) === limitOf(t, MAX_TH); }), perks: S.buildings.filter(function(b){ return PERKS[b.type]; }).every(function(b){ return b.perks.length === 3; }),
   land: S.buildings.every(function(b){ return isLand(b.x, b.y); }), overlap: new Set(S.buildings.map(function(b){ return b.x + ',' + b.y; })).size === S.buildings.length })`));
 check(mxs.th === 10 && mxs.rank === 10 && mxs.allMax && mxs.limits, '👑 Max out my base: Town Hall 10, rank 10, the most of every building, all level 10', JSON.stringify(mxs));
 check(mxs.perks && mxs.golems === 4 && mxs.full && mxs.army.split('/')[0] === mxs.army.split('/')[1], '…every tower upgrade, all 4 golems, full stores and a full army');
@@ -611,7 +611,7 @@ check(q(`(function(){ var near = function(t){ return S.buildings.filter(function
 reset({ rank: 1 });
 q(`S.owner = true; S.buildings.push({ type: 'archer', lvl: 1, x: CENTER + 3, y: CENTER - 1 }, { type: 'cannon', lvl: 1, x: CENTER - 3, y: CENTER + 2 }); window.__spots = S.buildings.map(function(b){ return b.type + '@' + b.x + ',' + b.y; });`);
 q(`panelAction('maxkeep', '', true)`);
-const keep = JSON.parse(q(`JSON.stringify({ kept: __spots.every(function(sp){ return S.buildings.some(function(b){ return b.type + '@' + b.x + ',' + b.y === sp; }); }), allMax: S.buildings.every(function(b){ return b.lvl === MAX_TH; }), limits: Object.keys(B).every(function(t){ return t === 'townhall' || countOf(t) === limitOf(t, MAX_TH); }), perks: S.buildings.filter(function(b){ return PERKS[b.type]; }).every(function(b){ return b.perks.length === 3; }), overlap: new Set(S.buildings.map(function(b){ return b.x + ',' + b.y; })).size === S.buildings.length, th: th() })`));
+const keep = JSON.parse(q(`JSON.stringify({ kept: __spots.every(function(sp){ return S.buildings.some(function(b){ return b.type + '@' + b.x + ',' + b.y === sp; }); }), allMax: S.buildings.every(function(b){ return b.lvl === MAX_TH; }), limits: Object.keys(B).every(function(t){ return t === 'townhall' || B[t].ownerOnly || countOf(t) === limitOf(t, MAX_TH); }), perks: S.buildings.filter(function(b){ return PERKS[b.type]; }).every(function(b){ return b.perks.length === 3; }), overlap: new Set(S.buildings.map(function(b){ return b.x + ',' + b.y; })).size === S.buildings.length, th: th() })`));
 check(keep.kept && keep.allMax && keep.perks && keep.th === 10, '⬆️ Max out (keep my layout): your towers stay where you put them — all level 10, every upgrade', JSON.stringify(keep));
 check(keep.limits && keep.overlap, '…and only the missing buildings are added, in free spots');
 q(`S.nextRaidAt = 0; for (var i = 0; i < 10; i++) { startDefense(); var n = 0; while (battle && !battle.over && n++ < 6000) battleStep(); battle = null; hidePanels(); }`);
@@ -999,7 +999,7 @@ check(/A free pet/.test(q(`document.getElementById('admBody').innerHTML`)) && /f
 reset({ gold: 1e4, stone: 1e4, army: {} });
 check(q(`limitOf('gate', 10)`) === 0 && /owner only/.test((q(`renderBuild(); document.getElementById('buildGrid').innerHTML`).match(/Summoning Gate[\s\S]*?owner only/) || [''])[0]), 'not the owner: no Summoning Gate (it says 👑 owner only)');
 q(`S.owner = true;`);
-check(q(`limitOf('gate', 1)`) === 1 && /1 tower placed/.test(q(`panelAction('tower', 'gate', true)`)) && q(`countOf('gate')`) === 1, 'the owner can have one (from the Owner Panel or the Build panel)');
+check(q(`limitOf('gate', 1)`) === Infinity && /1 tower placed/.test(q(`panelAction('tower', 'gate', true)`)) && q(`countOf('gate')`) === 1, 'the owner can place them (from the Owner Panel or the Build panel)');
 check(q(`startBattle(genIsland(6))`) === null, 'with a Gate you can attack even with no army (it brings its own)');
 q(`battle.waves = []; battleStep();`);
 check(q(`battle.troops.filter(function(t){ return t.summoned; }).length`) === 20 && ['warrior','archer','giant','mage'].every((k) => q(`battle.troops.filter(function(t){ return t.summoned && t.kind === '${k}'; }).length`) === 5), '⛩️ it summons 5 of EVERY troop at the start');
@@ -1035,7 +1035,10 @@ q(`battle = null; hidePanels(); netReset();`);
 
 // ---- ⛩️ owner panel: Summoning Gate controls ----
 reset({ army: {} }); q(`S.owner = true;`);
-check(/placed/.test(q(`panelAction('gateplace', '', true)`)) && q(`countOf('gate')`) === 1 && /already/.test(q(`panelAction('gateplace', '', true)`)), '⛩️ Place the Gate (once)');
+check(/you have 1/.test(q(`panelAction('gateplace', '', true)`)) && /you have 2/.test(q(`panelAction('gateplace', '', true)`)) && q(`countOf('gate')`) === 2, '⛩️ Place as many Gates as you like');
+q(`for (var i = 0; i < 8; i++) panelAction('gateplace', '', true);`);
+check(q(`countOf('gate')`) === 10 && q(`new Set(S.buildings.map(function(b){ return b.x + ',' + b.y; })).size === S.buildings.length`), '…10 Gates, none on top of each other');
+q(`S.buildings = S.buildings.filter(function(b){ return b.type !== 'gate'; }); panelAction('gateplace', '', true);`);
 check(/every 5 s/.test(q(`panelAction('gatespeed', '', true)`)) && /every 2 s/.test(q(`panelAction('gatespeed', '', true)`)) && /every 10 s/.test(q(`panelAction('gatespeed', '', true)`)), '⏱ speed: 10 → 5 → 2 → 10 s');
 check(/10 of every/.test(q(`panelAction('gateamount', '', true)`)) && /20 of every/.test(q(`panelAction('gateamount', '', true)`)), '👥 amount: 5 → 10 → 20 of each');
 check(/battle first/.test(q(`panelAction('gatenow', '', true)`)), 'summon now needs a battle');

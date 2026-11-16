@@ -224,7 +224,7 @@ const rg = JSON.parse(q(`(function(){ var tr = battle.troops[0]; castAbility('ra
 check(rg.raged > rg.normal * 1.3, '🔥 Rage: troops move faster (and hit harder)', JSON.stringify(rg));
 const fz = JSON.parse(q(`(function(){ battle.mobs = []; var d = battle.blds.find(function(b){ return B[b.type].def; }); castAbility('freeze', d.x, d.y); d.cd = 0; var tr = battle.troops[0]; tr.x = d.x + 0.5; tr.y = d.y; tr.hp = tr.maxHp = 1e9; var h0 = tr.hp; for (var i = 0; i < 100; i++) { tr.x = d.x + 0.5; tr.y = d.y; battleStep(); } return JSON.stringify({ frozen: d.frozenUntil > battle.frame, hurt: h0 - tr.hp }); })()`));
 check(fz.frozen && fz.hurt === 0, '❄️ Freeze: the defences in the area stop shooting', JSON.stringify(fz));
-const bar = JSON.parse(q(`(function(){ battle.mobs = []; var d = battle.blds.find(function(b){ return B[b.type].def; }); d.frozenUntil = 0; d.cd = 0;
+const bar = JSON.parse(q(`(function(){ battle.mobs = []; battle.waves = []; battle.foes = []; var d = battle.blds.find(function(b){ return B[b.type].def; }); d.frozenUntil = 0; d.cd = 0;
   var tr = battle.troops[0]; tr.x = d.x - 2; tr.y = d.y; tr.hp = tr.maxHp = 1e9; tr.dmg = 0; var h0 = tr.hp;
   castAbility('barricade', d.x - 1, d.y);
   var br = battle.barricades[0];
@@ -830,6 +830,30 @@ check(q('!!battle && !!battle.bridge && battle.bridge.home.name') === 'Skull Bay
 q(`for (var i = 0; i < 900; i++) battleStep();`);
 check(q(`battle.over || battle.troops.some(function(t){ return t.stage === 2; })`), '…and they come over the bridge');
 q(`if (!battle.over) endBattle(true); battle = null; hidePanels();`);
+
+// ---- ⚔️ offline fights: your whole island, and they fight back ----
+reset({ army: { warrior: 10, giant: 3 } });
+q(`S.buildings.push({ type: 'archer', lvl: 2, x: 12, y: 10 }, { type: 'cannon', lvl: 2, x: 8, y: 10 });`);
+q(`startBattle(genIsland(4));`);
+check(q('battle.homeBlds.length') === q('S.buildings.length') && q('battle.bridge.home.full') === true && q(`battle.homeBlds.every(function(b){ return b.x < battle.bridge.a.x; })`), '⚔️ an offline fight shows your WHOLE island (every building) next to theirs');
+check(q('battle.homeMobs.length') > 0 && q('battle.homeMobs.every(function(m){ return m.mine; })'), 'your animals are there to defend it');
+check(q('battle.waves.length') === 3 && q('battle.foes.length') === 0, 'they attack back in 3 waves');
+q(`battle.troops = []; battle.army = { warrior: 1 }; for (var i = 0; i < 320; i++) battleStep();`);
+check(q('battle.foes.length') > 0 && q('battle.foes.every(function(f){ return f.stage >= 0; })'), 'the first wave sets off');
+q(`window.__fp = []; for (var i = 0; i < 1500 && !battle.over; i++) { battleStep(); battle.foes.forEach(function(f){ if (f.hp > 0) __fp.push([f.x, f.y]); }); }`);
+check(q(`__fp.filter(function(p){ return p[0] > battle.bridge.a.x + 0.2 && p[0] < battle.bridge.b.x - 0.2; }).every(function(p){ return Math.abs(p[1] - CENTER) < 0.5; })`) && q(`__fp.some(function(p){ return p[0] < battle.bridge.a.x; })`), 'their attackers cross the bridge to your island');
+check(q(`battle.homeBlds.some(function(b){ return b.hp < b.maxHp; }) || battle.foes.some(function(f){ return f.hp < f.maxHp; })`), 'your island fights them (and they hit your buildings)');
+// troops fight each other on the bridge
+q(`endBattle(true); battle = null; hidePanels(); S.army = { giant: 1 }; startBattle(genIsland(4)); battle.mobs = []; battle.blds.forEach(function(b){ if (B[b.type].def) b.hp = 0; }); deploy('giant', battle.bridge.a.x, CENTER); var g = battle.troops[0]; g.x = (battle.bridge.a.x + battle.bridge.b.x) / 2; g.y = CENTER; g.stage = 1; battle.foes.push({ kind: 'warrior', x: g.x + 0.8, y: CENTER, hp: 50, maxHp: 50, dmg: 1, cd: 0, target: null, stage: 1 }); battle.waves = []; for (var i = 0; i < 200; i++) battleStep();`);
+check(q('battle.foes[0].hp') <= 0, '⚔️ troops fight each other when they meet on the bridge');
+q(`endBattle(true); battle = null; hidePanels();`);
+// losses
+reset({ gold: 1000, wood: 1000, stone: 1000, army: { warrior: 2 } });
+q(`startBattle(genIsland(2)); battle.homeBlds.forEach(function(b){ if (b.type !== 'wall') b.hp = 0; }); endBattle(true);`);
+check(q('S.gold') === 750 && /wrecked 100%/.test(q(`document.getElementById('resText').textContent`)), 'they wreck your whole island: you lose a quarter of your stuff');
+q(`battle = null; hidePanels(); S.army = { warrior: 2 }; startBattle(genIsland(2)); endBattle(true);`);
+check(/held/.test(q(`document.getElementById('resText').textContent`)) && q('S.gold') >= 750, 'nothing broken: you lose nothing');
+q(`battle = null; hidePanels();`);
 
 // ---- ♾️ owner: infinite troops ----
 reset({ army: {} }); q(`S.owner = true;`);

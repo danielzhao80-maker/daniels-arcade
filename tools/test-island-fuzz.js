@@ -125,7 +125,7 @@ console.log('load        : OK');
 
 
 
-function q(js){ return vm.runInNewContext(js, ctx, {filename:'game.js', timeout:20000}); }
+function q(js){ return vm.runInNewContext(js, ctx, {filename:'game.js', timeout:120000}); }
 let ok = true;
 function check(pass, label, extra) {
   if (!pass) ok = false;

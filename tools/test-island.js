@@ -883,6 +883,18 @@ check(q('S.pets.length') === q('petLimit()'), 'switch it off: back down to the l
 q(`renderPets(); renderAdmin(true); renderInfo();`);
 check(/Release/.test(q(`document.getElementById('petGrid').innerHTML`)) && /Infinite pets/.test(q(`document.getElementById('admBody').innerHTML`)), 'the 🐾 Pets panel and the owner buttons');
 
+// ---- ♾️ owner: infinite of ALL pets ----
+reset({}); q(`S.owner = true;`);
+check(/INFINITE/.test(q(`panelAction('allpetsinf', '', true)`)) && q(`panelAction('allpetsinf', '', false)`) === '👑 Owner only.', '♾️ ∞ of ALL pets (owner only)');
+check(q(`(function(){ var k = petKinds(), seen = {}; homeDefenders().forEach(function(m){ if (m.pet) seen[m.kind] = 1; }); return k.every(function(x){ return seen[x]; }) && homeDefenders().filter(function(m){ return m.pet; }).length === PET_FIGHT_MAX; })()`), 'every kind of pet is on your island (60 at a time)');
+q(`S.prestige = 10; homeMobsKey = '';`);
+check(q(`homeDefenders().some(function(m){ return m.pet && m.kind === 'trex'; })`), 'prestige pets too, once unlocked');
+check(q(`myIslandSnapshot().pets.length`) === 60 && q('(S.pets || []).length') === 0, 'they defend online too (and your real pet list is untouched)');
+q(`renderPets(); renderInfo();`);
+check(/× ∞/.test(q(`document.getElementById('petGrid').innerHTML`)), 'the 🐾 Pets panel shows × ∞');
+q(`panelAction('allpetsinf', '', true);`);
+check(q('allPetsInf()') === false && q(`homeDefenders().filter(function(m){ return m.pet; }).length`) === 0, 'switch it off: back to your own pets');
+
 // ---- ♾️ owner: infinite troops ----
 reset({ army: {} }); q(`S.owner = true;`);
 check(/ON/.test(q(`panelAction('inftroops', '', true)`)) && q(`panelAction('inftroops', '', false)`) === '👑 Owner only.', 'owner switches on infinite troops (admins cannot)');

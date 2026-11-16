@@ -43,6 +43,7 @@
   #battlebar { display: none; }
   .troop { border-radius: 16px; padding: 6px 10px; font-size: .9rem; }
   .troop.sel { outline: 3px solid #feca57; }
+  select { font-family: "Fredoka One", cursive; font-size: .95rem; padding: 5px 8px; border-radius: 12px; border: 2px solid #fff; background: #2d3436; color: #fff; }
   input { font-family: "Fredoka One", cursive; font-size: 1.1rem; padding: 8px 12px; border-radius: 14px; border: 2px solid #fff; background: rgba(255,255,255,.12); color: #fff; width: 170px; text-align: center; text-transform: uppercase; }
   .row { display: flex; gap: 10px; justify-content: center; align-items: center; flex-wrap: wrap; margin: 10px 0; }
 </style>
@@ -76,6 +77,7 @@
   <button id="btnArmy" class="blue">🛡️ Army</button>
   <button id="btnRaid" class="red">⚔️ Raid (offline)</button>
   <button id="btnOnline" class="green">🌐 Fight online</button>
+  <button id="btnTrade" style="background:linear-gradient(180deg,#ffeaa7,#e1b12c);box-shadow:0 4px 0 #8a6d00;color:#3d2c00">🤝 Trade</button>
   <button id="btnPrest" style="background:linear-gradient(180deg,#a29bfe,#6c5ce7);box-shadow:0 4px 0 #3c2f99">🌟 Prestige</button>
   <button id="btnRank" style="background:linear-gradient(180deg,#f9ca24,#d35400);box-shadow:0 4px 0 #7a3a00">🎖️ Rank Up</button>
 </div>
@@ -86,6 +88,13 @@
 <div class="panel" id="buildPanel"><button class="close" data-close>✕</button><h2>🏗️ Build</h2><div class="sub">Pick a building, then tap an empty spot on your island.</div><div class="grid" id="buildGrid"></div></div>
 <div class="panel" id="armyPanel"><button class="close" data-close>✕</button><h2>🛡️ Army</h2><div class="sub" id="armySub"></div><div class="grid" id="armyGrid"></div></div>
 <div class="panel" id="raidPanel"><button class="close" data-close>✕</button><h2>⚔️ Raid an island</h2><div class="sub">Computer islands — the harder, the more loot.</div><div class="grid" id="raidGrid"></div></div>
+<div class="panel" id="tradePanel"><button class="close" data-close>✕</button><h2>🤝 Trade</h2><div class="sub" id="tradeTop"></div><div id="tradeBody"></div>
+  <div class="card" style="text-align:left;margin-top:10px"><div class="n">🌐 Trade with a friend</div>
+    <div class="d">Make a trade code, or join a friend's. Each of you puts in what you'll give, then both press ✅ Accept.</div>
+    <div class="row" style="justify-content:flex-start"><button id="tHost" class="small green">Make a trade code</button><input id="tCode" maxlength="5" placeholder="CODE" style="width:110px"><button id="tJoin" class="small blue">Join</button></div>
+    <div id="tLive"></div>
+    <div class="sub" id="tradeMsg" style="font-weight:900;font-size:.95rem;margin-top:6px"></div></div>
+</div>
 <div class="panel" id="onlinePanel"><button class="close" data-close>✕</button><h2>🌐 Fight online</h2>
   <div class="sub">You and a friend attack each other's islands at the same time. Whoever destroys more wins!</div>
   <div class="row"><button id="hostBtn" class="green">Create a battle</button></div>
@@ -887,6 +896,119 @@ function wireConn(conn) {
   });
 }
 const hasArmy = () => Object.values(S.army).some((n) => n > 0);
+// ---- 🤝 TRADING ----------------------------------------------------------------------------------------
+// 🏪 The merchant swaps any resource for another (2 for 1). ⭐ Special deals change every 10 minutes (each once).
+// 🌐 Trade with a friend (PeerJS): each side puts in an offer, both press Accept, and the stuff swaps over.
+const RES = ["gold", "wood", "stone"];
+const MERCHANT_RATE = 0.5;
+function addRes(k, n) { const cap = capOf(), got = Math.max(0, Math.min(n, cap - S[k])); S[k] += got; return got; }
+function merchantTrade(from, to, amount) {
+  amount = Math.floor(+amount || 0);
+  if (!RES.includes(from) || !RES.includes(to) || from === to) return "Pick two different resources.";
+  if (amount < 2) return "Trade at least 2.";
+  if (!canPay({ [from]: amount })) return `You only have ${R[from]} ${Math.floor(S[from]).toLocaleString()}.`;
+  const get = Math.floor(amount * MERCHANT_RATE);
+  if (capOf() - S[to] < 1) return `Your ${R[to]} storage is full.`;
+  const take = Math.min(amount, Math.ceil((capOf() - S[to]) / MERCHANT_RATE));   // only give what fits
+  pay({ [from]: take }); const got = addRes(to, Math.floor(take * MERCHANT_RATE));
+  S.trades = (S.trades || 0) + 1; save();
+  return `🏪 Traded ${R[from]} ${take.toLocaleString()} → ${R[to]} ${got.toLocaleString()}`;
+}
+// ⭐ Deals: 3 a window, the same for everyone in that 10 minutes.
+const DEAL_EVERY = 10 * 60 * 1000;
+const dealWindow = () => Math.floor(Date.now() / DEAL_EVERY);
+function dealsNow() {
+  const r = rng(dealWindow() * 7 + 3), pick = (a) => a[Math.floor(r() * a.length)], out = [];
+  const kinds = ["swap", "troops", "sell", "swap", "bundle"];
+  for (let i = 0; i < 3; i++) {
+    const kind = pick(kinds), s = 1 + Math.floor(r() * 4);   // size 1–4
+    if (kind === "swap") { const a = pick(RES), b = pick(RES.filter((x) => x !== a)); out.push({ give: { [a]: 500 * s }, get: { [b]: 400 * s }, text: "Better than the merchant!" }); }
+    else if (kind === "troops") { const t = pick([["warrior", 8, 150], ["archer", 6, 160], ["giant", 2, 180], ["mage", 2, 220]]); out.push({ give: { [pick(RES)]: t[2] * s }, troops: { [t[0]]: t[1] * s / 2 | 0 || 1 }, text: "Troops for your army" }); }
+    else if (kind === "sell") { const t = pick([["warrior", 5, 250], ["archer", 4, 280], ["giant", 1, 400], ["mage", 1, 450]]); out.push({ sell: { [t[0]]: t[1] }, get: { [pick(RES)]: t[2] * s }, text: "Sell some troops" }); }
+    else out.push({ give: { gold: 300 * s, wood: 300 * s }, get: { stone: 450 * s }, text: "Bundle deal" });
+  }
+  return out;
+}
+function dealText(d) {
+  const tr = (o) => Object.entries(o).map(([k, n]) => `${T[k].emoji} ${n} ${T[k].name}${n > 1 ? "s" : ""}`).join(" ");
+  return `${d.give ? costText(d.give) : tr(d.sell)} → ${d.get ? costText(d.get) : tr(d.troops)}`;
+}
+function takeDeal(i) {
+  const d = dealsNow()[i]; if (!d) return "No such deal.";
+  if (!S.deals || S.deals.w !== dealWindow()) S.deals = { w: dealWindow(), done: [] };
+  if (S.deals.done.includes(i)) return "You already took that deal — new deals come every 10 minutes.";
+  if (d.give && !canPay(d.give)) return `Not enough: ${costText(d.give)}`;
+  if (d.sell && !Object.entries(d.sell).every(([k, n]) => (S.army[k] || 0) >= n)) return `You need ${dealText({ sell: d.sell, get: {} }).split(" →")[0]} in your army.`;
+  if (d.troops) { const room = armyCap() - armyUsed(), need = Object.entries(d.troops).reduce((a, [k, n]) => a + T[k].house * n, 0); if (need > room) return "Not enough army space for those troops."; }
+  if (d.get && RES.every((k) => !(d.get[k] > 0) || capOf() - S[k] < 1)) return "Your storage is full.";
+  if (d.give) pay(d.give);
+  if (d.sell) for (const [k, n] of Object.entries(d.sell)) S.army[k] -= n;
+  if (d.get) for (const [k, n] of Object.entries(d.get)) addRes(k, n);
+  if (d.troops) for (const [k, n] of Object.entries(d.troops)) S.army[k] = (S.army[k] || 0) + n;
+  S.deals.done.push(i); S.trades = (S.trades || 0) + 1; save();
+  return `⭐ Deal done: ${dealText(d)}`;
+}
+// 🌐 Friend trades
+const TRADE = { peer: null, conn: null, friend: "", mine: { gold: 0, wood: 0, stone: 0 }, theirs: null, iAccept: false, theyAccept: false };
+const cleanOffer = (o) => { const c = {}; for (const k of RES) c[k] = Math.max(0, Math.min(1e9, Math.floor(+(o && o[k]) || 0))); return c; };
+const sameOffer = (a, b) => !!a && !!b && RES.every((k) => (a[k] || 0) === (b[k] || 0));
+const tradeMsg = (t) => { const e = $("tradeMsg"); if (e) e.textContent = t; };
+function tradeSend(o) { try { TRADE.conn && TRADE.conn.open && TRADE.conn.send(o); } catch (e) {} }
+function tradeReset() { try { TRADE.conn && TRADE.conn.close(); TRADE.peer && TRADE.peer.destroy(); } catch (e) {} Object.assign(TRADE, { peer: null, conn: null, friend: "", mine: { gold: 0, wood: 0, stone: 0 }, theirs: null, iAccept: false, theyAccept: false }); }
+function setTradeOffer(o) {
+  const give = cleanOffer(o);
+  if (!infinite() && RES.some((k) => give[k] > S[k])) return "You can't give more than you have.";
+  TRADE.mine = give; TRADE.iAccept = TRADE.theyAccept = false;
+  tradeSend({ t: "offer", give }); return null;
+}
+function acceptTrade() {
+  if (!TRADE.conn) return "Connect to a friend first.";
+  if (!TRADE.theirs) return "Wait for your friend's offer.";
+  if (!infinite() && RES.some((k) => TRADE.mine[k] > S[k])) return "You don't have what you offered any more.";
+  TRADE.iAccept = true; tradeSend({ t: "accept", mine: TRADE.mine, yours: TRADE.theirs });
+  return finishTrade() || "✅ You accepted — waiting for your friend…";
+}
+function finishTrade() {   // both accepted the same two offers: swap
+  if (!TRADE.iAccept || !TRADE.theyAccept) return null;
+  pay(TRADE.mine); const got = {}; for (const k of RES) got[k] = Math.floor(addRes(k, TRADE.theirs[k] || 0));
+  const gave = TRADE.mine;
+  S.trades = (S.trades || 0) + 1; refillInfinite(); save();
+  TRADE.mine = { gold: 0, wood: 0, stone: 0 }; TRADE.theirs = null; TRADE.iAccept = TRADE.theyAccept = false;
+  const nz = (o) => costText(Object.fromEntries(Object.entries(o).filter(([, v]) => v > 0))) || "nothing";
+  const msg = `🤝 Trade done! You gave ${nz(gave)} and got ${nz(got)}.`;
+  toast(msg); renderTop(); return msg;
+}
+function tradeOnData(m) {
+  if (!m || typeof m !== "object") return;
+  if (m.t === "hi") TRADE.friend = String(m.name || "Friend").slice(0, 24);
+  else if (m.t === "offer") { TRADE.theirs = cleanOffer(m.give); TRADE.iAccept = TRADE.theyAccept = false; }   // a new offer: both must accept again
+  else if (m.t === "accept") { TRADE.theyAccept = sameOffer(cleanOffer(m.mine), TRADE.theirs) && sameOffer(cleanOffer(m.yours), TRADE.mine); const r = finishTrade(); if (r) tradeMsg(r); }
+  renderTradeLive();
+}
+function wireTrade(conn) {
+  TRADE.conn = conn;
+  conn.on("open", () => { tradeMsg("Connected! Put in your offer."); tradeSend({ t: "hi", name: myIslandSnapshot().name.replace(/'s island$/, "") }); tradeSend({ t: "offer", give: TRADE.mine }); renderTradeLive(); });
+  conn.on("data", tradeOnData);
+  conn.on("close", () => { tradeMsg("🌐 Your friend left the trade."); tradeReset(); renderTradeLive(); });
+}
+function hostTrade() {
+  if (typeof Peer === "undefined") return tradeMsg("Trading with a friend needs the internet (PeerJS didn't load).");
+  tradeReset();
+  const code = Array.from({ length: 5 }, () => "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"[Math.floor(Math.random() * 32)]).join("");
+  TRADE.peer = new Peer("islandtrade-" + code, PEER_OPTS);
+  TRADE.peer.on("open", () => tradeMsg(`Your trade code: ${code} — tell your friend to Join with it.`));
+  TRADE.peer.on("connection", (c) => wireTrade(c));
+  TRADE.peer.on("error", (e) => tradeMsg("Trade error: " + (e && e.type || e)));
+}
+function joinTrade(code) {
+  code = String(code || "").trim().toUpperCase();
+  if (code.length !== 5) return tradeMsg("Type the 5-letter trade code your friend sees.");
+  if (typeof Peer === "undefined") return tradeMsg("Trading with a friend needs the internet (PeerJS didn't load).");
+  tradeReset();
+  TRADE.peer = new Peer(undefined, PEER_OPTS);
+  TRADE.peer.on("open", () => { tradeMsg("Connecting…"); wireTrade(TRADE.peer.connect("islandtrade-" + code, { reliable: true })); });
+  TRADE.peer.on("error", (e) => tradeMsg(e && e.type === "peer-unavailable" ? "No trade with that code." : "Trade error: " + (e && e.type || e)));
+}
 // ---- 🎁 codes (each once per island) ------------------------------------------------------------------
 const CODES = {
   ISLAND:    { gold: 500 },
@@ -1002,6 +1124,22 @@ function panelAction(act, arg, owner) {
     if (!battle || battle.over || battle.opts.defense) return "Start an attack first — then refill your abilities.";
     for (const k of Object.keys(AB)) battle.abil[k] = abilityUses(MAX_TH) + 3; battle.drawBar && battle.drawBar(); return "✨ Every mini ability refilled (5 each)";
   }
+  if (act === "tower") {   // 🏯 owner: place free towers (any kind, even locked ones) at the top level, fully upgraded
+    const all = Object.keys(B).filter((t) => B[t].def), kinds = arg === "all" ? all : [arg];
+    if (!kinds.every((t) => B[t] && B[t].def)) return "No such tower.";
+    let added = 0;
+    for (const t of kinds) {
+      const want = limitOf(t, MAX_TH, MAX_PRESTIGE) - countOf(t);
+      for (let i = 0; i < want; i++) {
+        const free = []; for (let y = 0; y < GRID; y++) for (let x = 0; x < GRID; x++) if (isLand(x, y) && tileFree(S.buildings, x, y)) free.push([x, y, Math.abs(Math.hypot(x - CENTER, y - CENTER) - landRadius(th()) * 0.55) + Math.random() * 0.8]);
+        if (!free.length) break;
+        free.sort((a, b) => a[2] - b[2]);
+        S.buildings.push({ type: t, lvl: th(), x: free[0][0], y: free[0][1], perks: PERKS[t] ? PERKS[t].map((p) => p.id) : undefined }); added++;
+      }
+    }
+    homeMobsKey = ""; save();
+    return added ? `🏯 ${added} tower${added > 1 ? "s" : ""} placed (level ${th()})` : arg === "all" ? "You already have every tower (or no room left)." : `You already have the most ${B[arg].name}s (or no room left).`;
+  }
   if (act === "army0") { S.army = {}; save(); return "⚔️ Army emptied"; }
   if (act === "golem0") { S.golems = []; save(); homeMobsKey = ""; return "🗿 Golems sent away"; }
   if (act === "reset") { const keepOwner = S.owner; S = freshSave(); S.owner = keepOwner; S.nextRaidAt = Date.now() + RAID_EVERY; homeMobsKey = ""; save(); hidePanels(); return "🔄 Your island started over"; }
@@ -1065,6 +1203,7 @@ function renderAdmin(owner) {
       sec("🏴‍☠️ Raids & 😠 revenge", btn("raidnow", "", "🏴‍☠️ Raid now", "red") + btn("revengenow", "", "😠 Revenge now", "red") + btn("noraids", "", S.noRaids ? "🏴‍☠️ Raids: OFF" : "🏴‍☠️ Raids: on", S.noRaids ? "" : "green")) +
       sec(`🌟 Prestige — you are ${prest()}/${MAX_PRESTIGE}`, btn("pnext", "", "🌟 +1 Prestige", "green") + btn("pmax", "", `🌟 Max (${MAX_PRESTIGE})`, "green") + btn("ptrial", "", "⚔️ Fight the next trial", "red") +
         PRESTIGE.map((P, i) => btn("pmap", i + 1, `${P.emoji} ${P.map}`, "red")).join("")) +
+      sec("🏯 Towers — free, at your Town Hall level (even locked ones)", Object.keys(B).filter((t) => B[t].def).map((t) => btn("tower", t, `${B[t].emoji} ${B[t].name} ${countOf(t)}/${limitOf(t, MAX_TH, MAX_PRESTIGE)}`, B[t].prestige ? "" : B[t].th ? "blue" : "green")).join("") + btn("tower", "all", "🏯 ALL towers", "red")) +
       sec("⚔️ In battle", btn("win", "", "⚡ Win this battle", "green") + btn("abil", "", "✨ Refill abilities", "blue")) +
       sec("🧹 Clear", btn("army0", "", "Empty my army") + btn("golem0", "", "Remove golems") + btn("reset", "", "🔄 Start my island over", "red")) +
       sec("🏆 The best base", btn("maxkeep", "", "⬆️ Max out (keep my layout)", "green") + btn("maxbase", "", "🏆 Max out with a new layout", "green") +
@@ -1275,6 +1414,39 @@ setInterval(() => { if (NET.mine && !NET.theirs && $("resultPanel").style.displa
 $("btnBuild").onclick = () => { hideInfo(); renderBuild(); openPanel("buildPanel"); };
 $("btnArmy").onclick = () => { hideInfo(); renderArmy(); openPanel("armyPanel"); };
 $("btnRaid").onclick = () => { hideInfo(); renderRaids(); openPanel("raidPanel"); };
+function renderTrade() {
+  const left = Math.max(0, Math.ceil((DEAL_EVERY - (Date.now() % DEAL_EVERY)) / 60000));
+  $("tradeTop").textContent = `You have ${RES.map((k) => `${R[k]} ${infinite() ? "∞" : Math.floor(S[k]).toLocaleString()}`).join(" · ")} (room for ${capOf().toLocaleString()} each)`;
+  const opt = (sel) => RES.map((k) => `<option value="${k}" ${k === sel ? "selected" : ""}>${R[k]} ${k}</option>`).join("");
+  const done = S.deals && S.deals.w === dealWindow() ? S.deals.done : [];
+  $("tradeBody").innerHTML = `<div class="card" style="text-align:left"><div class="n">🏪 The merchant — 2 for 1</div>
+      <div class="row" style="justify-content:flex-start;margin:6px 0 0">Give <select id="mFrom">${opt("gold")}</select> get <select id="mTo">${opt("stone")}</select></div>
+      <div class="row" style="justify-content:flex-start;margin:6px 0 0">${[100, 1000, 10000].map((n) => `<button class="small" data-merch="${n}">Give ${n.toLocaleString()}</button>`).join("")}<button class="small" data-merch="half">Give half</button></div></div>
+    <div class="card" style="text-align:left;margin-top:10px"><div class="n">⭐ Special deals <span style="opacity:.7;font-size:.8rem">(new ones in ${left} min)</span></div>`
+    + dealsNow().map((d, i) => `<div style="font-size:.85rem;margin-top:6px">${dealText(d)} <span style="opacity:.7">— ${d.text}</span> ${done.includes(i) ? "✅" : `<button class="small green" data-deal="${i}">Take</button>`}</div>`).join("") + `</div>`;
+  $("tradeBody").querySelectorAll("[data-merch]").forEach((b) => (b.onclick = () => {
+    const from = $("mFrom").value, n = b.dataset.merch === "half" ? Math.floor(S[from] / 2) : +b.dataset.merch;
+    toast(merchantTrade(from, $("mTo").value, n)); renderTop(); const f = $("mFrom").value, t = $("mTo").value; renderTrade(); $("mFrom").value = f; $("mTo").value = t;
+  }));
+  $("tradeBody").querySelectorAll("[data-deal]").forEach((b) => (b.onclick = () => { toast(takeDeal(+b.dataset.deal)); renderTop(); renderTrade(); }));
+  renderTradeLive();
+}
+function renderTradeLive() {
+  const el = $("tLive"); if (!el) return;
+  if (!TRADE.conn) { el.innerHTML = ""; return; }
+  const box = (k) => `<input type="number" min="0" data-give="${k}" value="${TRADE.mine[k] || 0}" style="width:110px;font-size:.9rem;text-transform:none"> ${R[k]}`;
+  el.innerHTML = `<div style="font-size:.88rem;margin-top:8px"><b>You give:</b> ${RES.map(box).join(" ")} <button class="small" id="tOffer">Update offer</button></div>
+    <div style="font-size:.88rem;margin-top:6px"><b>${TRADE.friend || "Your friend"} gives:</b> ${TRADE.theirs ? costText(Object.fromEntries(Object.entries(TRADE.theirs).filter(([, v]) => v > 0))) || "nothing" : "…waiting"}</div>
+    <div style="font-size:.85rem;margin-top:6px">${TRADE.iAccept ? "✅ You accepted" : "⬜ You haven't accepted"} · ${TRADE.theyAccept ? "✅ They accepted" : "⬜ They haven't accepted"}</div>
+    <div class="row" style="justify-content:flex-start"><button class="small green" id="tAccept">✅ Accept</button><button class="small red" id="tLeave">Leave</button></div>`;
+  $("tOffer").onclick = () => { const o = {}; el.querySelectorAll("[data-give]").forEach((i) => (o[i.dataset.give] = i.value)); tradeMsg(setTradeOffer(o) || "Offer sent — both of you need to accept again."); renderTradeLive(); };
+  $("tAccept").onclick = () => { tradeMsg(acceptTrade()); renderTradeLive(); };
+  $("tLeave").onclick = () => { tradeReset(); tradeMsg("You left the trade."); renderTradeLive(); };
+}
+$("btnTrade").onclick = () => { hideInfo(); tradeMsg(""); renderTrade(); openPanel("tradePanel"); };
+$("tHost").onclick = hostTrade;
+$("tJoin").onclick = () => joinTrade($("tCode").value);
+$("tCode").addEventListener("keydown", (e) => e.stopPropagation());
 $("btnOnline").onclick = () => { hideInfo(); onlineMsg(""); openPanel("onlinePanel"); };
 $("btnInfo").onclick = () => { hideInfo(); renderInfo(); openPanel("infoPanel"); };
 $("btnAdmin").onclick = () => openAdmin(false);

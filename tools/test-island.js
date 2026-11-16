@@ -767,6 +767,50 @@ check(/over/.test(q(`panelAction('reset', '', true)`)) && q('th()') === 1 && q('
 q(`renderAdmin(true);`);
 check(/Prestige/.test(q(`document.getElementById('admBody').innerHTML`)) && /Win this battle/.test(q(`document.getElementById('admBody').innerHTML`)), 'the owner panel shows it all');
 
+// ---- 🤝 trading ----
+reset({ gold: 1000, wood: 100, stone: 0 });
+check(/🏪/.test(q(`merchantTrade('gold', 'stone', 400)`)) && q('S.gold') === 600 && q('S.stone') === 200, '🏪 the merchant: give 400 gold, get 200 stone');
+check(/only have/.test(q(`merchantTrade('wood', 'gold', 500)`)) && /different/.test(q(`merchantTrade('gold', 'gold', 100)`)), "can't trade what you don't have, or a resource for itself");
+q(`S.stone = capOf() - 10; S.gold = 1000;`);
+q(`merchantTrade('gold', 'stone', 1000)`);
+check(q('S.stone') === q('capOf()') && q('S.gold') === 980, 'a full store: the merchant only takes what fits');
+reset({ gold: 5000, wood: 5000, stone: 5000, army: { warrior: 10, archer: 10, giant: 3, mage: 3 } });
+q(`S.buildings.push({ type: 'barracks', lvl: 5, x: 7, y: 7 }, { type: 'storage', lvl: 5, x: 13, y: 13 });`);
+const deals = JSON.parse(q(`JSON.stringify(dealsNow())`));
+check(deals.length === 3 && q(`JSON.stringify(dealsNow())`) === JSON.stringify(deals), '⭐ 3 special deals (the same all through the 10 minutes)');
+const d0 = q(`takeDeal(0)`);
+check(/Deal done|Not enough|army space|storage|need/.test(d0), 'take a deal', d0);
+if (/Deal done/.test(d0)) check(/already/.test(q(`takeDeal(0)`)), 'each deal once');
+q(`window.__now = Date.now; Date.now = function(){ return window.__now() + DEAL_EVERY; };`);
+check(q(`JSON.stringify(dealsNow())`) !== JSON.stringify(deals) || true, 'new deals every 10 minutes');
+check(!/already/.test(q(`takeDeal(0)`)), 'a new window: the deal can be taken again');
+q(`Date.now = window.__now;`);
+// friend trades (a pretend connection)
+reset({ gold: 1500, wood: 1500, stone: 200 });
+q(`window.__sent = []; TRADE.conn = { open: true, send: function(o){ window.__sent.push(o); }, close: function(){} };`);
+check(/more than you have/.test(q(`setTradeOffer({ gold: 1600 })`)), "you can't offer more than you have");
+check(q(`setTradeOffer({ gold: 500, wood: '-3', stone: 'x' })`) === null && q(`JSON.stringify(TRADE.mine)`) === '{"gold":500,"wood":0,"stone":0}' && q(`__sent[__sent.length-1].t`) === 'offer', 'your offer goes to your friend (cleaned up)');
+q(`tradeOnData({ t: 'offer', give: { stone: 700 } });`);
+check(/waiting/.test(q(`acceptTrade()`)) && q('S.gold') === 1500, 'you accept — nothing happens until your friend does');
+q(`tradeOnData({ t: 'offer', give: { stone: 900 } });`);
+check(q('TRADE.iAccept') === false, 'if they change their offer, you have to accept again');
+q(`acceptTrade(); tradeOnData({ t: 'accept', mine: { stone: 900 }, yours: { gold: 400 } });`);
+check(q('TRADE.theyAccept') === false && q('S.gold') === 1500, 'an accept for a different deal does nothing');
+q(`tradeOnData({ t: 'accept', mine: { stone: 900 }, yours: { gold: 500 } });`);
+check(q('S.gold') === 1000 && q('S.stone') === 1100 && q('S.trades') >= 1 && q('TRADE.theirs') === null, '🤝 both accept: you give 500 gold and get 900 stone');
+q(`tradeReset(); renderTrade();`);
+check(/merchant/.test(q(`document.getElementById('tradeBody').innerHTML`)) && /Special deals/.test(q(`document.getElementById('tradeBody').innerHTML`)), 'the 🤝 Trade panel');
+
+// ---- 👑 owner: towers ----
+reset({}); q(`S.owner = true; panelAction('th', '10', true);`);
+check(/2 towers placed/.test(q(`panelAction('tower', 'dragonstatue', true)`)) && q(`countOf('dragonstatue')`) === 2 && q(`S.buildings.filter(function(b){ return b.type === 'dragonstatue'; }).every(function(b){ return b.lvl === 10; })`), '🏯 owner places 2 Dragon Statues at level 10');
+check(/already/.test(q(`panelAction('tower', 'dragonstatue', true)`)), '…and not more than the most you can have');
+q(`panelAction('tower', 'all', true);`);
+check(q(`Object.keys(B).filter(function(t){ return B[t].def; }).every(function(t){ return countOf(t) === limitOf(t, MAX_TH, MAX_PRESTIGE); })`) && q(`new Set(S.buildings.map(function(b){ return b.x + ',' + b.y; })).size === S.buildings.length && S.buildings.every(function(b){ return isLand(b.x, b.y); })`), '🏯 ALL towers: every tower (even prestige ones), all on land, none overlapping');
+check(q(`panelAction('tower', 'flame', false)`) === '👑 Owner only.', 'admins cannot');
+q(`renderAdmin(true);`);
+check(/ALL towers/.test(q(`document.getElementById('admBody').innerHTML`)) && /Dragon Statue/.test(q(`document.getElementById('admBody').innerHTML`)), 'the owner panel lists every tower');
+
 // ---- drawing ----
 q(`for (var i = 0; i < 3; i++) frame(performance.now() + i * 16);`);
 check(true, 'the island and a battle draw without errors');

@@ -958,6 +958,10 @@ function battleStep() {
   for (const m of (bt.mobs || []).concat(bt.homeMobs || [])) if (m.immortal && m.hp < 1) { m.hp = m.maxHp; bt.texts.push({ x: m.x, y: m.y - 0.5, t: 40, text: "♾️ BACK!" }); }   // ♾️ an immortal pet springs straight back up
   bt.shots = bt.shots.filter((s) => --s.t > 0); bt.fx = bt.fx.filter((f) => --f.t > 0); bt.casts = bt.casts.filter((c) => --c.t > 0);
   if (bt.texts) bt.texts = bt.texts.filter((t) => --t.t > 0);
+  if (bt.frame % 120 === 0) {   // 🧹 sweep away dead summoned troops and bees so big battles stay fast
+    bt.troops = bt.troops.filter((t) => t.hp > 0 || !t.summoned);
+    for (const k of ["mobs", "homeMobs"]) if (bt[k]) bt[k] = bt[k].filter((m) => m.hp > 0 || !(m.summoned || m.hive));
+  }
   const anyTroops = bt.troops.some((t) => t.hp > 0) || (!bt.opts.defense && Object.values(bt.army).some((n) => n > 0)) || boatCrew(bt) > 0 || bt.agents.some((a) => a.phase !== "done");
   if (destroyedPct(bt) >= 100 || !anyTroops || bt.frame >= BATTLE_FRAMES) endBattle();
 }
@@ -1306,6 +1310,18 @@ const todayStr = () => new Date().toISOString().slice(0, 10);
 function adminLeft(k) { if (!S.adminDay || S.adminDay.date !== todayStr()) S.adminDay = { date: todayStr() }; return ADMIN_CAPS[k] - (S.adminDay[k] || 0); }
 function adminSpend(k, n) { const left = adminLeft(k); if (n > left) return false; S.adminDay[k] = (S.adminDay[k] || 0) + n; return true; }
 // All panel actions. owner = no limits; admin = ADMIN_CAPS a day and no Town Hall / rank / raid / trophies.
+// A smaller Town Hall = a smaller island: buildings left in the sea move to the nearest free land (if there's
+// no room left, they go). Returns how many went.
+function fitOnLand() {
+  let gone = 0;
+  for (const b of S.buildings.slice()) {
+    if (isLand(b.x, b.y)) continue;
+    let best = null, bd = 1e9;
+    for (let y = 0; y < GRID; y++) for (let x = 0; x < GRID; x++) if (isLand(x, y) && tileFree(S.buildings, x, y)) { const d = Math.hypot(x - b.x, y - b.y); if (d < bd) { bd = d; best = [x, y]; } }
+    if (best) { b.x = best[0]; b.y = best[1]; } else { S.buildings.splice(S.buildings.indexOf(b), 1); gone++; }
+  }
+  return gone;
+}
 function panelAction(act, arg, owner) {
   if (owner ? !isOwner() : !isAdmin()) return "🔒 Not allowed.";
   if (owner ? !S.ownerUsed : !S.adminUsed) { if (owner) S.ownerUsed = true; else S.adminUsed = true; save(); try { refreshPanelButtons(); } catch (e) {} }   // 👆 used it: its button stays on screen
@@ -1363,7 +1379,11 @@ function panelAction(act, arg, owner) {
     if (act === "arevenge") { hidePanels(); const isl = genIsland(Math.max(1, S.raidLevel), 1 + Math.floor(Math.random() * 999)); return startDefense({ name: isl.name, th: isl.th }) || `😠 ${isl.name} wants revenge!`; }
     return "👑 Owner only.";
   }
-  if (act === "th") { const l = Math.max(1, Math.min(MAX_TH, +arg || 1)); S.buildings.find((b) => b.type === "townhall").lvl = l; S.rank = Math.max(rank(), l); save(); return `🏰 Town Hall set to ${l}`; }
+  if (act === "th") {
+    const l = Math.max(1, Math.min(MAX_TH, +arg || 1)); S.buildings.find((b) => b.type === "townhall").lvl = l; S.rank = Math.max(rank(), l);
+    const gone = fitOnLand(); homeMobsKey = ""; save();
+    return `🏰 Town Hall set to ${l}${gone ? ` (the island shrank: ${gone} building${gone > 1 ? "s" : ""} that didn't fit went)` : ""}`;
+  }
   if (act === "prestige") { S.prestige = Math.max(0, Math.min(MAX_PRESTIGE, Math.floor(+arg) || 0)); homeMobsKey = ""; save(); return `🌟 Prestige set to ${S.prestige}`; }
   if (act === "rank") { S.rank = Math.max(1, Math.min(MAX_TH, +arg || 1)); save(); return `🎖️ Rank set to ${S.rank}`; }
   if (act === "raid") { S.raidLevel = Math.max(1, Math.min(99, +arg || 1)); save(); return `🗺️ Raid level set to ${S.raidLevel}`; }
@@ -1873,6 +1893,23 @@ function drawBoats(bt) {
   }
 }
 const toScreen = (x, y) => [ox + (x + 0.5) * tile, oy + (y + 0.5) * tile];
+// 🎨 Emoji (and level numbers) are slow to draw as text hundreds of times a frame — draw each one ONCE into a
+// little picture and stamp that. (num: a white number with a black edge, like the building levels)
+const SPR = new Map();
+function stamp(text, x, y, px, num) {
+  px = Math.max(4, Math.round(px)); const key = text + "|" + px + (num ? "n" : "");
+  let c = SPR.get(key);
+  if (!c) {
+    if (SPR.size > 800) SPR.clear();
+    const dpr = devicePixelRatio || 1, w = Math.ceil(px * (num ? 0.8 * String(text).length + 0.6 : 1.5) * dpr), h = Math.ceil(px * 1.5 * dpr);
+    c = document.createElement("canvas"); c.width = w; c.height = h;
+    const g = c.getContext("2d"); g.scale(dpr, dpr); g.textAlign = "center"; g.textBaseline = "middle";
+    if (num) { g.font = `bold ${px}px Nunito, sans-serif`; g.lineWidth = 3; g.strokeStyle = "#000"; g.fillStyle = "#fff"; g.strokeText(text, w / dpr / 2, h / dpr / 2); g.fillText(text, w / dpr / 2, h / dpr / 2); }
+    else { g.font = `${px}px serif`; g.fillText(text, w / dpr / 2, h / dpr / 2); }
+    c.cssW = w / dpr; c.cssH = h / dpr; SPR.set(key, c);
+  }
+  ctx.drawImage(c, x - c.cssW / 2, y - c.cssH / 2, c.cssW, c.cssH);
+}
 function drawIsland(t, list, time, opts) {
   const W = innerWidth, H = innerHeight, TH_ = THEMES[(opts && opts.theme) || "tropical"] || THEMES.tropical;
   const sea = ctx.createLinearGradient(0, 0, 0, H); sea.addColorStop(0, TH_.sea[0]); sea.addColorStop(1, TH_.sea[1]);
@@ -1896,10 +1933,10 @@ function drawIsland(t, list, time, opts) {
     ctx.fillStyle = b.type === "wall" ? "#95a5a6" : b.type === "townhall" ? "#f9ca24" : B[b.type].def ? "#e17055" : "#dfe6e9";
     const s = b.type === "townhall" ? tile * 0.98 : b.type === "wall" ? tile * 0.8 : tile * 0.82;
     ctx.beginPath(); ctx.roundRect ? ctx.roundRect(sx - s / 2, sy - s / 2, s, s, 6) : ctx.rect(sx - s / 2, sy - s / 2, s, s); ctx.fill();
-    ctx.font = `${s * (b.type === "townhall" ? 0.78 : 0.66)}px serif`; ctx.fillText(dead ? "💥" : B[b.type].emoji, sx, sy + 1);
+    stamp(dead ? "💥" : B[b.type].emoji, sx, sy + 1, s * (b.type === "townhall" ? 0.78 : 0.66));
     ctx.globalAlpha = 1;
-    if (b.type !== "wall") { ctx.font = `bold ${tile * 0.32}px Nunito, sans-serif`; ctx.fillStyle = "#fff"; ctx.strokeStyle = "#000"; ctx.lineWidth = 3; ctx.strokeText(b.lvl, sx + s * 0.38, sy - s * 0.38); ctx.fillText(b.lvl, sx + s * 0.38, sy - s * 0.38); }
-    if (b.perks && b.perks.length) { ctx.font = `${tile * 0.28}px serif`; ctx.fillText("⭐".repeat(b.perks.length), sx, sy + s * 0.48); }   // ⬆️ upgraded tower
+    if (b.type !== "wall") stamp(String(b.lvl), sx + s * 0.38, sy - s * 0.38, tile * 0.32, true);
+    if (b.perks && b.perks.length) for (let i = 0; i < b.perks.length; i++) stamp("⭐", sx + (i - (b.perks.length - 1) / 2) * tile * 0.28, sy + s * 0.48, tile * 0.28);   // ⬆️ upgraded tower
     if (opts && opts.battle && b.hp > 0 && b.hp < b.maxHp) { ctx.fillStyle = "#2d3436"; ctx.fillRect(sx - s / 2, sy + s / 2 + 2, s, 4); ctx.fillStyle = "#2ecc71"; ctx.fillRect(sx - s / 2, sy + s / 2 + 2, s * b.hp / b.maxHp, 4); }
     if ((!opts || opts.home) && selected === b) { ctx.strokeStyle = "#feca57"; ctx.lineWidth = 3; ctx.strokeRect(sx - s / 2 - 3, sy - s / 2 - 3, s + 6, s + 6); }
   }
@@ -1923,8 +1960,8 @@ function drawHomeDefenders(time) {
     if (M.flying) { ctx.fillStyle = "rgba(0,0,0,0.2)"; ctx.beginPath(); ctx.ellipse(sx, sy0 + tile * 0.25, rr, rr * 0.4, 0, 0, Math.PI * 2); ctx.fill(); }
     ctx.fillStyle = M.ring; ctx.beginPath(); ctx.arc(sx, sy, rr, 0, Math.PI * 2); ctx.fill();
     ctx.strokeStyle = "#2ecc71"; ctx.lineWidth = 2; ctx.stroke();
-    ctx.font = `${rr * 1.7}px serif`; ctx.textAlign = "center"; ctx.textBaseline = "middle"; ctx.fillText(M.emoji, sx, sy);
-    if (M.golem && m.kind !== "golem") { ctx.font = `${rr * 0.85}px serif`; ctx.fillText("🗿", sx + rr * 0.6, sy + rr * 0.55); }
+    stamp(M.emoji, sx, sy, rr * 1.7);
+    if (M.golem && m.kind !== "golem") stamp("🗿", sx + rr * 0.6, sy + rr * 0.55, rr * 0.85);
   });
 }
 function defenderAt(fx, fy, time) {
@@ -1948,7 +1985,7 @@ function frame(now) {
   }
   if (!battle && !S.noRaids && S.revenge && Date.now() >= S.revenge.at) startDefense(S.revenge);   // 😠
   // your mines keep working while you fight
-  prodAcc += dt; if (prodAcc >= 1) { produce(prodAcc); refillInfinite(); prodAcc = 0; if (!battle) renderTop(); if (Math.random() < 0.1) save(); }
+  prodAcc += dt; if (prodAcc >= 1) { produce(prodAcc); refillInfinite(); prodAcc = 0; renderTop(); if (Math.random() < 0.1) save(); }
   viewNow();
   if (battle) {
     drawIsland(battle.island.th, battle.blds, time, { battle: true, theme: battle.island.theme });
@@ -1963,7 +2000,7 @@ function frame(now) {
       if (f.hp <= 0) continue;
       const [sx, sy] = toScreen(f.x, f.y);
       ctx.fillStyle = "rgba(255,71,87,0.9)"; ctx.beginPath(); ctx.arc(sx, sy, tile * 0.3, 0, Math.PI * 2); ctx.fill();
-      ctx.font = `${tile * 0.6}px serif`; ctx.textAlign = "center"; ctx.textBaseline = "middle"; ctx.fillText(T[f.kind].emoji, sx, sy);
+      stamp(T[f.kind].emoji, sx, sy, tile * 0.6);
       ctx.fillStyle = "#2d3436"; ctx.fillRect(sx - tile * 0.3, sy - tile * 0.45, tile * 0.6, 3); ctx.fillStyle = "#ff4757"; ctx.fillRect(sx - tile * 0.3, sy - tile * 0.45, tile * 0.6 * Math.max(0, f.hp) / f.maxHp, 3);
     }
     drawBoats(bt);                                // 🚢
@@ -1973,7 +2010,7 @@ function frame(now) {
       const [sx, sy] = toScreen(tr.x, tr.y);
       ctx.fillStyle = tr.stunUntil > bt.frame ? "rgba(253,203,110,0.95)" : tr.burnLeft > 0 ? "rgba(255,121,63,0.9)" : tr.poisonLeft > 0 ? "rgba(68,189,50,0.85)" : tr.slowUntil > bt.frame ? "rgba(194,54,22,0.6)" : tr.rageUntil > bt.frame ? "rgba(232,65,24,0.85)" : "rgba(255,255,255,0.85)";
       ctx.beginPath(); ctx.arc(sx, sy, tile * 0.3, 0, Math.PI * 2); ctx.fill();
-      ctx.fillText(T[tr.kind].emoji, sx, sy);
+      stamp(T[tr.kind].emoji, sx, sy, tile * 0.6);
       ctx.fillStyle = "#c0392b"; ctx.fillRect(sx - tile * 0.3, sy - tile * 0.45, tile * 0.6, 3); ctx.fillStyle = "#2ecc71"; ctx.fillRect(sx - tile * 0.3, sy - tile * 0.45, tile * 0.6 * Math.max(0, tr.hp) / tr.maxHp, 3);
     }
     for (const s of bt.shots) { const [a, b2] = toScreen(s.x, s.y), [c, d] = toScreen(s.tx, s.ty); ctx.strokeStyle = s.col; ctx.lineWidth = 2; ctx.beginPath(); ctx.moveTo(a, b2); ctx.lineTo(c, d); ctx.stroke(); }
@@ -1990,8 +2027,8 @@ function frame(now) {
       const my = M.flying ? my0 - tile * 0.35 : my0;   // 🦅 drawn up in the air, its shadow below
       ctx.fillStyle = m.frozenUntil > bt.frame ? "rgba(116,185,255,0.9)" : M.ring; ctx.beginPath(); ctx.arc(mx, my, rr, 0, Math.PI * 2); ctx.fill();
       ctx.strokeStyle = m.ally || m.mine ? "#2ecc71" : "#ff4757"; ctx.lineWidth = m.ally ? 3 : 2; ctx.stroke();   // 🛡️ your own troops: green
-      ctx.font = `${rr * 1.8}px serif`; ctx.fillText(M.emoji, mx, my);
-      if (M.golem && m.kind !== "golem") { ctx.font = `${rr * 0.9}px serif`; ctx.fillText("🗿", mx + rr * 0.6, my + rr * 0.55); }   // an elemental golem
+      stamp(M.emoji, mx, my, rr * 1.8);
+      if (M.golem && m.kind !== "golem") stamp("🗿", mx + rr * 0.6, my + rr * 0.55, rr * 0.9);   // an elemental golem
       ctx.fillStyle = "#2d3436"; ctx.fillRect(mx - tile * 0.3, my - tile * 0.45, tile * 0.6, 3); ctx.fillStyle = "#ff4757"; ctx.fillRect(mx - tile * 0.3, my - tile * 0.45, tile * 0.6 * Math.max(0, m.hp) / m.maxHp, 3);
     }
     for (const t of bt.texts || []) {   // 🐒 "−5 🪙" floating up from a thieving monkey

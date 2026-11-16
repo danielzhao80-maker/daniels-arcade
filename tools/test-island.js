@@ -1004,7 +1004,7 @@ check(q(`startBattle(genIsland(6))`) === null, 'with a Gate you can attack even 
 q(`battle.waves = []; battleStep();`);
 check(q(`battle.troops.filter(function(t){ return t.summoned; }).length`) === 20 && ['warrior','archer','giant','mage'].every((k) => q(`battle.troops.filter(function(t){ return t.summoned && t.kind === '${k}'; }).length`) === 5), '⛩️ it summons 5 of EVERY troop at the start');
 q(`for (var i = 0; i < 600 && !battle.over; i++) battleStep();`);
-check(q(`battle.over || battle.troops.filter(function(t){ return t.summoned; }).length >= 40`), '…and again every 10 seconds');
+check(q(`battle.over || battle.homeBlds.find(function(b){ return b.type === 'gate'; }).nextSummon > 600`), '…and again every 10 seconds');
 check(q(`battle.troops.filter(function(t){ return t.summoned && t.target; }).every(function(t){ return B[t.target.type].def || t.target.type === 'wall' || !battle.blds.some(function(b){ return b.hp > 0 && B[b.type].def; }); })`), 'they go for the enemy\'s towers');
 q(`if (!battle.over) endBattle(true); battle = null; hidePanels(); S.army = {};`);
 q(`startDefense(); battleStep();`);

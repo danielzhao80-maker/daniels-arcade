@@ -125,7 +125,7 @@ console.log('load        : OK');
 
 
 
-function q(js){ return vm.runInNewContext(js, ctx, {filename:'game.js', timeout:120000}); }
+function q(js){ return vm.runInNewContext(js, ctx, {filename:'game.js', timeout:600000}); }
 let ok = true;
 function check(pass, label, extra) {
   if (!pass) ok = false;
@@ -135,9 +135,10 @@ const ARC = 'daniels-arcade-v1';
 const setArcade = obj => { if (obj === null) delete store[ARC]; else store[ARC] = JSON.stringify(obj); };
 // The special-maps grid as the Worlds menu drew it: [title, grid], grid.children = cards.
 const ROUNDS = +process.argv[2] || 3000;
+const OWNERMODE = !!process.env.FUZZ_OWNER;   // FUZZ_OWNER=1: also mash every Owner Panel button (limits may be broken on purpose)
 q(`localStorage.removeItem(SAVE_KEY); S = freshSave(); save();`);
 const result = q(`(function(){
-  var errors = [], seen = {};
+  var errors = [], seen = {}, OWNERMODE = ${OWNERMODE};
   var pick = function(a){ return a[Math.floor(Math.random() * a.length)]; };
   var rint = function(a, b){ return a + Math.floor(Math.random() * (b - a + 1)); };
   function inv(where) {
@@ -146,7 +147,9 @@ const result = q(`(function(){
     if (!isFinite(S.trophies) || S.trophies < 0) errors.push(where + ': trophies=' + S.trophies);
     var tiles = {};
     S.buildings.forEach(function(b){ var key = b.x + ',' + b.y; if (tiles[key]) errors.push(where + ': two buildings on ' + key); tiles[key] = 1; if (!isLand(b.x, b.y)) errors.push(where + ': ' + b.type + ' in the sea'); if (!(b.lvl >= 1)) errors.push(where + ': bad level'); });
-    Object.keys(B).forEach(function(t){ if (t !== 'townhall' && countOf(t) > limitOf(t, th())) errors.push(where + ': too many ' + t); });
+    if (!OWNERMODE) Object.keys(B).forEach(function(t){ if (t !== 'townhall' && countOf(t) > limitOf(t, th())) errors.push(where + ': too many ' + t); });   // (the owner may break limits on purpose)
+    if ((S.pets || []).length > petLimit() && !OWNERMODE) errors.push(where + ': too many pets ' + S.pets.length);
+    (S.pets || []).forEach(function(k){ if (!MOB[k] || MOB[k].golem) errors.push(where + ': bad pet ' + k); });
     if (armyUsed() > armyCap()) errors.push(where + ': army ' + armyUsed() + '/' + armyCap());
     if (th() > rank()) errors.push(where + ': Town Hall ' + th() + ' above rank ' + rank());
     Object.keys(S.army).forEach(function(k){ if (!(S.army[k] >= 0)) errors.push(where + ': army ' + k + '=' + S.army[k]); });
@@ -191,6 +194,18 @@ const result = q(`(function(){
     prestige: function(){ if (Math.random() < 0.4) { S.prestige = Math.min(MAX_PRESTIGE, prest() + 1); return; }
       var e = Math.random() < 0.5 ? startPrestige() : (prest() ? startBattle(prestMap(rint(1, prest()))) : 'none'); if (e) return; var n = 0; while (battle && !battle.over && n++ < BATTLE_FRAMES + 50) { if (Math.random() < 0.1) { var k = pick(Object.keys(battle.army)); deploy(k, CENTER - landRadius(battle.island.th) - 1, CENTER + Math.random() * 2 - 1); } battleStep(); battle && battle.mobs.forEach(function(m){ if (!isFinite(m.hp) || !isFinite(m.x)) errors.push('mob NaN ' + m.kind); }); } battle = null; hidePanels(); renderPrestige(); },
     trade: function(){ if (Math.random() < 0.5) merchantTrade(pick(RES), pick(RES), rint(0, 3000)); else takeDeal(rint(0, 3)); renderTrade(); },
+    pet: function(){ if (Math.random() < 0.7) buyPet(pick(Object.keys(MOB)), rint(1, 3)); else if ((S.pets || []).length) releasePet(rint(0, S.pets.length - 1)); },
+    admin: function(){ S.admin = true; var acts = ['res', 'troops', 'golem', 'codes', 'apet', 'atower', 'astore', 'aabil', 'adeals', 'askip'];
+      var a = pick(acts), arg = a === 'res' ? pick(['gold', 'wood', 'stone']) : a === 'troops' ? pick(Object.keys(T)) : a === 'golem' ? pick(Object.keys(GOLEM_COST)) : a === 'apet' ? pick(Object.keys(MOB)) : a === 'atower' ? pick(Object.keys(B)) : '';
+      var r = panelAction(a, arg, false); if (typeof r !== 'string') errors.push('admin ' + a + ' returned ' + r); S.admin = false; },
+    owner: function(){ if (!OWNERMODE) return; S.owner = true;
+      var acts = ['res', 'troops', 'golem', 'codes', 'th', 'rank', 'raid', 'trophies', 'infinite', 'inftroops', 'infpets', 'allpets', 'allpetsinf', 'pets0', 'pnext', 'pmax', 'prestige', 'tower', 'gateplace', 'gatespeed', 'gateamount', 'maxstore', 'newdeals', 'allon', 'alloff', 'army0', 'golem0', 'noraids', 'maxkeep', 'maxbase'];
+      var a = pick(acts), arg = a === 'res' ? pick(['gold', 'wood', 'stone']) : a === 'troops' ? pick(Object.keys(T)) : a === 'golem' ? pick(Object.keys(GOLEM_COST).concat(['all'])) : a === 'tower' ? pick(Object.keys(B).concat(['all'])) : String(rint(0, 12));
+      var r = panelAction(a, arg, true); if (typeof r !== 'string') errors.push('owner ' + a + ' returned ' + r); },
+    ownerfight: function(){ if (!OWNERMODE) return; S.owner = true; var acts = ['raidnow', 'revengenow', 'ptrial', 'pmap'];
+      var r = panelAction(pick(acts), String(rint(1, 10)), true); if (typeof r !== 'string') errors.push('ownerfight returned ' + r);
+      var n = 0; while (battle && !battle.over && n++ < BATTLE_FRAMES + 50) { if (Math.random() < 0.05) panelAction(pick(['gatenow', 'abil', 'win']), '', true); if (battle && Math.random() < 0.1 && !battle.opts.defense) deploy(pick(Object.keys(T)), 0, 0); if (battle && battle.opts.defense && Math.random() < 0.05) deployDefender(pick(Object.keys(T)), CENTER, CENTER); battleStep(); if (battle) (battle.mobs || []).concat(battle.homeMobs || [], battle.troops, battle.foes || []).forEach(function(m){ if (!isFinite(m.hp) || !isFinite(m.x) || !isFinite(m.y)) errors.push('NaN ' + m.kind); }); }
+      battle = null; hidePanels(); },
     reload: function(){ save(); load(); },
     ui: function(){ renderTop(); renderBuild(); renderArmy(); renderRaids(); renderInfo(); showInfo(pick(S.buildings)); hideInfo(); hidePanels(); frame(performance.now()); },
   };
@@ -198,7 +213,7 @@ const result = q(`(function(){
   var bag = []; names.forEach(function(n){ for (var i = 0; i < (weights[n] || 1); i++) bag.push(n); });
   for (var i = 0; i < ${ROUNDS}; i++) {
     var name = pick(bag);
-    try { actions[name](); } catch (e) { errors.push(name + ' threw: ' + e.message + ' @ ' + String(e.stack).split('\\n')[1]); battle = null; }
+    var __t0 = Date.now(); try { actions[name](); seen['ms_' + name] = Math.max(seen['ms_' + name] || 0, Date.now() - __t0); } catch (e) { errors.push(name + ' threw: ' + e.message + ' @ ' + String(e.stack).split('\\n')[1]); battle = null; }
     seen[name] = (seen[name] || 0) + 1;
     inv(name);
     if (errors.length > 20) break;

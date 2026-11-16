@@ -511,6 +511,42 @@ function myIslandSnapshot() {
 // Defences shoot the nearest troop in range. 90 seconds. Stars: 50% destroyed, the Town Hall, 100%.
 const BATTLE_FRAMES = 90 * 60;
 let battle = null;
+// 🌉 When you attack an island, YOUR island sails up next to it and the two join with a bridge: you send troops
+// out from your island and they have to cross the bridge (a great spot for the towers to aim at). A revenge
+// attack comes at you the same way. `t` = the attacked island's Town Hall.
+const HOME_R = 2.5;
+function makeBridge(t, name, homeTh) {
+  const R = landRadius(t), b = { x: CENTER - R - 0.2, y: CENTER }, a = { x: CENTER - R - 2.8, y: CENTER };
+  return { a, b, home: { x: a.x - HOME_R + 0.3, y: CENTER, r: HOME_R, name, th: homeTh } };
+}
+const onHome = (br, x, y) => !!br && Math.hypot(x - br.home.x, y - br.home.y) <= br.home.r + 0.6;
+function homeSpot(br) { const a = Math.random() * Math.PI * 2, d = Math.sqrt(Math.random()) * (br.home.r - 0.4); return [br.home.x + Math.cos(a) * d, br.home.y + Math.sin(a) * d]; }
+// 🚢 Raiders come by boat: 3 boats sail in, drop off their crews on the beach, then fire their cannons at your
+// buildings. Your towers shoot the boats when no raider is in range — sink one before it lands and its crew is gone.
+function boatStep(bt) {
+  for (const bo of bt.boats || []) {
+    if (bo.hp <= 0) continue;
+    if (!bo.landed) {
+      const d = Math.hypot(bo.tx - bo.x, bo.ty - bo.y);
+      if (d > 0.08) { const sp = Math.min(d, 2.5 / 60); bo.x += (bo.tx - bo.x) / d * sp; bo.y += (bo.ty - bo.y) / d * sp; continue; }
+      landBoat(bt, bo);
+    }
+    if (--bo.cd > 0) continue;
+    let tg = null, bd = 5;
+    for (const b of bt.blds) if (b.hp > 0 && b.type !== "wall") { const d = Math.hypot(b.x - bo.x, b.y - bo.y); if (d < bd) { bd = d; tg = b; } }
+    if (!tg) continue;
+    bo.cd = 80; tg.hp -= bo.dmg; bt.shots.push({ x: bo.x, y: bo.y, tx: tg.x, ty: tg.y, t: 10, col: "#2d3436" });
+    if (tg.hp <= 0) { tg.hp = 0; bt.fx.push({ x: tg.x, y: tg.y, t: 30, boom: true }); }
+  }
+}
+function landBoat(bt, bo) {
+  if (bo.landed) return; bo.landed = true; bo.x = bo.tx; bo.y = bo.ty;
+  bo.party.forEach((k, j) => { const t = T[k], a = Math.random() * Math.PI * 2, r = 0.3 + Math.random() * 0.4;
+    bt.troops.push({ kind: k, x: bo.x + Math.cos(a) * r, y: bo.y + Math.sin(a) * r, hp: t.hp * bo.lv, maxHp: t.hp * bo.lv, dmg: t.dmg * bo.lv, cd: j * 3, target: null, raider: true }); });
+  bt.texts.push({ x: bo.x, y: bo.y - 0.6, t: 50, text: "ATTACK!" });
+}
+const landAllBoats = (bt) => (bt.boats || []).forEach((bo) => bo.hp > 0 && landBoat(bt, bo));
+const boatCrew = (bt) => (bt.boats || []).filter((bo) => bo.hp > 0 && !bo.landed).reduce((a, bo) => a + bo.party.length, 0);
 function startBattle(island, opts) {
   const army = Object.assign({}, S.army);
   if (!Object.values(army).some((n) => n > 0)) return "Train some troops first (🛡️ Army).";
@@ -519,6 +555,7 @@ function startBattle(island, opts) {
              blds: island.buildings.map((b) => Object.assign({}, b, { hp: hpOf(b.type, b.lvl), maxHp: hpOf(b.type, b.lvl), cd: 0 })) };
   battle.total = battle.blds.filter((b) => b.type !== "wall").length;
   battle.mobs = spawnMobs(battle.blds, island.golems, island.prestige);   // 🐺 the island's defenders (+ its bought golems)
+  battle.bridge = makeBridge(island.th, "Your island", th());   // 🌉
   battle.stolen = { gold: 0, wood: 0, stone: 0 }; battle.texts = [];   // 🐒 what the monkeys took
   for (const k in army) S.army[k] = 0;   // the army goes into battle (survivors don't come back)
   save();
@@ -532,10 +569,10 @@ function starsOf(bt) {
 }
 function deploy(kind, x, y) {
   const bt = battle; if (!bt || bt.over || !(bt.army[kind] > 0)) return false;
-  if (Math.hypot(x - CENTER, y - CENTER) < landRadius(bt.island.th) - 0.2) return false;   // only from the water / the beach
+  if (bt.bridge && !onHome(bt.bridge, x, y)) [x, y] = homeSpot(bt.bridge);   // 🌉 troops start on YOUR island
   bt.army[kind]--;
   const t = T[kind], lv = (1 + 0.1 * Math.max(0, barracksLvl() - 1)) * prestMul();   // 🌟 +15% a Prestige
-  bt.troops.push({ kind, x, y, hp: t.hp * lv, maxHp: t.hp * lv, dmg: t.dmg * lv, cd: 0, target: null });
+  bt.troops.push({ kind, x, y, hp: t.hp * lv, maxHp: t.hp * lv, dmg: t.dmg * lv, cd: 0, target: null, stage: bt.bridge ? 0 : 2 });
   return true;
 }
 // Cast a mini ability at (x, y). Returns false if you have none left.
@@ -666,6 +703,12 @@ function battleStep() {
     // 🐺 a defending mob in reach: fight it first
     let foe = null, fd = T[tr.kind].range + 0.6;
     for (const m of bt.mobs || []) if (m.hp > 0 && !(mobDef(m).flying && T[tr.kind].range < 1)) { const dd = Math.hypot(m.x - tr.x, m.y - tr.y); if (dd < fd) { fd = dd; foe = m; } }   // 🦅 melee can't reach flyers
+    if (!foe && bt.bridge && tr.stage < 2) {   // 🌉 over the bridge first: to its start, then across
+      const w = tr.stage === 0 ? bt.bridge.a : bt.bridge.b, dw = Math.hypot(w.x - tr.x, w.y - tr.y);
+      const sp = T[tr.kind].speed * (tr.rageUntil > bt.frame ? 1.4 : 1) * (tr.slowUntil > bt.frame ? 0.5 : 1) * dt;
+      if (dw <= Math.max(0.3, sp)) { tr.x = w.x; tr.y = w.y; tr.stage++; } else { tr.x += (w.x - tr.x) / dw * sp; tr.y += (w.y - tr.y) / dw * sp; }
+      if (!(T[tr.kind].range > 1 && tr.target && Math.hypot(tr.target.x - tr.x, tr.target.y - tr.y) <= T[tr.kind].range)) continue;   // archers and mages shoot from the bridge
+    }
     const tg = foe || tr.target; if (!tg) continue;
     const t = T[tr.kind], d = Math.hypot(tg.x - tr.x, tg.y - tr.y);
     const raged = tr.rageUntil > bt.frame, spd = t.speed * (raged ? 1.4 : 1) * (tr.slowUntil > bt.frame ? 0.5 : 1), dmgNow = tr.dmg * (raged ? 1.6 : 1);   // 🔥 Rage, 🦂 slowed
@@ -691,7 +734,14 @@ function battleStep() {
     const D = towerStats(b);   // ⬆️ with its upgrades
     const inRange = bt.troops.filter((tr) => tr.hp > 0 && Math.hypot(tr.x - b.x, tr.y - b.y) <= D.range).sort((p, q) => Math.hypot(p.x - b.x, p.y - b.y) - Math.hypot(q.x - b.x, q.y - b.y));
     let tg = inRange[0] || null;
-    if (!tg) continue;
+    if (!tg) {   // 🚢 nobody in range: shoot a raider boat
+      const bo = (bt.boats || []).find((q) => q.hp > 0 && Math.hypot(q.x - b.x, q.y - b.y) <= D.range + 0.5);
+      if (bo) {
+        b.cd = D.rate; bo.hp -= D.dmg * (D.multi || 1); bt.shots.push({ x: b.x, y: b.y, tx: bo.x, ty: bo.y, t: 8, col: D.col || "#fff" });
+        if (bo.hp <= 0) { bt.fx.push({ x: bo.x, y: bo.y, t: 30, boom: true }); bt.texts.push({ x: bo.x, y: bo.y - 0.6, t: 60, text: bo.landed ? "SUNK!" : "SUNK — crew and all!" }); }
+      }
+      continue;
+    }
     b.cd = D.rate;
     if (D.spawn) {   // 🍯 a swarm out of the hive (up to 6 of its bees at a time) — they hunt like any animal
       const lv = 1 + 0.3 * (b.lvl - 1), M = MOB[D.spawn];
@@ -740,9 +790,10 @@ function battleStep() {
   }
   mobStep(bt);
   agentStep(bt);
+  boatStep(bt);
   bt.shots = bt.shots.filter((s) => --s.t > 0); bt.fx = bt.fx.filter((f) => --f.t > 0); bt.casts = bt.casts.filter((c) => --c.t > 0);
   if (bt.texts) bt.texts = bt.texts.filter((t) => --t.t > 0);
-  const anyTroops = bt.troops.some((t) => t.hp > 0) || (!bt.opts.defense && Object.values(bt.army).some((n) => n > 0)) || bt.agents.some((a) => a.phase !== "done");
+  const anyTroops = bt.troops.some((t) => t.hp > 0) || (!bt.opts.defense && Object.values(bt.army).some((n) => n > 0)) || boatCrew(bt) > 0 || bt.agents.some((a) => a.phase !== "done");
   if (destroyedPct(bt) >= 100 || !anyTroops || bt.frame >= BATTLE_FRAMES) endBattle();
 }
 // ---- 🏴‍☠️ RAIDS ON YOUR ISLAND: every 10 minutes while you play, raiders sail in and your island defends
@@ -785,13 +836,25 @@ function startDefense(from) {
   battle.total = battle.blds.filter((b) => b.type !== "wall").length;
   battle.mobs = spawnMobs(battle.blds, isl.golems, isl.prestige);
   battle.stolen = { gold: 0, wood: 0, stone: 0 }; battle.texts = [];
-  const lv = 1 + 0.15 * (th() - 1), r0 = landRadius(isl.th) + 1.2; let i = 0;   // three landing parties round the island
-  for (const [k, n] of Object.entries(army)) for (let j = 0; j < n; j++) {
-    const a = (i++ % 3) * 2.09 + 0.5 + Math.random() * 0.5, t = T[k];
-    battle.troops.push({ kind: k, x: CENTER + Math.cos(a) * r0, y: CENTER + Math.sin(a) * r0, hp: t.hp * lv, maxHp: t.hp * lv, dmg: t.dmg * lv, cd: 0, target: null, raider: true });
+  const lv = 1 + 0.15 * (th() - 1), r0 = landRadius(isl.th) + 1.4;
+  if (from) {   // 😠 revenge: their island joins yours with a bridge and they march across it
+    battle.bridge = makeBridge(isl.th, from.name, from.th);
+    for (const [k, n] of Object.entries(army)) for (let j = 0; j < n; j++) {
+      const t = T[k], [x, y] = homeSpot(battle.bridge);
+      battle.troops.push({ kind: k, x, y, hp: t.hp * lv, maxHp: t.hp * lv, dmg: t.dmg * lv, cd: 0, target: null, raider: true, stage: 0 });
+    }
+  } else {   // 🚢 three boats, each with a third of the crew
+    const parties = [[], [], []]; let i = 0;
+    for (const [k, n] of Object.entries(army)) for (let j = 0; j < n; j++) parties[i++ % 3].push(k);
+    const t0 = th(), base = Math.random() * Math.PI * 2;
+    battle.boats = parties.map((party, j) => {
+      const a = base + j * 2.09 + Math.random() * 0.4, far = r0 + 6;
+      return { party, lv, x: CENTER + Math.cos(a) * far, y: CENTER + Math.sin(a) * far, tx: CENTER + Math.cos(a) * r0, ty: CENTER + Math.sin(a) * r0,
+               hp: 400 + 150 * t0, maxHp: 400 + 150 * t0, dmg: 20 + 6 * t0, cd: 60, landed: false };
+    });
   }
   showBattleBar(); hidePanels(); hideInfo();
-  toast(from ? `😠 ${from.name} wants REVENGE! They're attacking your island!` : "🏴‍☠️ RAIDERS! Your island is under attack!");
+  toast(from ? `😠 ${from.name} wants REVENGE! Their island joined yours — they're coming over the bridge!` : "🚢 RAIDER BOATS! Your island is under attack!");
   return null;
 }
 function maybeRevenge(island) {   // after you raid a computer island: 50% it comes back for you in 2–4 minutes
@@ -1381,7 +1444,7 @@ function showBattleBar() {
   const draw = () => {
     if (!battle || battle.over) return;
     if (battle.opts.defense) {
-      const left = battle.troops.filter((t) => t.hp > 0).length;
+      const left = battle.troops.filter((t) => t.hp > 0).length + boatCrew(battle);
       bar.innerHTML = Object.entries(S.army).filter(([k, n]) => T[k] && (n > 0 || battle.brought[k] > 0)).map(([k, n]) =>
         `<button class="troop small ${battle.selected === k ? "sel" : ""}" data-sel="${k}" ${n > 0 ? "" : "disabled"}>${T[k].emoji} ${n}</button>`).join("")
         + `<span class="pill">🏴‍☠️ Raiders left: ${left} · ⏱ ${Math.max(0, Math.ceil((BATTLE_FRAMES - battle.frame) / 120))}s · 💥 your island ${destroyedPct(battle)}% (50% = they win)</span>
@@ -1494,6 +1557,36 @@ function setView(t) {
   ox = innerWidth / 2 - (CENTER + 0.5) * tile; oy = innerHeight / 2 + 8 - (CENTER + 0.5) * tile;
 }
 addEventListener("resize", resize);
+// The camera in a 🌉 bridge battle fits both islands; otherwise just the island you're looking at.
+function viewNow() {
+  const br = battle && battle.bridge; if (!br) return setView(battle ? battle.island.th : th());
+  const R = landRadius(battle.island.th), x0 = br.home.x - br.home.r - 1.4, x1 = CENTER + R + 2, y0 = CENTER - R - 2, y1 = CENTER + R + 2;
+  tile = Math.max(10, Math.min((innerWidth - 20) / (x1 - x0), (innerHeight - 150) / (y1 - y0)));
+  ox = innerWidth / 2 - ((x0 + x1) / 2 + 0.5) * tile; oy = innerHeight / 2 + 8 - ((y0 + y1) / 2 + 0.5) * tile;
+}
+function drawBridge(br, time) {
+  const [ax, ay] = toScreen(br.a.x, br.a.y), [bx] = toScreen(br.b.x - 0.6, br.b.y), h = tile * 0.95;
+  ctx.fillStyle = "#8d5524"; ctx.fillRect(ax, ay - h / 2, bx - ax, h);   // 🌉 planks
+  ctx.strokeStyle = "#5d3a17"; ctx.lineWidth = 2;
+  for (let x = ax; x < bx; x += tile * 0.35) { ctx.beginPath(); ctx.moveTo(x, ay - h / 2); ctx.lineTo(x, ay + h / 2); ctx.stroke(); }
+  ctx.strokeStyle = "#3e2723"; ctx.lineWidth = 3; ctx.strokeRect(ax, ay - h / 2, bx - ax, h);
+  const [hx, hy] = toScreen(br.home.x, br.home.y), r = br.home.r * tile;   // the other island
+  ctx.fillStyle = "#f6e0a6"; ctx.beginPath(); ctx.arc(hx, hy, r + tile * 0.6, 0, Math.PI * 2); ctx.fill();
+  ctx.fillStyle = "#78c257"; ctx.beginPath(); ctx.arc(hx, hy, r, 0, Math.PI * 2); ctx.fill();
+  ctx.strokeStyle = "rgba(255,255,255,0.35)"; ctx.lineWidth = 3; ctx.beginPath(); ctx.arc(hx, hy, r + tile * 0.75 + Math.sin(time * 2) * 2, 0, Math.PI * 2); ctx.stroke();
+  ctx.globalAlpha = 0.85; ctx.font = `${tile * 1.4}px serif`; ctx.textAlign = "center"; ctx.textBaseline = "middle"; ctx.fillText("🏰", hx, hy); ctx.globalAlpha = 1;
+  ctx.font = `bold ${Math.max(12, tile * 0.45)}px Nunito, sans-serif`; ctx.fillStyle = "#fff"; ctx.strokeStyle = "#000"; ctx.lineWidth = 3;
+  ctx.strokeText(br.home.name, hx, hy - r - tile * 0.9); ctx.fillText(br.home.name, hx, hy - r - tile * 0.9);
+}
+function drawBoats(bt) {
+  for (const bo of bt.boats || []) {
+    if (bo.hp <= 0) continue;
+    const [x, y] = toScreen(bo.x, bo.y), bob = Math.sin(bt.frame / 10 + bo.tx) * 2;
+    ctx.font = `${tile * 1.3}px serif`; ctx.textAlign = "center"; ctx.textBaseline = "middle"; ctx.fillText("🚢", x, y + bob);
+    ctx.fillStyle = "#2d3436"; ctx.fillRect(x - tile * 0.5, y - tile * 0.8, tile, 4); ctx.fillStyle = "#e17055"; ctx.fillRect(x - tile * 0.5, y - tile * 0.8, tile * bo.hp / bo.maxHp, 4);
+    if (!bo.landed) { ctx.font = `bold ${tile * 0.35}px Nunito, sans-serif`; ctx.fillStyle = "#fff"; ctx.fillText("🏴‍☠️ " + bo.party.length, x, y + tile * 0.75); }
+  }
+}
 const toScreen = (x, y) => [ox + (x + 0.5) * tile, oy + (y + 0.5) * tile];
 function drawIsland(t, list, time, opts) {
   const W = innerWidth, H = innerHeight, TH_ = THEMES[(opts && opts.theme) || "tropical"] || THEMES.tropical;
@@ -1571,10 +1664,12 @@ function frame(now) {
   if (!battle && !S.noRaids && S.revenge && Date.now() >= S.revenge.at) startDefense(S.revenge);   // 😠
   // your mines keep working while you fight
   prodAcc += dt; if (prodAcc >= 1) { produce(prodAcc); refillInfinite(); prodAcc = 0; if (!battle) renderTop(); if (Math.random() < 0.1) save(); }
-  setView(battle ? battle.island.th : th());
+  viewNow();
   if (battle) {
     drawIsland(battle.island.th, battle.blds, time, { battle: true, theme: battle.island.theme });
     const bt = battle;
+    if (bt.bridge) drawBridge(bt.bridge, time);   // 🌉
+    drawBoats(bt);                                // 🚢
     ctx.font = `${tile * 0.6}px serif`;
     for (const tr of bt.troops) {
       if (tr.hp <= 0) continue;
@@ -1624,7 +1719,7 @@ function frame(now) {
     }
     for (const b of bt.blds) if (b.frozenUntil > bt.frame && b.hp > 0) { const [x, y] = toScreen(b.x, b.y); ctx.fillStyle = "rgba(116,185,255,0.45)"; ctx.fillRect(x - tile * 0.45, y - tile * 0.45, tile * 0.9, tile * 0.9); }
     ctx.font = "bold 18px Nunito, sans-serif"; ctx.fillStyle = "#fff"; ctx.textAlign = "center";
-    ctx.fillText(bt.opts.defense ? "🏴‍☠️ Raiders are attacking! Tap your island to send out your troops — your towers, animals and golems fight too." : bt.selected && bt.selected.startsWith("ab:") ? `${AB[bt.selected.slice(3)].emoji} Tap anywhere to cast ${AB[bt.selected.slice(3)].name}` : `⚔️ ${bt.island.name} — tap the sea or the beach to send in your ${bt.selected ? T[bt.selected].name.toLowerCase() + "s" : "troops"}`, innerWidth / 2, 74);
+    ctx.fillText(bt.opts.defense ? (bt.bridge ? `😠 ${bt.opts.revenge} is coming over the bridge! Tap your island to send out your troops.` : "🚢 Raider boats! Tap your island to send out your troops — your towers shoot the boats too.") : bt.selected && bt.selected.startsWith("ab:") ? `${AB[bt.selected.slice(3)].emoji} Tap anywhere to cast ${AB[bt.selected.slice(3)].name}` : `⚔️ ${bt.island.name} — tap YOUR island (left) to send your ${bt.selected ? T[bt.selected].name.toLowerCase() + "s" : "troops"} over the bridge 🌉`, innerWidth / 2, 74);
   } else {
     drawIsland(th(), S.buildings, time, { home: true, theme: prest() ? PRESTIGE[prest() - 1].theme : "tropical" });   // 🌟 your island takes on your newest Prestige map
     drawHomeDefenders(time);   // 🐺 your animals by their Barracks, 🗿 your golems by the Town Hall
@@ -1633,7 +1728,7 @@ function frame(now) {
   requestAnimationFrame(frame);
 }
 cv.addEventListener("click", (e) => {
-  setView(battle ? battle.island.th : th());
+  viewNow();
   const x = Math.floor((e.clientX - ox) / tile), y = Math.floor((e.clientY - oy) / tile);
   const fx = (e.clientX - ox) / tile - 0.5, fy = (e.clientY - oy) / tile - 0.5;
   if (battle && !battle.over && battle.opts.defense) {   // 🛡️ send your troops out onto your island
@@ -1654,9 +1749,10 @@ cv.addEventListener("click", (e) => {
       battle.drawBar && battle.drawBar();
       return;
     }
+    if (battle.bridge && !onHome(battle.bridge, fx, fy)) return toast("🌉 Tap YOUR island (on the left) — your troops cross the bridge");
     const n = (e.shiftKey || battle.five) ? 5 : 1; let sent = 0;   // ×5 toggle (or Shift)
     for (let i = 0; i < n; i++) if (deploy(k, fx + (Math.random() - 0.5) * 0.4, fy + (Math.random() - 0.5) * 0.4)) sent++;
-    if (!sent) toast(battle.army[k] > 0 ? "Send troops in from the sea or the beach" : `No ${T[k].name}s left`);
+    if (!sent) toast(battle.army[k] > 0 ? "Send troops from YOUR island (on the left) — they cross the bridge" : `No ${T[k].name}s left`);
     if (battle.army[k] <= 0) battle.selected = Object.keys(battle.army).find((q) => battle.army[q] > 0) || k;
     battle.drawBar && battle.drawBar();
     return;

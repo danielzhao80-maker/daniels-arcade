@@ -192,7 +192,7 @@ check(/Train some troops/.test(q(`startBattle(genIsland(1))`)), 'no troops: no b
 reset({ army: { warrior: 12 } });
 q(`startBattle(genIsland(1, 5));`);
 check(q(`S.army.warrior`) === 0 && q(`battle.army.warrior`) === 12, 'the army goes into battle');
-check(q(`deploy('warrior', CENTER, CENTER)`) === false, 'you cannot drop troops in the middle of their island');
+check(q(`deploy('warrior', CENTER, CENTER)`) === true && q(`onHome(battle.bridge, battle.troops[battle.troops.length-1].x, battle.troops[battle.troops.length-1].y)`), '🌉 troops always start on YOUR island (even if you tap the middle of theirs)');
 check(q(`deploy('warrior', 0.5, CENTER)`) === true, '…only from the sea or the beach');
 const fight = JSON.parse(q(`(function(){ for (var i = 0; i < 11; i++) deploy('warrior', 0.5 + i * 0.1, CENTER + (i % 3)); var n = 0; while (!battle.over && n++ < BATTLE_FRAMES + 10) battleStep(); return JSON.stringify({ over: battle.over, pct: destroyedPct(battle), stars: starsOf(battle) }); })()`));
 check(fight.over, 'the battle ends (everything destroyed, troops gone, or 90 s)', JSON.stringify(fight));
@@ -567,7 +567,7 @@ q(`S.army = { warrior: 3 }; startBattle(genIsland(1, 3));`);
 check(/busy/.test(q(`startDefense()`)) && q(`battle.opts.defense`) !== true, 'a raid never interrupts a battle you are in');
 q(`endBattle(true); battle = null; hidePanels(); S.gold = 1000; S.wood = 800; S.stone = 600; S.army = {};`);
 // lose: they flatten it
-q(`startDefense(); battle.mobs = []; battle.blds.forEach(function(b){ if (B[b.type].def) b.hp = 0; });`);
+q(`startDefense(); landAllBoats(battle); battle.mobs = []; battle.blds.forEach(function(b){ if (B[b.type].def) b.hp = 0; });`);
 check(q(`battle.opts.defense`) && q(`battle.troops.length`) === 4 && q(`battle.troops.every(function(t){ return t.raider; })`), 'raiders land and attack your island');
 q(`var n = 0; while (battle && !battle.over && n++ < 6000) { battle.troops.forEach(function(t){ t.hp = Math.max(t.hp, 1e6); t.dmg = 500; }); battleStep(); }`);
 const lost = JSON.parse(q(`JSON.stringify({ g: S.gold, w: S.wood, s: S.stone, title: document.getElementById('resTitle').textContent, lost: S.raidsLost })`));
@@ -576,14 +576,14 @@ check(q(`Math.round((S.nextRaidAt - Date.now()) / 60000)`) === 10, '…and the n
 q(`battle = null; hidePanels();`);
 // win: they all fall
 reset({ gold: 100, wood: 100, stone: 100, army: {} });
-q(`startDefense(); var loot = Object.assign({}, battle.raid.loot), army = Object.assign({}, battle.raid.army); window.__raid = { loot: loot, army: army }; battle.troops.forEach(function(t){ t.hp = 0; }); battleStep();`);
+q(`startDefense(); landAllBoats(battle); var loot = Object.assign({}, battle.raid.loot), army = Object.assign({}, battle.raid.army); window.__raid = { loot: loot, army: army }; battle.troops.forEach(function(t){ t.hp = 0; }); battleStep();`);
 const won = JSON.parse(q(`JSON.stringify({ g: S.gold, w: S.wood, s: S.stone, army: S.army, raid: window.__raid, title: document.getElementById('resTitle').textContent, won: S.raidsWon, trophies: S.trophies })`));
 check(/beat the raiders/.test(won.title) && won.won === 1, 'beat them: you win', JSON.stringify(won));
 check(won.army.warrior === won.raid.army.warrior && won.army.archer === won.raid.army.archer, '…the raiders join your army as recruits');
 check(won.g === 100 + Math.floor(won.raid.loot.gold / 4) && won.s === 100 + Math.floor(won.raid.loot.stone / 4), '…and you take a quarter of what they carried');
 q(`battle = null; hidePanels();`);
 reset({ army: { warrior: 19 } });
-q(`startDefense(); battle.troops.forEach(function(t){ t.hp = 0; }); battleStep(); battle = null; hidePanels();`);
+q(`startDefense(); landAllBoats(battle); battle.troops.forEach(function(t){ t.hp = 0; }); battleStep(); battle = null; hidePanels();`);
 check(q(`armyUsed()`) <= q(`armyCap()`), 'recruits only join if there is army space');
 // the timer starts a raid by itself
 reset();
@@ -624,7 +624,7 @@ q(`S.owner = true; panelAction('infinite', '', true); renderTop();`);
 check(q('S.infinite') === true && q('S.gold') === q('capOf()') && q(`document.getElementById('gold').textContent`) === '∞', '♾️ on: stores full, shown as ∞');
 const inf = JSON.parse(q(`(function(){ var r = {}; r.build = placeBuilding('quarry', CENTER, CENTER - 2); r.up = upgradeBuilding(S.buildings[0]); r.train = train('warrior', 5); r.golem = buyGolem('windgolem'); refillInfinite(); r.gold = S.gold; r.cap = capOf(); return JSON.stringify(r); })()`));
 check(inf.build === null && inf.up === null && inf.train === null && inf.golem === null && inf.gold === inf.cap, '…building, upgrading, training and golems are free', JSON.stringify(inf));
-q(`startDefense(); battle.mobs = []; battle.blds.forEach(function(b){ if (B[b.type].def) b.hp = 0; }); var n = 0; while (battle && !battle.over && n++ < 6000) { battle.troops.forEach(function(t){ t.hp = 1e6; t.dmg = 500; }); battleStep(); } battle = null; hidePanels();`);
+q(`startDefense(); landAllBoats(battle); battle.mobs = []; battle.blds.forEach(function(b){ if (B[b.type].def) b.hp = 0; }); var n = 0; while (battle && !battle.over && n++ < 6000) { battle.troops.forEach(function(t){ t.hp = 1e6; t.dmg = 500; }); battleStep(); } battle = null; hidePanels();`);
 check(q('S.gold') === q('capOf()') && q('S.raidsLost') === 1, '…losing a raid takes nothing');
 q(`panelAction('infinite', '', true); S.gold = 5; renderTop();`);
 check(q('S.infinite') === false && q(`document.getElementById('gold').textContent`) === '5', 'turn it off again any time');
@@ -666,7 +666,7 @@ q(`battle.drawBar();`);
 check(/data-sel="warrior"/.test(q(`document.getElementById('battlebar').innerHTML`)), 'your troops are buttons in the raid bar');
 check(q(`(function(){ var a = 0; while (battle && !battle.over && a++ < 600) battleStep(); return battle.over || battle.troops.some(function(t){ return t.hp > 0; }); })()`), 'the raid keeps going while raiders are left (your troops waiting at home do not stop it)');
 // a defender fights raiders that come near
-q(`endBattle(true); battle = null; hidePanels(); S.army = { giant: 3 }; startDefense(); battle.troops.forEach(function(t){ t.x = 10; t.y = 4; }); deployDefender('giant', 10, 5);`);
+q(`endBattle(true); battle = null; hidePanels(); S.army = { giant: 3 }; startDefense(); landAllBoats(battle); battle.troops.forEach(function(t){ t.x = 10; t.y = 4; }); deployDefender('giant', 10, 5);`);
 const raiderHp0 = q(`battle.troops.reduce(function(a, t){ return a + t.hp; }, 0)`);
 q(`for (var i = 0; i < 120; i++) battleStep();`);
 check(q(`battle.troops.reduce(function(a, t){ return a + Math.max(0, t.hp); }, 0)`) < raiderHp0, 'your troops attack the raiders');
@@ -708,7 +708,7 @@ check(q(`!!battle && battle.over`) && !/NaN/.test(q(`document.getElementById('re
 // the new tower powers
 q(`battle = null; S.army = { warrior: 5 }; startBattle({ name: 't', th: 8, loot: {}, buildings: [{ type: 'townhall', lvl: 8, x: 10, y: 10 }, { type: 'sun', lvl: 1, x: 10, y: 6 }] }); battle.mobs = []; deploy('warrior', 10, 0.3); deploy('warrior', 10.5, 0.3); deploy('warrior', 9.5, 0.3); battle.troops.forEach(function(t){ t.x = 10 + (Math.random() - 0.5) * 3; t.y = 4; }); battle.blds[1].cd = 0; battleStep();`);
 check(q(`battle.troops.filter(function(t){ return t.hp < t.maxHp && t.burnLeft > 0; }).length`) === 3, '☀️ Sun Tower burns every troop in range at once');
-q(`endBattle(true); battle = null; S.army = { warrior: 5 }; startBattle({ name: 't', th: 8, loot: {}, buildings: [{ type: 'townhall', lvl: 8, x: 10, y: 10 }, { type: 'ufo', lvl: 1, x: 10, y: 6 }, { type: 'trident', lvl: 1, x: 4, y: 10 }] }); battle.mobs = []; deploy('warrior', 10, 0.3); deploy('warrior', 0.3, 10); battle.troops[0].y = 3; battle.troops[1].x = 2; battle.blds[1].cd = 0; battle.blds[2].cd = 0; battleStep();`);
+q(`endBattle(true); battle = null; S.army = { warrior: 5 }; startBattle({ name: 't', th: 8, loot: {}, buildings: [{ type: 'townhall', lvl: 8, x: 10, y: 10 }, { type: 'ufo', lvl: 1, x: 10, y: 6 }, { type: 'trident', lvl: 1, x: 4, y: 10 }] }); battle.mobs = []; deploy('warrior', 10, 0.3); deploy('warrior', 0.3, 10); battle.troops[0].x = 10; battle.troops[0].y = 3; battle.troops[0].stage = 2; battle.troops[1].x = 2; battle.troops[1].y = 10; battle.troops[1].stage = 2; battle.blds[1].cd = 0; battle.blds[2].cd = 0; battleStep();`);
 check(q(`battle.troops[0].stunUntil > battle.frame`) && q(`battle.troops[1].x`) < 2, '🛸 UFO Tower freezes troops, 🔱 Trident Tower washes them back');
 q(`endBattle(true); battle = null; hidePanels(); S.prestige = 0; S.owner = true;`);
 check(q(`panelAction('prestige', '3', true)`) === '🌟 Prestige set to 3' && q('S.prestige') === 3 && q(`panelAction('prestige', '3', false)`) === '👑 Owner only.', 'owner can set the Prestige (admins cannot)');
@@ -722,7 +722,7 @@ q(`var a = 0; while (battle && !battle.over && a++ < 4000) { if (a % 40 === 0) {
 check(q(`!!battle && battle.over`) && !/NaN/.test(q(`document.getElementById('resText').textContent`)), 'a full Prestige 10 battle runs with no errors');
 q(`battle = null; hidePanels(); S.army = { warrior: 5 }; startBattle({ name: 't', th: 10, loot: {}, buildings: [{ type: 'townhall', lvl: 10, x: 10, y: 10 }, { type: 'rainbow', lvl: 1, x: 10, y: 6 }] }); battle.mobs = []; deploy('warrior', 10, 0.3); deploy('warrior', 10.5, 0.3); deploy('warrior', 9.5, 0.3); battle.troops.forEach(function(t, i){ t.x = 9 + i; t.y = 3; }); battle.blds[1].cd = 0; battleStep();`);
 check(q(`battle.troops.filter(function(t){ return t.hp < t.maxHp; }).length`) === 3, '🌈 Rainbow Tower shoots 3 troops at once');
-q(`endBattle(true); battle = null; S.army = { warrior: 5 }; startBattle({ name: 't', th: 10, loot: {}, buildings: [{ type: 'townhall', lvl: 10, x: 10, y: 10 }, { type: 'blackhole', lvl: 1, x: 10, y: 6 }] }); battle.mobs = []; deploy('warrior', 10, 0.3); battle.troops[0].y = 2; battle.blds[1].cd = 0; battleStep();`);
+q(`endBattle(true); battle = null; S.army = { warrior: 5 }; startBattle({ name: 't', th: 10, loot: {}, buildings: [{ type: 'townhall', lvl: 10, x: 10, y: 10 }, { type: 'blackhole', lvl: 1, x: 10, y: 6 }] }); battle.mobs = []; deploy('warrior', 10, 0.3); battle.troops[0].x = 10; battle.troops[0].y = 2; battle.troops[0].stage = 2; battle.blds[1].cd = 0; battleStep();`);
 check(q('battle.troops[0].y') > 2.5 && q('battle.troops[0].y') < 6, '🌀 Black Hole Tower pulls troops in (but not past it)', q('battle.troops[0].y'));
 q(`endBattle(true); battle = null; hidePanels();`);
 
@@ -731,7 +731,7 @@ reset({});
 check(q(`limitOf('boomerang', 2)`) === 0 && q(`limitOf('boomerang', 3)`) === 1 && q(`limitOf('boomerang', 5)`) === 2 && q(`limitOf('dojo', 9)`) === 1 && q(`limitOf('dojo', 10)`) === 2 && q(`limitOf('dragonstatue', 10)`) === 2, 'the new towers unlock with the Town Hall (1, then 2)');
 check(['gorilla','croc','rhino','tiger','owl'].every((k) => q(`spawnMobs([{ type: 'barracks', lvl: 10, x: 5, y: 5 }]).some(function(m){ return m.kind === '${k}'; })`)) && !q(`spawnMobs([{ type: 'barracks', lvl: 5, x: 5, y: 5 }]).some(function(m){ return m.kind === 'gorilla'; })`), 'Barracks Lv 6–10 send a Gorilla, Crocodile, Rhino, Tiger and Owl');
 check(['boomerang','poison','beehive','dojo','dragonstatue'].every((t) => q(`genIsland(20).buildings.some(function(b){ return b.type === '${t}'; })`)), 'Town Hall 10 islands have all the new towers');
-q(`S.army = { warrior: 5 }; startBattle({ name: 't', th: 10, loot: {}, buildings: [{ type: 'townhall', lvl: 10, x: 10, y: 10 }, { type: 'beehive', lvl: 3, x: 10, y: 6 }, { type: 'poison', lvl: 1, x: 6, y: 10 }] }); battle.mobs = []; deploy('warrior', 10, 0.3); deploy('warrior', 0.3, 10); battle.troops[0].y = 3; battle.troops[1].x = 3.5; battle.blds[1].cd = 0; battle.blds[2].cd = 0; battleStep();`);
+q(`S.army = { warrior: 5 }; startBattle({ name: 't', th: 10, loot: {}, buildings: [{ type: 'townhall', lvl: 10, x: 10, y: 10 }, { type: 'beehive', lvl: 3, x: 10, y: 6 }, { type: 'poison', lvl: 1, x: 6, y: 10 }] }); battle.mobs = []; deploy('warrior', 10, 0.3); deploy('warrior', 0.3, 10); battle.troops[0].x = 10; battle.troops[0].y = 3; battle.troops[0].stage = 2; battle.troops[1].x = 3.5; battle.troops[1].y = 10; battle.troops[1].stage = 2; battle.blds[1].cd = 0; battle.blds[2].cd = 0; battleStep();`);
 check(q(`battle.mobs.filter(function(m){ return m.kind === 'bee' && m.hive; }).length`) === 3, '🍯 the Beehive lets out 3 bees');
 check(q(`battle.troops[1].poisonLeft`) > 0, '🧪 the Poison Tower poisons troops');
 q(`for (var i = 0; i < 2000; i++) { battle.blds[1].cd = 0; battleStep(); if (battle.over) break; }`);
@@ -800,6 +800,36 @@ q(`tradeOnData({ t: 'accept', mine: { stone: 900 }, yours: { gold: 500 } });`);
 check(q('S.gold') === 1000 && q('S.stone') === 1100 && q('S.trades') >= 1 && q('TRADE.theirs') === null, '🤝 both accept: you give 500 gold and get 900 stone');
 q(`tradeReset(); renderTrade();`);
 check(/merchant/.test(q(`document.getElementById('tradeBody').innerHTML`)) && /Special deals/.test(q(`document.getElementById('tradeBody').innerHTML`)), 'the 🤝 Trade panel');
+
+// ---- 🚢 raider boats and 🌉 bridges ----
+reset({ army: {} });
+q(`startDefense();`);
+check(q('battle.boats.length') === 3 && q('battle.troops.length') === 0 && q('boatCrew(battle)') === q(`(function(){ var a = raiderArmy(th()), n = 0; for (var k in a) n += a[k]; return n; })()`), '🚢 raiders come in 3 boats (the crew is on board)');
+check(q(`battle.boats.every(function(b){ return Math.hypot(b.x - CENTER, b.y - CENTER) > landRadius(th()) + 5; })`), 'the boats start far out at sea');
+q(`for (var i = 0; i < 400; i++) battleStep();`);
+check(q('battle.boats.every(function(b){ return b.landed || b.hp <= 0; })') && q('battle.troops.length') > 0, 'they sail in and drop their crews on the beach');
+check(q('battle.over') === false || q('battle.troops.some(function(t){ return t.hp > 0; })') === false, 'the raid goes on while raiders are left');
+q(`battle = null; hidePanels(); S.buildings = [{ type: 'townhall', lvl: 3, x: 10, y: 10 }, { type: 'goldmine', lvl: 1, x: 10, y: 13 }]; homeMobsKey = ''; startDefense(); battle.mobs = []; battle.boats.forEach(function(b, i){ if (i) b.hp = 0; }); landAllBoats(battle); battle.troops.forEach(function(t){ t.hp = 1e9; t.dmg = 0; t.x = -20; }); var bo = battle.boats[0]; bo.x = bo.tx = 10; bo.y = bo.ty = 13 + 2.5; bo.cd = 1;`);
+const hp0 = q(`battle.blds[1].hp`);
+q(`battleStep();`);
+check(q(`battle.blds[1].hp`) < hp0, '🚢 a landed boat fires its cannon at your buildings');
+q(`battle = null; hidePanels(); S.buildings = [{ type: 'townhall', lvl: 3, x: 10, y: 10 }, { type: 'cannon', lvl: 3, x: 10, y: 5 }]; homeMobsKey = ''; startDefense(); battle.mobs = []; var bo = battle.boats[0]; bo.x = 10; bo.y = 2.5; bo.tx = 10; bo.ty = 2.4; bo.hp = 1; battle.boats[1].hp = battle.boats[2].hp = 0; battle.blds[1].cd = 0; battleStep();`);
+check(q('battle.boats[0].hp') <= 0 && q('battle.troops.length') === 0, 'your towers sink a boat before it lands — its crew is gone');
+check(q('battle.over'), 'every boat sunk: the raid is over (you win)');
+q(`battle = null; hidePanels();`);
+// 🌉 attacking: troops cross the bridge
+reset({ army: { warrior: 3 } });
+q(`startBattle(genIsland(3)); battle.mobs = []; deploy('warrior', battle.bridge.home.x, battle.bridge.home.y);`);
+check(q('battle.bridge.b.x') < q('CENTER - landRadius(battle.island.th) + 0.5') && q('battle.bridge.home.x + battle.bridge.home.r') < q('battle.bridge.a.x + 0.5'), '🌉 your island sits next to theirs, joined by a bridge');
+q(`window.__path = []; for (var i = 0; i < 600; i++) { battleStep(); var t = battle.troops[0]; if (t && t.hp > 0) __path.push([t.x, t.y, t.stage]); }`);
+check(q(`__path.filter(function(p){ return p[0] > battle.bridge.a.x + 0.2 && p[0] < battle.bridge.b.x - 0.2; }).every(function(p){ return Math.abs(p[1] - CENTER) < 0.5; })`) && q(`__path.some(function(p){ return p[2] === 2; })`), 'troops walk over the bridge (never through the sea) and then attack');
+q(`endBattle(true); battle = null; hidePanels();`);
+// 😠 revenge comes over the bridge
+q(`S.revenge = { name: 'Skull Bay', th: 3, at: 0 }; frame(performance.now());`);
+check(q('!!battle && !!battle.bridge && battle.bridge.home.name') === 'Skull Bay' && q(`battle.troops.every(function(t){ return onHome(battle.bridge, t.x, t.y) && t.stage === 0; })`) && !q('battle.boats'), '😠 revenge: their island joins yours and their army starts over there');
+q(`for (var i = 0; i < 900; i++) battleStep();`);
+check(q(`battle.over || battle.troops.some(function(t){ return t.stage === 2; })`), '…and they come over the bridge');
+q(`if (!battle.over) endBattle(true); battle = null; hidePanels();`);
 
 // ---- 👑 owner: towers ----
 reset({}); q(`S.owner = true; panelAction('th', '10', true);`);

@@ -525,7 +525,7 @@ reset({ rank: 1 });
 check(/OWNER_HASH = "[0-9a-z]+"/.test(html) && !(process.env.OWNER_CODE && html.toUpperCase().includes(process.env.OWNER_CODE.toUpperCase())), 'the owner code is not in the page (only its hash)');
 check(q(`panelAction('res', 'gold', false)`) === '🔒 Not allowed.' && q(`panelAction('th', 3, true)`) === '🔒 Not allowed.', 'no panels until you have the code');
 q(`document.getElementById('codeIn').value = 'nop2wgames'; document.getElementById('codeBtn').onclick();`);
-check(q('S.admin') === true && q(`document.getElementById('adminPanel').style.display`) === 'block' && q(`document.getElementById('btnAdmin').style.display`) === 'inline-block', '🛠️ the admin code opens the Admin Panel (and its button stays at the top)');
+check(q('S.admin') === true && q(`document.getElementById('adminPanel').style.display`) === 'block' && q(`document.getElementById('btnAdmin').style.display`) === 'none', '🛠️ the admin code opens the Admin Panel (no button until you use it)');
 q(`S.gold = 0; S.buildings.push({ type: 'storage', lvl: 5, x: CENTER + 3, y: CENTER });`);
 const adm = JSON.parse(q(`(function(){ var r = []; for (var i = 0; i < 8; i++) r.push(panelAction('res', 'gold', false)); return JSON.stringify({ gold: S.gold, last: r[r.length - 1] }); })()`));
 check(adm.gold === 3000 && /Daily limit/.test(adm.last), 'admin: +500 a click, 3,000 a day', JSON.stringify(adm));
@@ -539,7 +539,8 @@ check(q(`S.codes.length`) === 0, 'admin: reset codes');
 check(!q(`isOwner()`), 'the admin code is not the owner code');
 // owner (hash check without the real code)
 q(`S.owner = true; refreshPanelButtons(); S.gold = 0;`);
-check(q(`document.getElementById('btnOwner').style.display`) === 'inline-block', '👑 the owner button shows at the top');
+q(`panelAction('res', 'stone', true);`);
+check(q(`document.getElementById('btnOwner').style.display`) === 'inline-block', '👑 the owner button shows at the top once you use the panel');
 q(`for (var i = 0; i < 5; i++) panelAction('res', 'gold', true);`);
 check(q('S.gold') === q('capOf()'), 'owner: no limit (fills to your storage)');
 q(`S.army = {}; panelAction('troops', 'warrior', true);`);
@@ -908,6 +909,26 @@ check(q(`__pp.filter(function(p){ return p[0] > battle.bridge.a.x + 0.3 && p[0] 
 check(q(`battle.mobs.filter(function(m){ return m.pet; }).some(function(m){ return m.hp < m.maxHp; }) || battle.homeMobs.filter(function(m){ return m.pet; }).some(function(m){ return m.hp < m.maxHp; })`), 'both sides\' pets fight each other');
 check(q(`battle.homeMobs.concat(battle.mobs).every(function(m){ return isFinite(m.x) && isFinite(m.y) && isFinite(m.hp); })`), 'no broken positions');
 q(`endBattle(true); battle = null; hidePanels(); S.pets = [];`);
+
+// ---- 👆 the owner/admin button only after you've used the panel ----
+reset({});
+q(`refreshPanelButtons();`);
+check(q(`document.getElementById('btnOwner').style.display`) === 'none' && q(`document.getElementById('btnAdmin').style.display`) === 'none', 'never used a panel: no owner or admin button');
+q(`S.owner = true; refreshPanelButtons();`);
+check(q(`document.getElementById('btnOwner').style.display`) === 'none', 'knowing the owner code is not enough — no button yet');
+q(`panelAction('res', 'gold', true);`);
+check(q(`document.getElementById('btnOwner').style.display`) === 'inline-block' && q('S.ownerUsed') === true, 'used the owner panel: its button stays on screen');
+reset({}); q(`S.admin = true; refreshPanelButtons();`);
+check(q(`document.getElementById('btnAdmin').style.display`) === 'none', 'admin: no button until used');
+q(`panelAction('res', 'wood', false);`);
+check(q(`document.getElementById('btnAdmin').style.display`) === 'inline-block', 'used the admin panel: its button shows');
+q(`panelAction('res', 'wood', true); refreshPanelButtons();`);
+check(q(`document.getElementById('btnOwner').style.display`) === 'none' && q('S.ownerUsed') !== true, 'a refused owner action does not count');
+// an owner from before (owner powers on) keeps the button
+q(`localStorage.setItem(SAVE_KEY, JSON.stringify(Object.assign(freshSave(), { owner: true, infinite: true }))); load(); refreshPanelButtons();`);
+check(q(`document.getElementById('btnOwner').style.display`) === 'inline-block', 'an owner who already used owner powers keeps the button');
+q(`localStorage.setItem(SAVE_KEY, JSON.stringify(Object.assign(freshSave(), { owner: true }))); load(); refreshPanelButtons();`);
+check(q(`document.getElementById('btnOwner').style.display`) === 'none', '…one who never used anything does not');
 
 // ---- ♾️ owner: infinite troops ----
 reset({ army: {} }); q(`S.owner = true;`);

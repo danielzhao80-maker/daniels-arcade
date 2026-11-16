@@ -639,6 +639,24 @@ check(q(`adoptSavedIsland(${JSON.stringify(other)})`) === false, '…but not in 
 q(`endBattle(true); battle = null; hidePanels();`);
 check(q(`adoptSavedIsland('not json')`) === false && q(`adoptSavedIsland(null)`) === false, '…and ignores anything broken');
 
+// ---- 😠 revenge ----
+reset({ army: { warrior: 3 } });
+q(`window.__r = Math.random; Math.random = function(){ return 0.1; };`);
+q(`startBattle(genIsland(5, 7)); endBattle(true); battle = null; hidePanels();`);
+const rv = JSON.parse(q(`JSON.stringify(S.revenge)`));
+q(`Math.random = window.__r;`);
+check(rv && rv.th === 3 && (rv.at - Date.now()) > 110000 && (rv.at - Date.now()) < 245000, 'after a raid, the island may swear revenge (50%) and attack within 2–4 minutes', JSON.stringify(rv));
+q(`S.army = { warrior: 3 }; window.__r = Math.random; Math.random = function(){ return 0.1; }; startBattle(genIsland(2, 7)); endBattle(true); battle = null; hidePanels(); Math.random = window.__r;`);
+check(q(`S.revenge.th`) === 3, 'only one revenge waits at a time');
+q(`renderTop();`);
+check(q(`document.getElementById('revPill').style.display`) === 'inline-block', 'a 😠 countdown shows in the top bar');
+const t0 = q(`S.nextRaidAt`);
+q(`S.revenge.at = Date.now() - 1; frame(performance.now());`);
+check(q(`!!battle && battle.opts.defense && battle.opts.revenge === S.revenge.name`) && q(`battle.troops.length`) === q(`(function(){ var a = raiderArmy(3), n = 0; for (var k in a) n += a[k]; return n; })()`), 'when it is time, they attack — with an army as strong as their island');
+q(`battle.troops.forEach(function(t){ t.hp = 0; }); battleStep();`);
+check(/revenge/.test(q(`document.getElementById('resTitle').textContent`)) && q('S.revenge') === null && q('S.nextRaidAt') === t0, 'beat their revenge: it is over (and the 10-minute raid timer is not reset)');
+q(`battle = null; hidePanels();`);
+
 // ---- drawing ----
 q(`for (var i = 0; i < 3; i++) frame(performance.now() + i * 16);`);
 check(true, 'the island and a battle draw without errors');

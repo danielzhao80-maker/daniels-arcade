@@ -59,6 +59,7 @@
   <span class="pill">🏆 <b id="trophies">0</b></span>
   <span class="pill">🎖️ <b id="rankN">1</b></span>
   <span class="pill" title="Raiders arrive in…">🏴‍☠️ <b id="raidIn">10:00</b></span>
+  <span class="pill" id="revPill" style="display:none" title="An island you raided is coming for revenge">😠 <b id="revIn">0:00</b></span>
   <span class="pill">⚔️ <b id="armyN">0</b>/<b id="armyCap">0</b></span>
   <button id="btnInfo" class="blue small">📊 My Island</button>
   <button id="btnAdmin" class="small" style="display:none;background:linear-gradient(180deg,#ff7675,#c0392b);box-shadow:0 4px 0 #7b1d14">🛠️ Admin</button>
@@ -638,12 +639,14 @@ function raiderArmy(t) {
   return army;
 }
 function raiderLoot(rnd) { rnd = rnd || Math.random; const r = () => 70 + Math.floor(rnd() * 431); return { gold: r(), wood: r(), stone: r() }; }
-function startDefense() {
+// 😠 Revenge: an island you raided may attack you back (S.revenge = { name, th, at }).
+function startDefense(from) {
   if (battle) return "You're busy in a battle — the raiders will wait.";
   placing = null; moving = null;
   const isl = myIslandSnapshot(); isl.name = "your island"; isl.loot = {};
-  const army = raiderArmy(th()), loot = raiderLoot();
-  battle = { island: isl, opts: { defense: true }, frame: 0, army: {}, brought: {}, five: false, abil: {}, casts: [], barricades: [], agents: [], troops: [], shots: [], fx: [], over: false, selected: null,
+  const army = raiderArmy(from ? from.th : th()), loot = raiderLoot();
+  if (from) for (const k in loot) loot[k] = Math.min(500 + 150 * from.th, Math.round(loot[k] * (1 + 0.25 * (from.th - 1))));   // a stronger island carries more
+  battle = { island: isl, opts: { defense: true, revenge: from ? from.name : null }, frame: 0, army: {}, brought: {}, five: false, abil: {}, casts: [], barricades: [], agents: [], troops: [], shots: [], fx: [], over: false, selected: null,
              blds: isl.buildings.map((b) => Object.assign({}, b, { hp: hpOf(b.type, b.lvl), maxHp: hpOf(b.type, b.lvl), cd: 0 })), raid: { army, loot } };
   battle.total = battle.blds.filter((b) => b.type !== "wall").length;
   battle.mobs = spawnMobs(battle.blds, isl.golems);
@@ -654,8 +657,14 @@ function startDefense() {
     battle.troops.push({ kind: k, x: CENTER + Math.cos(a) * r0, y: CENTER + Math.sin(a) * r0, hp: t.hp * lv, maxHp: t.hp * lv, dmg: t.dmg * lv, cd: 0, target: null, raider: true });
   }
   showBattleBar(); hidePanels(); hideInfo();
-  toast("🏴‍☠️ RAIDERS! Your island is under attack!");
+  toast(from ? `😠 ${from.name} wants REVENGE! They're attacking your island!` : "🏴‍☠️ RAIDERS! Your island is under attack!");
   return null;
+}
+function maybeRevenge(island) {   // after you raid a computer island: 50% it comes back for you in 2–4 minutes
+  if (!island || island.rankUp || S.revenge || Math.random() >= 0.5) return false;
+  S.revenge = { name: island.name, th: island.th, at: Date.now() + (120 + Math.random() * 120) * 1000 };
+  setTimeout(() => toast(`😠 ${island.name} swore REVENGE — they'll attack you soon!`), 1800);
+  return true;
 }
 function endDefense(bt) {
   const pct = destroyedPct(bt), cap = capOf(), lost = pct >= 50;
@@ -663,7 +672,7 @@ function endDefense(bt) {
   if (lost) {
     const gone = {}; for (const k of ["gold", "wood", "stone"]) { gone[k] = Math.floor(S[k] / 2); S[k] -= gone[k]; }
     S.raidsLost = (S.raidsLost || 0) + 1;
-    title = "🏴‍☠️ The raiders won"; text = `They destroyed ${pct}% of your island and took HALF your stuff: ${costText(gone)}. Build more defences!`;
+    title = bt.opts.revenge ? `😠 ${bt.opts.revenge} got their revenge` : "🏴‍☠️ The raiders won"; text = `They destroyed ${pct}% of your island and took HALF your stuff: ${costText(gone)}. Build more defences!`;
   } else {
     const joined = [];
     for (const [k, n] of Object.entries(bt.raid.army)) {   // the beaten raiders become your recruits
@@ -672,9 +681,9 @@ function endDefense(bt) {
     }
     const got = {}; for (const k of ["gold", "wood", "stone"]) { got[k] = Math.max(0, Math.min(Math.floor(bt.raid.loot[k] / 4) + (bt.stolen[k] || 0), cap - S[k])); S[k] += got[k]; }
     S.raidsWon = (S.raidsWon || 0) + 1; S.trophies += 5;
-    title = "🛡️ You beat the raiders!"; text = `They only destroyed ${pct}%. Recruits joined your army: ${joined.join(" ") || "none (no army space)"} · loot ${costText(got)} · 🏆 +5`;
+    title = bt.opts.revenge ? `🛡️ You beat ${bt.opts.revenge}'s revenge!` : "🛡️ You beat the raiders!"; text = `They only destroyed ${pct}%. Recruits joined your army: ${joined.join(" ") || "none (no army space)"} · loot ${costText(got)} · 🏆 +5`;
   }
-  S.nextRaidAt = Date.now() + RAID_EVERY;
+  if (bt.opts.revenge) S.revenge = null; else S.nextRaidAt = Date.now() + RAID_EVERY;   // revenge doesn't reset the raid timer
   if (infinite() && lost) text += " (♾️ Infinite resources: you lost nothing.)";
   refillInfinite(); save(); showResult(title, text);
   document.getElementById("battlebar").style.display = "none";
@@ -704,6 +713,7 @@ function endBattle(forced) {
       title = `🎖️ RANK UP! You are rank ${S.rank}`; text += ` 🏆 +25 and ${costText({ gold: bonus, wood: bonus, stone: bonus })}. Now you can upgrade your Town Hall to level ${S.rank}!`;
     } else { title = "🎖️ Not this time"; text += " You need ⭐⭐ (its Town Hall and half the base) to rank up. Try again!"; }
   } else if (!bt.opts.online) {
+    maybeRevenge(bt.island);
     if (stars > 0) { S.trophies += 8 + stars * 4; S.wins++; if (stars >= 2 && S.raidLevel === bt.island.level) S.raidLevel++; text += ` 🏆 +${8 + stars * 4}`; }
     else { S.trophies = Math.max(0, S.trophies - 5); text += " 🏆 −5"; }
   }
@@ -951,6 +961,8 @@ function hideInfo() { selected = null; $("info").style.display = "none"; }
 function renderTop() {
   $("thLv").textContent = th(); for (const k of ["gold", "wood", "stone"]) $(k).textContent = infinite() ? "∞" : Math.floor(S[k]).toLocaleString();
   $("trophies").textContent = S.trophies; $("rankN").textContent = rank();
+  if (S.revenge) { const rs = Math.max(0, Math.ceil((S.revenge.at - Date.now()) / 1000)); $("revPill").style.display = "inline-block"; $("revIn").textContent = `${Math.floor(rs / 60)}:${String(rs % 60).padStart(2, "0")}`; }
+  else $("revPill").style.display = "none";
   if (S.nextRaidAt) { const sec = Math.max(0, Math.ceil((S.nextRaidAt - Date.now()) / 1000)); $("raidIn").textContent = `${Math.floor(sec / 60)}:${String(sec % 60).padStart(2, "0")}`; } $("armyN").textContent = armyUsed(); $("armyCap").textContent = armyCap();
 }
 function renderBuild() {
@@ -1190,6 +1202,7 @@ function frame(now) {
     if (left <= 10000 && !raidWarned) { raidWarned = true; toast("🏴‍☠️ Raiders spotted! They land in 10 seconds…"); }
     if (left <= 0) { raidWarned = false; startDefense(); }
   }
+  if (!battle && S.revenge && Date.now() >= S.revenge.at) startDefense(S.revenge);   // 😠
   // your mines keep working while you fight
   prodAcc += dt; if (prodAcc >= 1) { produce(prodAcc); refillInfinite(); prodAcc = 0; if (!battle) renderTop(); if (Math.random() < 0.1) save(); }
   setView(battle ? battle.island.th : th());

@@ -617,6 +617,19 @@ q(`S.nextRaidAt = 0; for (var i = 0; i < 10; i++) { startDefense(); var n = 0; w
 check(q(`S.raidsWon`) === 10, 'the maxed base beats every raid (10 out of 10)');
 q(`S.owner = false;`);
 
+// ---- ♾️ infinite resources (owner) ----
+reset({ rank: 8, gold: 10, wood: 10, stone: 10 });
+check(/Owner only|Not allowed/.test(q(`panelAction('infinite', '', false)`)), 'only the owner can turn on infinite resources');
+q(`S.owner = true; panelAction('infinite', '', true); renderTop();`);
+check(q('S.infinite') === true && q('S.gold') === q('capOf()') && q(`document.getElementById('gold').textContent`) === '∞', '♾️ on: stores full, shown as ∞');
+const inf = JSON.parse(q(`(function(){ var r = {}; r.build = placeBuilding('quarry', CENTER, CENTER - 2); r.up = upgradeBuilding(S.buildings[0]); r.train = train('warrior', 5); r.golem = buyGolem('windgolem'); refillInfinite(); r.gold = S.gold; r.cap = capOf(); return JSON.stringify(r); })()`));
+check(inf.build === null && inf.up === null && inf.train === null && inf.golem === null && inf.gold === inf.cap, '…building, upgrading, training and golems are free', JSON.stringify(inf));
+q(`startDefense(); battle.mobs = []; battle.blds.forEach(function(b){ if (B[b.type].def) b.hp = 0; }); var n = 0; while (battle && !battle.over && n++ < 6000) { battle.troops.forEach(function(t){ t.hp = 1e6; t.dmg = 500; }); battleStep(); } battle = null; hidePanels();`);
+check(q('S.gold') === q('capOf()') && q('S.raidsLost') === 1, '…losing a raid takes nothing');
+q(`panelAction('infinite', '', true); S.gold = 5; renderTop();`);
+check(q('S.infinite') === false && q(`document.getElementById('gold').textContent`) === '5', 'turn it off again any time');
+q(`S.owner = false;`);
+
 // ---- drawing ----
 q(`for (var i = 0; i < 3; i++) frame(performance.now() + i * 16);`);
 check(true, 'the island and a battle draw without errors');

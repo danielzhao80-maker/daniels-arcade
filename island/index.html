@@ -210,8 +210,8 @@ function buyGolem(kind) {
   if (!GOLEM_COST[kind]) return "No such golem.";
   S.golems = S.golems || [];
   if (S.golems.includes(kind)) return `You already have the ${MOB[kind].name}.`;
-  if (S.gold < GOLEM_COST[kind]) return `Not enough gold (🪙 ${GOLEM_COST[kind].toLocaleString()}) — you can hold ${capOf().toLocaleString()}: build Storage for more.`;
-  S.gold -= GOLEM_COST[kind]; S.golems.push(kind); save(); return null;
+  if (!infinite() && S.gold < GOLEM_COST[kind]) return `Not enough gold (🪙 ${GOLEM_COST[kind].toLocaleString()}) — you can hold ${capOf().toLocaleString()}: build Storage for more.`;
+  if (!infinite()) S.gold -= GOLEM_COST[kind]; S.golems.push(kind); save(); return null;
 }
 function spawnMobs(blds, golems) {
   const mobs = [], bought = Array.isArray(golems);
@@ -304,8 +304,11 @@ function capOf() { return 1000 + S.buildings.reduce((a, b) => a + storeOf(b), 0)
 function armyCap() { return 10 + S.buildings.filter((b) => b.type === "barracks").reduce((a, b) => a + b.lvl * 10, 0); }
 const barracksLvl = () => Math.max(0, ...S.buildings.filter((b) => b.type === "barracks").map((b) => b.lvl));
 const armyUsed = () => Object.entries(S.army).reduce((a, [k, n]) => a + (T[k] ? T[k].house * n : 0), 0);
-const canPay = (c) => Object.entries(c).every(([k, v]) => S[k] >= v);
-const pay = (c) => { for (const [k, v] of Object.entries(c)) S[k] -= v; };
+// ♾️ Owner: infinite resources — everything is free, stores stay full, nothing can be taken.
+const infinite = () => !!S.infinite;
+const canPay = (c) => infinite() || Object.entries(c).every(([k, v]) => S[k] >= v);
+const pay = (c) => { if (infinite()) return; for (const [k, v] of Object.entries(c)) S[k] -= v; };
+function refillInfinite() { if (!infinite()) return; const cap = capOf(); S.gold = S.wood = S.stone = cap; }
 const costText = (c) => Object.entries(c).map(([k, v]) => `${R[k]} ${v.toLocaleString()}`).join(" ");
 // Mines, mills and quarries fill your stores (up to the storage cap).
 function produce(seconds) {
@@ -343,8 +346,8 @@ function train(kind, n) {
   if (barracksLvl() < t.unlock) return `Needs Barracks level ${t.unlock}.`;
   n = n || 1;
   if (armyUsed() + t.house * n > armyCap()) return "Army is full — build or upgrade Barracks.";
-  if (S.gold < t.cost * n) return `Not enough gold (🪙 ${t.cost * n}).`;
-  S.gold -= t.cost * n; S.army[kind] = (S.army[kind] || 0) + n; save(); return null;
+  if (!infinite() && S.gold < t.cost * n) return `Not enough gold (🪙 ${t.cost * n}).`;
+  if (!infinite()) S.gold -= t.cost * n; S.army[kind] = (S.army[kind] || 0) + n; save(); return null;
 }
 
 // ---- enemy islands -----------------------------------------------------------------------------
@@ -662,7 +665,8 @@ function endDefense(bt) {
     title = "🛡️ You beat the raiders!"; text = `They only destroyed ${pct}%. Recruits joined your army: ${joined.join(" ") || "none (no army space)"} · loot ${costText(got)} · 🏆 +5`;
   }
   S.nextRaidAt = Date.now() + RAID_EVERY;
-  save(); showResult(title, text);
+  if (infinite() && lost) text += " (♾️ Infinite resources: you lost nothing.)";
+  refillInfinite(); save(); showResult(title, text);
   document.getElementById("battlebar").style.display = "none";
   document.getElementById("bottom").style.display = "flex"; document.getElementById("codebar").style.display = "flex";
 }
@@ -679,6 +683,7 @@ function endBattle(forced) {
   for (const k in loot) S[k] = Math.min(cap, S[k] + loot[k]);
   const stolen = bt.stolen || {};   // 🐒 the monkeys' takings come out of your stores
   for (const k in stolen) S[k] = Math.max(0, S[k] - stolen[k]);
+  refillInfinite();
   const stoleText = costText(Object.fromEntries(Object.entries(stolen).filter(([, v]) => v > 0)));
   let title = stars > 0 ? `⭐`.repeat(stars) + " Victory!" : "💥 Defeat";
   let text = `You destroyed ${pct}% of ${bt.island.name}. Loot: ${costText(loot) || "none"}.${stoleText ? ` 🐒 Monkeys stole ${stoleText}!` : ""}`;
@@ -815,6 +820,7 @@ function panelAction(act, arg, owner) {
   if (act === "rank") { S.rank = Math.max(1, Math.min(MAX_TH, +arg || 1)); save(); return `🎖️ Rank set to ${S.rank}`; }
   if (act === "raid") { S.raidLevel = Math.max(1, Math.min(99, +arg || 1)); save(); return `🗺️ Raid level set to ${S.raidLevel}`; }
   if (act === "trophies") { S.trophies += +arg || 0; save(); return `🏆 +${+arg || 0} trophies`; }
+  if (act === "infinite") { S.infinite = !S.infinite; refillInfinite(); save(); return S.infinite ? "♾️ Infinite resources ON — everything is free!" : "♾️ Infinite resources off"; }
   if (act === "maxbase") { hidePanels(); return maxOutBase(false); }
   if (act === "maxkeep") { hidePanels(); return maxOutBase(true); }
   if (act === "raidnow") { hidePanels(); const e = startDefense(); return e || "🏴‍☠️ Here they come!"; }
@@ -865,7 +871,7 @@ function renderAdmin(owner) {
   const sec = (t, body) => `<div class="card" style="text-align:left;margin-bottom:10px"><div class="n">${t}</div><div class="row" style="justify-content:flex-start;margin:6px 0 0">${body}</div></div>`;
   const left = (k) => owner ? "" : ` <span style="opacity:.7;font-size:.8rem">(${Math.max(0, adminLeft(k))} left)</span>`;
   $("admBody").innerHTML =
-    sec("💰 Resources" + (owner ? "" : " — +500 a click"), ["gold", "wood", "stone"].map((k) => btn("res", k, `${R[k]} ${owner ? "Fill" : "+500"}`)).join("") + (owner ? "" : left("gold"))) +
+    sec("💰 Resources" + (owner ? "" : " — +500 a click"), ["gold", "wood", "stone"].map((k) => btn("res", k, `${R[k]} ${owner ? "Fill" : "+500"}`)).join("") + (owner ? btn("infinite", "", infinite() ? "♾️ Infinite: ON" : "♾️ Infinite: off", infinite() ? "green" : "") : left("gold"))) +
     sec("⚔️ Troops" + (owner ? " — fill your army" : " — 5 a click") + left("troops"), Object.entries(T).map(([k, t]) => btn("troops", k, `${t.emoji} ${t.name}`, "blue")).join("")) +
     sec("🗿 Golems" + left("golems"), Object.keys(GOLEM_COST).map((k) => btn("golem", k, `${MOB[k].emoji} ${MOB[k].name}`, "green")).join("") + (owner ? btn("golem", "all", "All golems", "green") : "")) +
     sec("🎁 Codes", btn("codes", "", "Reset my codes")) +
@@ -933,7 +939,7 @@ function moveBuilding(b, x, y) {
 }
 function hideInfo() { selected = null; $("info").style.display = "none"; }
 function renderTop() {
-  $("thLv").textContent = th(); for (const k of ["gold", "wood", "stone"]) $(k).textContent = Math.floor(S[k]).toLocaleString();
+  $("thLv").textContent = th(); for (const k of ["gold", "wood", "stone"]) $(k).textContent = infinite() ? "∞" : Math.floor(S[k]).toLocaleString();
   $("trophies").textContent = S.trophies; $("rankN").textContent = rank();
   if (S.nextRaidAt) { const sec = Math.max(0, Math.ceil((S.nextRaidAt - Date.now()) / 1000)); $("raidIn").textContent = `${Math.floor(sec / 60)}:${String(sec % 60).padStart(2, "0")}`; } $("armyN").textContent = armyUsed(); $("armyCap").textContent = armyCap();
 }
@@ -1175,7 +1181,7 @@ function frame(now) {
     if (left <= 0) { raidWarned = false; startDefense(); }
   }
   // your mines keep working while you fight
-  prodAcc += dt; if (prodAcc >= 1) { produce(prodAcc); prodAcc = 0; if (!battle) renderTop(); if (Math.random() < 0.1) save(); }
+  prodAcc += dt; if (prodAcc >= 1) { produce(prodAcc); refillInfinite(); prodAcc = 0; if (!battle) renderTop(); if (Math.random() < 0.1) save(); }
   setView(battle ? battle.island.th : th());
   if (battle) {
     drawIsland(battle.island.th, battle.blds, time, { battle: true, theme: battle.island.theme });

@@ -106,7 +106,7 @@
 // yours — whoever destroys more wins. Everything is kept in localStorage (island_clash_save).
 const SAVE_KEY = "island_clash_save";
 const R = { gold: "🪙", wood: "🪵", stone: "🪨" };
-const MAX_TH = 8, OFFLINE_CAP_S = 8 * 3600;
+const MAX_TH = 10, OFFLINE_CAP_S = 8 * 3600;
 
 // ---- buildings ---------------------------------------------------------------------------------
 // base: cost of level 1 (each level ×1.8). hp at level 1 (+50% a level). per-TH limits in limitOf().
@@ -129,9 +129,11 @@ const B = {
   crystal: { name: "Crystal Tower", emoji: "💎", hp: 450, prestige: 5, base: { gold: 1200, stone: 800 }, def: { range: 5.5, dmg: 45, rate: 25,  col: "#81ecec" }, desc: "🌟 Prestige 5 — a super-fast crystal laser." },
   trident: { name: "Trident Tower", emoji: "🔱", hp: 480, prestige: 6, base: { gold: 1500, stone: 1000 }, def: { range: 5,   dmg: 40, rate: 45,  push: 1.5, col: "#00cec9" }, desc: "🌟 Prestige 6 — tidal blasts that hit hard and WASH troops back." },
   ufo:     { name: "UFO Tower",     emoji: "🛸", hp: 500, prestige: 7, base: { gold: 1500, stone: 1000 }, def: { range: 6,   dmg: 35, rate: 50,  stun: 60, col: "#55efc4" }, desc: "🌟 Prestige 7 — a tractor beam that FREEZES troops in place for 1 s." },
+  rainbow: { name: "Rainbow Tower", emoji: "🌈", hp: 600, prestige: 9,  base: { gold: 2000, stone: 1400 }, def: { range: 5.5, dmg: 34, rate: 35, multi: 3, col: "#fd79a8" }, desc: "🌟 Prestige 9 — shoots 3 troops at once." },
+  blackhole: { name: "Black Hole Tower", emoji: "🌀", hp: 650, prestige: 10, base: { gold: 2200, stone: 1600 }, def: { range: 5, dmg: 50, rate: 70, splash: 1.5, push: -1.2, col: "#6c5ce7" }, desc: "🌟 Prestige 10 — SUCKS troops in towards it, then crushes the whole group." },
   sun:     { name: "Sun Tower",     emoji: "☀️", hp: 550, prestige: 8, base: { gold: 1800, stone: 1200 }, def: { range: 4.5, dmg: 22, rate: 40,  all: true, burn: 20, col: "#fdcb6e" }, desc: "🌟 Prestige 8 — burns EVERY troop in range at once." },
 };
-// ---- 🌟 PRESTIGE: with Town Hall 8 and rank 8 you can prestige (8 times). Beat the Prestige Trial (⭐⭐) on
+// ---- 🌟 PRESTIGE: with Town Hall 10 and rank 10 (MAX_TH) you can prestige (10 times). Beat the Prestige Trial (⭐⭐) on
 // its new map and you get: a new map to raid, a new tower, a new Barracks animal, and a buff —
 // +15% troop health and damage and +15% resources a minute for every Prestige. Nothing is taken away.
 const PRESTIGE = [
@@ -143,6 +145,8 @@ const PRESTIGE = [
   { emoji: "🌊", name: "Abyss",   theme: "abyss",   tower: "trident", mob: "kraken",     map: "Sunken Temple" },
   { emoji: "🌌", name: "Cosmic",  theme: "cosmic",  tower: "ufo",     mob: "alien",      map: "Star Fortress" },
   { emoji: "👑", name: "Golden",  theme: "golden",  tower: "sun",     mob: "lion",       map: "Golden Palace" },
+  { emoji: "🌈", name: "Rainbow", theme: "rainbow", tower: "rainbow", mob: "unicorn",    map: "Rainbow Kingdom" },
+  { emoji: "🌀", name: "Void",    theme: "void",    tower: "blackhole", mob: "trex",     map: "Void Citadel" },
 ];
 const MAX_PRESTIGE = PRESTIGE.length, PRESTIGE_BUFF = 0.15;
 const prest = () => (typeof S === "object" && S ? Math.max(0, Math.min(MAX_PRESTIGE, S.prestige || 0)) : 0);
@@ -177,9 +181,9 @@ function towerStats(b) {
   if (hasPerk(b, "reload")) rate = Math.round(rate * 0.66);
   if (hasPerk(b, "explosive")) splash = Math.max(splash, 1.0);
   if (hasPerk(b, "bigblast")) splash += 0.7;
-  return { range, rate, dmg, splash, push: D.push || 0, stun: D.stun || 0, all: !!D.all, burn: D.burn || 0, slow: !!D.slow, chain: Math.max(D.chain || 0, hasPerk(b, "chain") ? 2 : 0), col: D.col };
+  return { range, rate, dmg, splash, multi: D.multi || 0, push: D.push || 0, stun: D.stun || 0, all: !!D.all, burn: D.burn || 0, slow: !!D.slow, chain: Math.max(D.chain || 0, hasPerk(b, "chain") ? 2 : 0), col: D.col };
 }
-const BUILD_ORDER = ["goldmine", "lumbermill", "quarry", "storage", "barracks", "archer", "cannon", "wizard", "wall", "flame", "frost", "tesla", "meteor", "crystal", "trident", "ufo", "sun"];
+const BUILD_ORDER = ["goldmine", "lumbermill", "quarry", "storage", "barracks", "archer", "cannon", "wizard", "wall", "flame", "frost", "tesla", "meteor", "crystal", "trident", "ufo", "sun", "rainbow", "blackhole"];
 // p: the island's Prestige (yours if left out) — prestige towers need it
 function limitOf(type, th, p) {
   if (B[type] && B[type].prestige) return (p === undefined ? prest() : p) >= B[type].prestige ? 2 : 0;
@@ -232,6 +236,8 @@ const MOB = {
   kraken:     { name: "Kraken",          emoji: "🐙", hp: 1300, dmg: 34, range: 1.2, speed: 0.9, rate: 55, sight: 5,   ring: "#0984e3", big: true, stun: 90, prestige: 6, desc: "🌟 Prestige 6 — huge: its tentacles GRAB your troop and hold it for 1.5 s." },
   alien:      { name: "Alien",           emoji: "👽", hp: 260,  dmg: 18, range: 3,   speed: 1.5, rate: 32, sight: 6,   ring: "#00b894", slow: 0.5, prestige: 7, desc: "🌟 Prestige 7 — zaps from range with a ray gun that SLOWS your troops." },
   lion:       { name: "Golden Lion",     emoji: "🦁", hp: 950,  dmg: 32, range: 0.8, speed: 1.6, rate: 40, sight: 5.5, ring: "#f9ca24", big: true, charge: 3, stun: 50, prestige: 8, desc: "🌟 Prestige 8 — POUNCES (3× first hit) and ROARS (stuns)." },
+  unicorn:    { name: "Unicorn",         emoji: "🦄", hp: 800,  dmg: 28, range: 0.8, speed: 2.0, rate: 36, sight: 6,   ring: "#fd79a8", big: true, charge: 2, heals: 0.05, prestige: 9, desc: "🌟 Prestige 9 — CHARGES with its horn and HEALS every animal near it." },
+  trex:       { name: "T-Rex",           emoji: "🦖", hp: 2000, dmg: 50, range: 1.0, speed: 1.0, rate: 50, sight: 5.5, ring: "#2d3436", big: true, stun: 60, splash: 1.0, prestige: 10, desc: "🌟 Prestige 10 — ENORMOUS: chomps whole groups of troops and knocks them out." },
   dragon:     { name: "Dragon",          emoji: "🐉", hp: 1100, dmg: 30, range: 2.2, speed: 1.2, rate: 50, sight: 6,   ring: "#00b894", big: true, flying: true, burn: 40, splash: 1.2, prestige: 5, desc: "🌟 Prestige 5 — FLIES and breathes fire on groups of troops." },
   windgolem:  { name: "Wind Golem",  emoji: "🌪️", hp: 420, dmg: 16, range: 2.2, speed: 1.5, rate: 45, sight: 5,   ring: "#7f8fa6", big: true, golem: true, push: 1.6, catch: 0.7, desc: "GUSTS from range that blow your troops away — and a 70% chance to CATCH an attack and throw it back." },
 };
@@ -359,7 +365,7 @@ function startRankUp() {
 const countOf = (type) => S.buildings.filter((b) => b.type === type).length;
 // 📦 How much of each resource you can hold: a base, plus what every building adds per level —
 // Storage the most, the Town Hall, and the towers, mines and walls too.
-const STORE_PER_LVL = { trident: 600, ufo: 600, sun: 600, flame: 600, frost: 600, tesla: 600, meteor: 600, crystal: 600, storage: 1500, townhall: 500, archer: 250, cannon: 300, wizard: 400, goldmine: 100, lumbermill: 100, quarry: 100, wall: 25 };
+const STORE_PER_LVL = { rainbow: 600, blackhole: 600, trident: 600, ufo: 600, sun: 600, flame: 600, frost: 600, tesla: 600, meteor: 600, crystal: 600, storage: 1500, townhall: 500, archer: 250, cannon: 300, wizard: 400, goldmine: 100, lumbermill: 100, quarry: 100, wall: 25 };
 const storeOf = (b) => (STORE_PER_LVL[b.type] || 0) * b.lvl;
 function capOf() { return 1000 + S.buildings.reduce((a, b) => a + storeOf(b), 0); }
 function armyCap() { return 10 + S.buildings.filter((b) => b.type === "barracks").reduce((a, b) => a + b.lvl * 10, 0); }
@@ -431,6 +437,8 @@ Object.assign(THEMES, {
   crystal: { name: "Crystal", emoji: "💎", grass: ["#c39bd3", "#d2b4de"], beach: "#f5eef8", sea: ["#8e44ad", "#2e0f3d"], deco: "💎" },
   abyss:   { name: "Abyss",   emoji: "🌊", grass: ["#1abc9c", "#16a085"], beach: "#7fdbca", sea: ["#0a3d62", "#020b1a"], deco: "🐚" },
   cosmic:  { name: "Cosmic",  emoji: "🌌", grass: ["#30336b", "#3c3f80"], beach: "#130f40", sea: ["#0c0a2a", "#000000"], deco: "🪐" },
+  rainbow: { name: "Rainbow", emoji: "🌈", grass: ["#a29bfe", "#81ecec"], beach: "#ffeaa7", sea: ["#fd79a8", "#6c5ce7"], deco: "🌈" },
+  void:    { name: "Void",    emoji: "🌀", grass: ["#1e1e2f", "#2a2a40"], beach: "#000000", sea: ["#120024", "#000000"], deco: "🕳️" },
   golden:  { name: "Golden",  emoji: "👑", grass: ["#f6c94b", "#ffd96a"], beach: "#fff3c4", sea: ["#e1a400", "#7a5200"], deco: "👑" },
 });
 const THEME_ORDER = ["tropical", "jungle", "desert", "volcano", "ice"];
@@ -444,7 +452,7 @@ function genIsland(lvl, seed, p) {   // p: a 🌟 Prestige island (its map, towe
   const spots = [];
   for (let y = 0; y < GRID; y++) for (let x = 0; x < GRID; x++) if (isLand(x, y, t) && !(x === CENTER && y === CENTER)) spots.push([x, y]);
   for (let i = spots.length - 1; i > 0; i--) { const j = Math.floor(r() * (i + 1)); [spots[i], spots[j]] = [spots[j], spots[i]]; }
-  const want = ["archer", "cannon", "wizard", "flame", "frost", "tesla", "meteor", "crystal", "trident", "ufo", "sun", "goldmine", "lumbermill", "quarry", "storage", "barracks"];
+  const want = ["archer", "cannon", "wizard", "flame", "frost", "tesla", "meteor", "crystal", "trident", "ufo", "sun", "rainbow", "blackhole", "goldmine", "lumbermill", "quarry", "storage", "barracks"];
   for (const type of want) for (let k = 0; k < limitOf(type, t, p); k++) {
     const sp = spots.pop(); if (!sp) break;
     const lv = Math.max(1, t - Math.floor(r() * 2)), perks = [];
@@ -553,6 +561,7 @@ function mobStep(bt) {
       if (M.slow) tg.slowUntil = bt.frame + 180;                                          // 🦂
       if (M.stun) tg.stunUntil = bt.frame + M.stun;                                       // 🐻
       const lvMul = m.dmg / M.dmg;
+      if (M.splash && !M.burn) for (const o of bt.troops) if (o.hp > 0 && o !== tg && Math.hypot(o.x - tg.x, o.y - tg.y) <= M.splash) o.hp -= dmg * 0.5;   // 🦖 chomps the group
       if (M.burn) for (const o of bt.troops) if (o.hp > 0 && (o === tg || Math.hypot(o.x - tg.x, o.y - tg.y) <= M.splash)) {   // 🔥 burn + splash
         if (o !== tg) o.hp -= dmg * 0.5;
         o.burnLeft = 180; o.burnDps = M.burn * lvMul;
@@ -676,8 +685,8 @@ function battleStep() {
         if (hasPerk(b, "frost") || D.slow) tr.slowUntil = bt.frame + 150;                                    // ❄️ 🧊
         if (D.stun) tr.stunUntil = bt.frame + D.stun;                                                        // 🛸
         if (D.push) {   // 🔱 washed back, away from the tower (not out past the beach)
-          const d0 = Math.hypot(tr.x - b.x, tr.y - b.y) || 1;
-          tr.x += (tr.x - b.x) / d0 * D.push; tr.y += (tr.y - b.y) / d0 * D.push;
+          const d0 = Math.hypot(tr.x - b.x, tr.y - b.y) || 1, amt = D.push < 0 ? -Math.min(-D.push, d0 * 0.7) : D.push;   // 🌀 a pull never goes past the tower
+          tr.x += (tr.x - b.x) / d0 * amt; tr.y += (tr.y - b.y) / d0 * amt;
           const r0 = Math.hypot(tr.x - CENTER, tr.y - CENTER), lim = landRadius(bt.island.th) + 2;
           if (r0 > lim) { tr.x = CENTER + (tr.x - CENTER) / r0 * lim; tr.y = CENTER + (tr.y - CENTER) / r0 * lim; }
         }
@@ -685,6 +694,7 @@ function battleStep() {
       bt.shots.push({ x: b.x, y: b.y, tx: t0.x, ty: t0.y, t: 8, col });
     };
     strike(tg, dmg);
+    for (let k = 1; k < D.multi; k++) if (inRange[k]) strike(inRange[k], dmg);   // 🌈
     if (hasPerk(b, "doubleshot") && inRange[1]) strike(inRange[1], dmg);   // 🎯
     if (D.chain) {   // ⛓️ 🗼 bounces to more troops near the first
       let from = tg; const hit = new Set([tg]);
@@ -974,13 +984,13 @@ function panelAction(act, arg, owner) {
   if (act === "raidnow") { hidePanels(); const e = startDefense(); return e || "🏴‍☠️ Here they come!"; }
   return "?";
 }
-// 👑 Max out my base: Town Hall 8 and rank 8, the most of every building at level 8 in a strong layout —
+// 👑 Max out my base: Town Hall and rank MAX_TH, the most of every building at the top level in a strong layout —
 // Storage and Wizard Towers in the middle, a ring of walls, Archer Towers and Cannons spread round it,
 // Barracks behind them, mines on the outside — every tower upgrade, every golem, full stores and a full army.
 function maxOutBase(keep) {
   const T8 = MAX_TH;
-  S.prestige = MAX_PRESTIGE;   // 🌟 the best base has every Prestige: all 8 prestige towers and all 8 prestige animals
-  // keep: your buildings stay where they are (everything to level 8, every upgrade); only the missing ones are added
+  S.prestige = MAX_PRESTIGE;   // 🌟 the best base has every Prestige: every prestige tower and animal
+  // keep: your buildings stay where they are (everything to the top level, every upgrade); only the missing ones are added
   const list = keep ? S.buildings.map((b) => Object.assign({}, b, { lvl: T8 })) : [{ type: "townhall", lvl: T8, x: CENTER, y: CENTER }];
   const place = (type, n, dist, turn) => {   // n of `type` evenly round a ring at `dist`, nearest free tile
     if (keep) n = Math.max(0, n - list.filter((b) => b.type === type).length);   // (only what's missing)
@@ -1033,7 +1043,7 @@ function renderAdmin(owner) {
       sec("⚔️ In battle", btn("win", "", "⚡ Win this battle", "green") + btn("abil", "", "✨ Refill abilities", "blue")) +
       sec("🧹 Clear", btn("army0", "", "Empty my army") + btn("golem0", "", "Remove golems") + btn("reset", "", "🔄 Start my island over", "red")) +
       sec("🏆 The best base", btn("maxkeep", "", "⬆️ Max out (keep my layout)", "green") + btn("maxbase", "", "🏆 Max out with a new layout", "green") +
-        `<span style="font-size:.75rem;opacity:.75">Town Hall 8, 🌟 Prestige 8 with every prestige tower and animal, everything level 8, every tower upgrade, all golems, full stores and army. "Keep my layout" leaves your buildings where they are and only adds what's missing.</span>`) : "");
+        `<span style="font-size:.75rem;opacity:.75">Town Hall ${MAX_TH}, 🎖️ rank ${MAX_TH}, 🌟 Prestige ${MAX_PRESTIGE} with every prestige tower and animal, everything level ${MAX_TH}, every tower upgrade, all golems, full stores and army. "Keep my layout" leaves your buildings where they are and only adds what's missing.</span>`) : "");
   $("admBody").querySelectorAll("[data-act]").forEach((b) => (b.onclick = () => {
     const arg = b.dataset.arg === "#" ? $("admNum").value : b.dataset.arg;
     const msg = panelAction(b.dataset.act, arg, owner); renderTop();

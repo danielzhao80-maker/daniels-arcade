@@ -152,8 +152,8 @@ check(/Town Hall first/.test(q(`upgradeBuilding(S.buildings[1])`)), 'buildings c
 check(q(`upgradeBuilding(S.buildings[0])`) === null && q('th()') === 2, 'upgrade the Town Hall → level 2');
 check(q(`upgradeBuilding(S.buildings[1])`) === null && q(`S.buildings[1].lvl`) === 2, '…then the mine can go to level 2');
 check(q(`landRadius(2) > landRadius(1)`) && q(`limitOf('cannon', 2)`) === 1, 'a bigger Town Hall: more land and new buildings');
-q(`for (var i = 0; i < 10; i++) upgradeBuilding(S.buildings[0]);`);
-check(q('th()') === 8 && /top level/.test(q(`upgradeBuilding(S.buildings[0])`)), 'the Town Hall stops at level 8');
+q(`S.rank = 10; S.gold = S.wood = S.stone = 1e7; for (var i = 0; i < 12; i++) upgradeBuilding(S.buildings[0]);`);
+check(q('th()') === 10 && /top level/.test(q(`upgradeBuilding(S.buildings[0])`)), 'the Town Hall stops at level 10');
 // ---- production ----
 reset({ gold: 0, wood: 0, stone: 0 });
 q(`produce(60)`);
@@ -603,7 +603,7 @@ const mx = q(`panelAction('maxbase', '', true)`);
 const mxs = JSON.parse(q(`JSON.stringify({ th: th(), rank: rank(), n: S.buildings.length, allMax: S.buildings.every(function(b){ return b.lvl === MAX_TH; }), golems: S.golems.length, full: S.gold === capOf() && S.wood === capOf() && S.stone === capOf(), army: armyUsed() + '/' + armyCap(),
   limits: Object.keys(B).every(function(t){ return t === 'townhall' || countOf(t) === limitOf(t, MAX_TH); }), perks: S.buildings.filter(function(b){ return PERKS[b.type]; }).every(function(b){ return b.perks.length === 3; }),
   land: S.buildings.every(function(b){ return isLand(b.x, b.y); }), overlap: new Set(S.buildings.map(function(b){ return b.x + ',' + b.y; })).size === S.buildings.length })`));
-check(mxs.th === 8 && mxs.rank === 8 && mxs.allMax && mxs.limits, '👑 Max out my base: Town Hall 8, the most of every building, all level 8', JSON.stringify(mxs));
+check(mxs.th === 10 && mxs.rank === 10 && mxs.allMax && mxs.limits, '👑 Max out my base: Town Hall 10, rank 10, the most of every building, all level 10', JSON.stringify(mxs));
 check(mxs.perks && mxs.golems === 4 && mxs.full && mxs.army.split('/')[0] === mxs.army.split('/')[1], '…every tower upgrade, all 4 golems, full stores and a full army');
 check(mxs.land && mxs.overlap, '…all on the island, nothing on top of anything else');
 check(q(`(function(){ var near = function(t){ return S.buildings.filter(function(b){ return b.type === t; }).map(function(b){ return Math.hypot(b.x - CENTER, b.y - CENTER); }); }; return Math.max.apply(null, near('wizard')) < Math.min.apply(null, near('goldmine')); })()`), '…a strong layout (Wizard Towers in the middle, mines on the outside)');
@@ -611,7 +611,7 @@ reset({ rank: 1 });
 q(`S.owner = true; S.buildings.push({ type: 'archer', lvl: 1, x: CENTER + 3, y: CENTER - 1 }, { type: 'cannon', lvl: 1, x: CENTER - 3, y: CENTER + 2 }); window.__spots = S.buildings.map(function(b){ return b.type + '@' + b.x + ',' + b.y; });`);
 q(`panelAction('maxkeep', '', true)`);
 const keep = JSON.parse(q(`JSON.stringify({ kept: __spots.every(function(sp){ return S.buildings.some(function(b){ return b.type + '@' + b.x + ',' + b.y === sp; }); }), allMax: S.buildings.every(function(b){ return b.lvl === MAX_TH; }), limits: Object.keys(B).every(function(t){ return t === 'townhall' || countOf(t) === limitOf(t, MAX_TH); }), perks: S.buildings.filter(function(b){ return PERKS[b.type]; }).every(function(b){ return b.perks.length === 3; }), overlap: new Set(S.buildings.map(function(b){ return b.x + ',' + b.y; })).size === S.buildings.length, th: th() })`));
-check(keep.kept && keep.allMax && keep.perks && keep.th === 8, '⬆️ Max out (keep my layout): your towers stay where you put them — all level 8, every upgrade', JSON.stringify(keep));
+check(keep.kept && keep.allMax && keep.perks && keep.th === 10, '⬆️ Max out (keep my layout): your towers stay where you put them — all level 10, every upgrade', JSON.stringify(keep));
 check(keep.limits && keep.overlap, '…and only the missing buildings are added, in free spots');
 q(`S.nextRaidAt = 0; for (var i = 0; i < 10; i++) { startDefense(); var n = 0; while (battle && !battle.over && n++ < 6000) battleStep(); battle = null; hidePanels(); }`);
 check(q(`S.raidsWon`) === 10, 'the maxed base beats every raid (10 out of 10)');
@@ -676,7 +676,7 @@ q(`battle = null; hidePanels();`);
 
 // ---- 🌟 prestige ----
 reset({ army: { warrior: 3 } });
-check(/Town Hall to level 8/.test(q(`startPrestige()`)), 'you need Town Hall 8 and rank 8 to prestige');
+check(/Town Hall to level 10/.test(q(`startPrestige()`)), 'you need Town Hall 10 and rank 10 to prestige');
 check(q(`limitOf('flame', 8)`) === 0 && q(`prodPerMin(1)`) === 18, 'no prestige: no prestige towers, no buff');
 q(`maxOutBase(false); S.prestige = 0; S.army = { giant: 10, mage: 15, warrior: 40 };`);
 check(q(`startPrestige()`) === null && q(`battle.island.prestige`) === 1 && q(`battle.island.theme`) === 'lava', 'the Prestige 1 trial is on the new Lava map');
@@ -687,7 +687,7 @@ check(q(`S.revenge`) === null || q(`S.revenge`) === undefined, 'a trial never br
 check(q(`limitOf('flame', 8)`) === 2 && q(`limitOf('frost', 8)`) === 0, 'Prestige 1 unlocks 2 Flame Towers (not the Frost Tower yet)');
 check(q(`prodPerMin(1)`) === Math.round(18 * 1.15), '+15% resources a minute');
 q(`S.army = { warrior: 5 }; startBattle(genIsland(3)); deploy('warrior', 10, 0.5);`);
-check(Math.abs(q(`battle.troops[0].maxHp`) - 70 * 1.7 * 1.15) < 0.01, '+15% troop health', q(`battle.troops[0].maxHp`));
+check(Math.abs(q(`battle.troops[0].maxHp`) - 70 * 1.9 * 1.15) < 0.01, '+15% troop health', q(`battle.troops[0].maxHp`));
 q(`endBattle(true); battle = null; hidePanels();`);
 check(q(`homeDefenders().some(function(m){ return m.kind === 'salamander'; })`), 'your Barracks send the new mob on your island too');
 check(q(`placeBuilding('flame', 10, 3) === null || placeBuilding('flame', 3, 10) === null || true`) && q(`S.buildings.filter(function(b){ return b.type === 'flame'; }).length`) >= 0, 'you can build the new tower');
@@ -702,7 +702,7 @@ check(['flame','frost','tesla','meteor','crystal'].every((t) => q(`battle.blds.s
 q(`var a = 0; while (battle && !battle.over && a++ < 4000) { if (a % 40 === 0) { deploy('giant', 10, 0.3); deploy('mage', 0.3, 10); deploy('warrior', 19.7, 10); } battleStep(); } if (battle && !battle.over) endBattle(true);`);
 check(q(`!!battle && battle.over`) && !/NaN/.test(q(`document.getElementById('resText').textContent`)), 'a full Prestige 5 battle runs with no errors');
 q(`battle = null; hidePanels(); S.prestige = 8; S.army = { giant: 10, mage: 15, warrior: 40 }; startBattle(prestigeIsland(8));`);
-check(q(`MAX_PRESTIGE`) === 8 && ['trident','ufo','sun'].every((t) => q(`battle.blds.filter(function(b){ return b.type === '${t}'; }).length`) === 2) && ['kraken','alien','lion'].every((m) => q(`battle.mobs.some(function(x){ return x.kind === '${m}'; })`)) && q(`battle.island.theme`) === 'golden', 'Prestige 8: 8 prestiges, with the Trident, UFO and Sun towers and the Kraken, Alien and Lion');
+check(q(`MAX_PRESTIGE`) === 10 && ['trident','ufo','sun'].every((t) => q(`battle.blds.filter(function(b){ return b.type === '${t}'; }).length`) === 2) && ['kraken','alien','lion'].every((m) => q(`battle.mobs.some(function(x){ return x.kind === '${m}'; })`)) && q(`battle.island.theme`) === 'golden', 'Prestige 8 (of 10): with the Trident, UFO and Sun towers and the Kraken, Alien and Lion');
 q(`var a = 0; while (battle && !battle.over && a++ < 4000) { if (a % 40 === 0) { deploy('giant', 10, 0.3); deploy('mage', 0.3, 10); deploy('warrior', 19.7, 10); } battleStep(); } if (battle && !battle.over) endBattle(true);`);
 check(q(`!!battle && battle.over`) && !/NaN/.test(q(`document.getElementById('resText').textContent`)), 'a full Prestige 8 battle runs with no errors');
 // the new tower powers
@@ -715,14 +715,25 @@ check(q(`panelAction('prestige', '3', true)`) === '🌟 Prestige set to 3' && q(
 check(q(`(function(){ try { renderPrestige(); renderInfo(); renderBuild(); renderTop(); return 'ok'; } catch (e) { return 'ERR ' + e.stack; } })()`) === 'ok', 'the panels draw with no errors');
 check(String(q(`document.getElementById('prestN').textContent`)) === '3' && /Prestige 4 Trial/.test(q(`document.getElementById('prestBody').innerHTML`)), 'the 🌟 panel and top bar show it');
 
+// ---- 🌟 prestige 9 & 10 ----
+reset({ army: { giant: 10, mage: 15, warrior: 40 } }); q(`S.prestige = 10; startBattle(prestigeIsland(10));`);
+check(['rainbow','blackhole'].every((t) => q(`battle.blds.filter(function(b){ return b.type === '${t}'; }).length`) === 2) && ['unicorn','trex'].every((m) => q(`battle.mobs.some(function(x){ return x.kind === '${m}'; })`)) && q('battle.island.theme') === 'void' && q('battle.island.th') === 10, 'Prestige 10: the Void map (Town Hall 10) with the Rainbow and Black Hole towers, the Unicorn and the T-Rex');
+q(`var a = 0; while (battle && !battle.over && a++ < 4000) { if (a % 40 === 0) { deploy('giant', 10, 0.3); deploy('mage', 0.3, 10); deploy('warrior', 19.7, 10); } battleStep(); } if (battle && !battle.over) endBattle(true);`);
+check(q(`!!battle && battle.over`) && !/NaN/.test(q(`document.getElementById('resText').textContent`)), 'a full Prestige 10 battle runs with no errors');
+q(`battle = null; hidePanels(); S.army = { warrior: 5 }; startBattle({ name: 't', th: 10, loot: {}, buildings: [{ type: 'townhall', lvl: 10, x: 10, y: 10 }, { type: 'rainbow', lvl: 1, x: 10, y: 6 }] }); battle.mobs = []; deploy('warrior', 10, 0.3); deploy('warrior', 10.5, 0.3); deploy('warrior', 9.5, 0.3); battle.troops.forEach(function(t, i){ t.x = 9 + i; t.y = 3; }); battle.blds[1].cd = 0; battleStep();`);
+check(q(`battle.troops.filter(function(t){ return t.hp < t.maxHp; }).length`) === 3, '🌈 Rainbow Tower shoots 3 troops at once');
+q(`endBattle(true); battle = null; S.army = { warrior: 5 }; startBattle({ name: 't', th: 10, loot: {}, buildings: [{ type: 'townhall', lvl: 10, x: 10, y: 10 }, { type: 'blackhole', lvl: 1, x: 10, y: 6 }] }); battle.mobs = []; deploy('warrior', 10, 0.3); battle.troops[0].y = 2; battle.blds[1].cd = 0; battleStep();`);
+check(q('battle.troops[0].y') > 2.5 && q('battle.troops[0].y') < 6, '🌀 Black Hole Tower pulls troops in (but not past it)', q('battle.troops[0].y'));
+q(`endBattle(true); battle = null; hidePanels();`);
+
 // ---- 👑 owner panel: everything ----
 reset({ army: { warrior: 5 } }); q(`S.owner = true;`);
 q(`panelAction('maxbase', '', true);`);
-check(q('S.prestige') === 8 && ['flame','frost','tesla','meteor','crystal','trident','ufo','sun'].every((t) => q(`countOf('${t}')`) === 2) && q(`S.buildings.every(function(b){ return b.lvl === 8; })`), 'the best base: Prestige 8 with 2 of every prestige tower, all level 8');
-check(['salamander','mammoth','bat','ghost','dragon','kraken','alien','lion'].every((m) => q(`homeDefenders().some(function(x){ return x.kind === '${m}'; })`)), 'the best base: every prestige animal guards it');
+check(q('S.prestige') === 10 && q('th()') === 10 && q('rank()') === 10 && ['flame','frost','tesla','meteor','crystal','trident','ufo','sun','rainbow','blackhole'].every((t) => q(`countOf('${t}')`) === 2) && q(`S.buildings.every(function(b){ return b.lvl === 10; })`), 'the best base: Town Hall 10, rank 10, Prestige 10 with 2 of every prestige tower, all level 10');
+check(['salamander','mammoth','bat','ghost','dragon','kraken','alien','lion','unicorn','trex'].every((m) => q(`homeDefenders().some(function(x){ return x.kind === '${m}'; })`)), 'the best base: every prestige animal guards it');
 check(q(`new Set(S.buildings.map(function(b){ return b.x + ',' + b.y; })).size === S.buildings.length && S.buildings.every(function(b){ return isLand(b.x, b.y); })`), 'the best base: nothing overlaps, all on land');
 q(`S.prestige = 0;`);
-check(/Prestige 1/.test(q(`panelAction('pnext', '', true)`)) && q('S.prestige') === 1 && /Prestige 8/.test(q(`panelAction('pmax', '', true)`)) && q('S.prestige') === 8, '🌟 +1 and Max Prestige');
+check(/Prestige 1/.test(q(`panelAction('pnext', '', true)`)) && q('S.prestige') === 1 && /Prestige 10/.test(q(`panelAction('pmax', '', true)`)) && q('S.prestige') === 10, '🌟 +1 and Max Prestige');
 check(q(`panelAction('pnext', '', false)`) === '👑 Owner only.', 'admins cannot');
 q(`S.prestige = 2;`);
 check(/Trial/.test(q(`panelAction('ptrial', '', true)`)) && q('battle.opts.prestige') === 3, '⚔️ Fight the next trial straight away');

@@ -930,6 +930,22 @@ check(q(`document.getElementById('btnOwner').style.display`) === 'inline-block',
 q(`localStorage.setItem(SAVE_KEY, JSON.stringify(Object.assign(freshSave(), { owner: true }))); load(); refreshPanelButtons();`);
 check(q(`document.getElementById('btnOwner').style.display`) === 'none', '…one who never used anything does not');
 
+// ---- 📦 maxed-out storage: ×1.5 each, stacking ----
+reset({});
+q(`S.buildings = [{ type: 'townhall', lvl: 10, x: 10, y: 10 }, { type: 'storage', lvl: 9, x: 12, y: 10 }, { type: 'storage', lvl: 9, x: 8, y: 10 }];`);
+const sc0 = q('capOf()');
+check(sc0 === 1000 + 5000 + 13500 * 2 && q('storeBoost()') === 1, 'no maxed Storage: normal storage', sc0);
+q(`S.buildings[1].lvl = 10;`);
+const sc1 = q('capOf()');
+check(sc1 === Math.floor((1000 + 5000 + 15000 + 13500) * 1.5), 'one maxed-out Storage: the whole storage ×1.5', sc1);
+q(`S.buildings[2].lvl = 10;`);
+check(q('capOf()') === Math.floor((1000 + 5000 + 30000) * 2.25), 'two maxed: they stack (×2.25)');
+q(`S.buildings.push({ type: 'storage', lvl: 10, x: 10, y: 12 }, { type: 'storage', lvl: 10, x: 10, y: 8 });`);
+check(Math.abs(q('storeBoost()') - 5.0625) < 1e-9, 'four maxed: ×5.06');
+q(`showInfo(S.buildings[1]); renderInfo();`);
+check(/MAXED/.test(q(`document.getElementById('infoCard').innerHTML`)) && /maxed-out Storage/.test(q(`document.getElementById('infoBody').innerHTML`)), 'the building info and 📊 My Island show it');
+q(`hideInfo();`);
+
 // ---- ♾️ owner: infinite troops ----
 reset({ army: {} }); q(`S.owner = true;`);
 check(/ON/.test(q(`panelAction('inftroops', '', true)`)) && q(`panelAction('inftroops', '', false)`) === '👑 Owner only.', 'owner switches on infinite troops (admins cannot)');

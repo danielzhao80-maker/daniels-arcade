@@ -126,7 +126,7 @@ const B = {
   goldmine:   { name: "Gold Mine",    emoji: "⛏️", hp: 260, base: { wood: 60 },                 makes: "gold",  desc: "Digs up gold." },
   lumbermill: { name: "Lumber Mill",  emoji: "🪓", hp: 260, base: { gold: 60 },                 makes: "wood",  desc: "Chops wood." },
   quarry:     { name: "Quarry",       emoji: "⚒️", hp: 260, base: { gold: 60, wood: 40 },       makes: "stone", desc: "Cuts stone." },
-  storage:    { name: "Storage",      emoji: "📦", hp: 320, base: { gold: 100, wood: 100 },     desc: "Holds more of every resource: +1,500 a level (towers, mines and walls add some too)." },
+  storage:    { name: "Storage",      emoji: "📦", hp: 320, base: { gold: 100, wood: 100 },     desc: "Holds more of every resource: +1,500 a level (towers, mines and walls add some too). MAX IT OUT (level 10): your WHOLE storage gets 50% bigger — and every maxed Storage stacks!" },
   barracks:   { name: "Barracks",     emoji: "⛺", hp: 320, base: { gold: 150, wood: 80 },      desc: "More army space and new troops — and it sends out animals to defend your island: 🐺 🐒 🦝, then 🐗 🐝 (Lv 2), 🐍 🦂 (Lv 3), 🐻 (Lv 4), 🦅 (Lv 5), 🦍 (Lv 6), 🐊 (Lv 7), 🦏 (Lv 8), 🐅 (Lv 9), 🦉 (Lv 10). (Buy 🗿 golems in 🛡️ Army to guard your island too.)" },
   archer:     { name: "Archer Tower", emoji: "🏹", hp: 300, base: { gold: 120, wood: 60, stone: 30 }, def: { range: 4.5, dmg: 9, rate: 40 }, desc: "Shoots troops from far away. +250 storage a level." },
   cannon:     { name: "Cannon",       emoji: "💣", hp: 340, base: { gold: 200, stone: 80 },     def: { range: 3.5, dmg: 24, rate: 70 }, desc: "Big hits, shorter range. +300 storage a level." },
@@ -432,7 +432,10 @@ const countOf = (type) => S.buildings.filter((b) => b.type === type).length;
 // Storage the most, the Town Hall, and the towers, mines and walls too.
 const STORE_PER_LVL = { boomerang: 300, poison: 300, beehive: 300, dojo: 300, dragonstatue: 300, rainbow: 600, blackhole: 600, trident: 600, ufo: 600, sun: 600, flame: 600, frost: 600, tesla: 600, meteor: 600, crystal: 600, storage: 1500, townhall: 500, archer: 250, cannon: 300, wizard: 400, goldmine: 100, lumbermill: 100, quarry: 100, wall: 25 };
 const storeOf = (b) => (STORE_PER_LVL[b.type] || 0) * b.lvl;
-function capOf() { return 1000 + S.buildings.reduce((a, b) => a + storeOf(b), 0); }
+// 📦 A MAXED-OUT Storage (top level) makes your WHOLE storage 50% bigger — and every maxed box stacks (×1.5 each).
+const maxedStorages = () => S.buildings.filter((b) => b.type === "storage" && b.lvl >= MAX_TH).length;
+const storeBoost = () => Math.pow(1.5, maxedStorages());
+function capOf() { return Math.floor((1000 + S.buildings.reduce((a, b) => a + storeOf(b), 0)) * storeBoost()); }
 function armyCap() { return 10 + S.buildings.filter((b) => b.type === "barracks").reduce((a, b) => a + b.lvl * 10, 0); }
 const barracksLvl = () => Math.max(0, ...S.buildings.filter((b) => b.type === "barracks").map((b) => b.lvl));
 const armyUsed = () => Object.entries(S.army).reduce((a, [k, n]) => a + (T[k] ? T[k].house * n : 0), 0);
@@ -1549,7 +1552,7 @@ function renderInfo() {
     sec(`🏰 Town Hall level ${I.th}${I.th >= MAX_TH ? " (top level!)" : ""} · 🎖️ Rank ${rank()}`, `${I.land} buildings on your island · land radius ${landRadius(I.th).toFixed(1)} tiles<br>` + (rank() > I.th ? `You can upgrade your Town Hall to level ${rank()}.` : rank() >= MAX_TH ? "Top rank!" : `To upgrade your Town Hall, 🎖️ Rank Up: destroy a Town Hall ${I.th + 1} base.`)) +
     (prest() ? sec(`🌟 Prestige ${prest()}`, `💪 +${Math.round(PRESTIGE_BUFF * 100 * prest())}% troop health & damage and resources a minute<br>` + PRESTIGE.slice(0, prest()).map((P) => `${P.emoji} ${P.name}: ${B[P.tower].emoji} ${B[P.tower].name} · ${MOB[P.mob].emoji} ${MOB[P.mob].name} · 🗺️ ${P.map}`).join("<br>")) : "") +
     sec("💰 Resources", ["gold", "wood", "stone"].map((k) => `${R[k]} <b>${I.res[k].toLocaleString()}</b> / ${I.cap.toLocaleString()} &nbsp;·&nbsp; +${I.make[k]}/min`).join("<br>")
-      + `<br><span style="opacity:.8">📦 Storage ${I.cap.toLocaleString()} = 1,000 base` + Object.keys(STORE_PER_LVL).map((t) => { const v = S.buildings.filter((b) => b.type === t).reduce((a, b) => a + storeOf(b), 0); return v ? ` + ${B[t].emoji} ${v.toLocaleString()}` : ""; }).join("") + `</span>`) +
+      + `<br><span style="opacity:.8">📦 Storage ${I.cap.toLocaleString()} = ${maxedStorages() ? "(" : ""}1,000 base` + Object.keys(STORE_PER_LVL).map((t) => { const v = S.buildings.filter((b) => b.type === t).reduce((a, b) => a + storeOf(b), 0); return v ? ` + ${B[t].emoji} ${v.toLocaleString()}` : ""; }).join("") + (maxedStorages() ? `) × ${storeBoost().toFixed(2).replace(/\.?0+$/, "")} (${maxedStorages()} maxed-out Storage${maxedStorages() > 1 ? "s" : ""}: ×1.5 each)` : ` · max out a Storage (level ${MAX_TH}) for ×1.5!`) + `</span>`) +
     sec("🏗️ Buildings", I.blds.map((b) => `${B[b.type].emoji} ${B[b.type].name}: <b>${b.n}</b>/${b.lim}${b.type === "wall" ? "" : ` &nbsp;·&nbsp; Lv ${b.levels.join(", ")}`}`).join("<br>")) +
     sec("🛡️ Army", `${I.used}/${I.armyCap} space · Barracks Lv ${barracksLvl()}<br>` + (I.army.length ? I.army.map(([k, n]) => `${T[k].emoji} ${T[k].name} × <b>${n}</b>`).join(" &nbsp; ") : "<i>No troops — train some in 🛡️ Army</i>")) +
     sec("🐾 Your island's defenders", `Your best Barracks (Lv ${barracksLvl()}) sends out: ` + (barracksLvl() ? mobPool(barracksLvl()).concat(bigPool(barracksLvl())).map((k) => `${MOB[k].emoji} ${MOB[k].name}`).join(", ") : "nothing yet") +
@@ -1566,7 +1569,7 @@ function showInfo(b) {
   const max = b.type === "townhall" ? MAX_TH : th(), up = b.lvl < max ? costOf(b.type, b.lvl + 1) : null, D = B[b.type].def;
   $("infoCard").innerHTML = `<div style="font-size:1.6rem">${B[b.type].emoji} <b>${B[b.type].name}</b> Lv ${b.lvl}</div>
     <div style="font-size:.8rem;opacity:.85;margin:4px 0">${B[b.type].desc}</div>
-    <div style="font-size:.8rem">${storeOf(b) ? `📦 +${storeOf(b).toLocaleString()} storage · ` : ""}❤️ ${hpOf(b.type, b.lvl)}${B[b.type].makes ? ` · makes ${R[B[b.type].makes]} ${prodPerMin(b.lvl)}/min` : ""}${D ? (() => { const st = towerStats(b); return ` · 💥 ${Math.round(st.dmg)} · range ${st.range}${st.splash ? ` · splash ${st.splash}` : ""}`; })() : ""}</div>
+    <div style="font-size:.8rem">${b.type === "storage" ? (b.lvl >= MAX_TH ? "⭐ MAXED: your whole storage ×1.5! · " : `Max it out (level ${MAX_TH}) for ×1.5 total storage · `) : ""}${storeOf(b) ? `📦 +${storeOf(b).toLocaleString()} storage · ` : ""}❤️ ${hpOf(b.type, b.lvl)}${B[b.type].makes ? ` · makes ${R[B[b.type].makes]} ${prodPerMin(b.lvl)}/min` : ""}${D ? (() => { const st = towerStats(b); return ` · 💥 ${Math.round(st.dmg)} · range ${st.range}${st.splash ? ` · splash ${st.splash}` : ""}`; })() : ""}</div>
     <div style="margin-top:8px">${up ? `<button class="small green" id="upBtn" ${canPay(up) ? "" : "disabled"}>Upgrade → Lv ${b.lvl + 1}<br>${costText(up)}</button>` : `<i>${b.type === "townhall" ? "Top level!" : "Upgrade the Town Hall to go higher."}</i>`}</div>`;
   if (PERKS[b.type]) {   // ⬆️ the tower's special upgrades
     $("infoCard").innerHTML += `<div style="margin-top:8px;font-weight:900;font-size:.85rem">⬆️ Tower upgrades</div>` + PERKS[b.type].map((p, i) => {

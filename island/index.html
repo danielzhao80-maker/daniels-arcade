@@ -118,7 +118,7 @@ const B = {
   wizard:     { name: "Wizard Tower", emoji: "🔮", hp: 300, base: { gold: 500, stone: 200 },    def: { range: 3.5, dmg: 14, rate: 60, splash: 1.3 }, desc: "Blasts groups of troops. +400 storage a level." },
   wall:       { name: "Wall",         emoji: "🧱", hp: 380, base: { stone: 25 },                desc: "Troops have to break through walls in their way." },
 };
-// ⬆️ Tower upgrades: three one-time upgrades per tower, each needing a higher tower level (2, 3, 4).
+// ⬆️ Tower upgrades: three one-time upgrades per tower — buy any of them, in any order, on any tower level.
 const PERKS = {
   archer: [ { id: "eagleeye", emoji: "🔭", name: "Eagle Eye",   desc: "+1.5 range" },
             { id: "firearrows", emoji: "🔥", name: "Fire Arrows", desc: "troops it hits burn for 3 s" },
@@ -136,7 +136,6 @@ function buyPerk(b, i) {
   const list = PERKS[b.type]; if (!list || !list[i]) return "That tower has no such upgrade.";
   const p = list[i];
   if (hasPerk(b, p.id)) return `${p.name} is already on this tower.`;
-  if (b.lvl < i + 2) return `Needs the tower at level ${i + 2}.`;
   if (!canPay(PERK_COST[i])) return `Not enough: ${costText(PERK_COST[i])}`;
   pay(PERK_COST[i]); b.perks = [...(b.perks || []), p.id]; save(); return null;
 }
@@ -902,7 +901,16 @@ function renderBuild() {
       <div class="c">${costText(c)}<br>${have}/${lim}${lim === 0 ? " (bigger Town Hall)" : ""}</div>
       <button class="small" data-place="${type}" ${ok ? "" : "disabled"}>Place</button></div>`;
   }).join("");
+  // ⬆️ every tower you own, with its upgrades to buy
+  const towers = S.buildings.filter((b) => PERKS[b.type]);
+  $("buildGrid").innerHTML += `<div class="card" style="grid-column:1/-1;background:rgba(255,255,255,.04)"><div class="n">⬆️ Tower upgrades</div><div class="d">${towers.length ? "Special upgrades for each of your towers — buy any of them, in any order." : "Build an Archer Tower, Cannon or Wizard Tower to unlock tower upgrades."}</div></div>`
+    + towers.map((b) => `<div class="card" style="grid-column:span 2;text-align:left"><div class="n">${B[b.type].emoji} ${B[b.type].name} Lv ${b.lvl} <span style="opacity:.6;font-size:.75rem">(${b.x}, ${b.y})</span></div>`
+      + PERKS[b.type].map((p, i) => `<div style="font-size:.78rem;margin-top:5px">${p.emoji} <b>${p.name}</b> — ${p.desc} ${hasPerk(b, p.id) ? "✅" : `<button class="small" data-tower="${S.buildings.indexOf(b)}" data-pk="${i}" ${canPay(PERK_COST[i]) ? "" : "disabled"}>Buy ${costText(PERK_COST[i])}</button>`}</div>`).join("") + `</div>`).join("");
   $("buildGrid").querySelectorAll("[data-place]").forEach((btn) => (btn.onclick = () => { placing = btn.dataset.place; hidePanels(); toast(`Tap an empty spot to place the ${B[placing].name} (tap the sea to cancel)`); }));
+  $("buildGrid").querySelectorAll("[data-tower]").forEach((btn) => (btn.onclick = () => {
+    const b = S.buildings[+btn.dataset.tower], i = +btn.dataset.pk, e = buyPerk(b, i);
+    toast(e || `${PERKS[b.type][i].emoji} ${PERKS[b.type][i].name} added to your ${B[b.type].name}!`); renderTop(); renderBuild();
+  }));
 }
 function renderArmy() {
   $("armySub").textContent = `Army space ${armyUsed()}/${armyCap()} · Barracks level ${barracksLvl()} (higher levels unlock troops and make them stronger)`;
@@ -967,8 +975,8 @@ function showInfo(b) {
     <div style="margin-top:8px">${up ? `<button class="small green" id="upBtn" ${canPay(up) ? "" : "disabled"}>Upgrade → Lv ${b.lvl + 1}<br>${costText(up)}</button>` : `<i>${b.type === "townhall" ? "Top level!" : "Upgrade the Town Hall to go higher."}</i>`}</div>`;
   if (PERKS[b.type]) {   // ⬆️ the tower's special upgrades
     $("infoCard").innerHTML += `<div style="margin-top:8px;font-weight:900;font-size:.85rem">⬆️ Tower upgrades</div>` + PERKS[b.type].map((p, i) => {
-      const have = hasPerk(b, p.id), locked = b.lvl < i + 2;
-      return `<div style="font-size:.78rem;margin-top:4px">${p.emoji} <b>${p.name}</b> — ${p.desc}<br>${have ? "✅ Done" : locked ? `🔒 Tower level ${i + 2}` : `<button class="small" data-perk="${i}" ${canPay(PERK_COST[i]) ? "" : "disabled"}>Buy ${costText(PERK_COST[i])}</button>`}</div>`;
+      const have = hasPerk(b, p.id);
+      return `<div style="font-size:.78rem;margin-top:4px">${p.emoji} <b>${p.name}</b> — ${p.desc}<br>${have ? "✅ Done" : `<button class="small" data-perk="${i}" ${canPay(PERK_COST[i]) ? "" : "disabled"}>Buy ${costText(PERK_COST[i])}</button>`}</div>`;
     }).join("");
     $("infoCard").querySelectorAll("[data-perk]").forEach((btn) => (btn.onclick = () => { const e = buyPerk(b, +btn.dataset.perk); toast(e || `${PERKS[b.type][+btn.dataset.perk].emoji} ${PERKS[b.type][+btn.dataset.perk].name} added!`); renderTop(); showInfo(b); }));
   }

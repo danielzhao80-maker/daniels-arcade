@@ -368,13 +368,18 @@ check(ct.rate > 0.65 && ct.rate < 0.75, '🌪️ Wind Golem: catches about 70% o
 // ---- ⬆️ tower upgrades ----
 reset({ gold: 1e4, wood: 1e4, stone: 1e4 });
 q(`S.buildings.push({ type: 'storage', lvl: 5, x: CENTER + 3, y: CENTER }); S.gold = S.stone = 1e4; S.buildings.push({ type: 'archer', lvl: 1, x: CENTER + 1, y: CENTER + 1 }); window.__A = S.buildings[S.buildings.length - 1];`);
-check(/level 2/.test(q(`buyPerk(__A, 0)`)), 'tower upgrades need the tower at level 2 / 3 / 4');
-q(`__A.lvl = 4;`);
+check(q(`buyPerk(__A, 2)`) === null && q(`hasPerk(__A, 'doubleshot')`), 'tower upgrades can be bought on any tower level, in any order');
+q(`__A.perks = []; S.gold = S.stone = 1e4;`);
 check(q(`buyPerk(__A, 0)`) === null && q(`__A.perks.join()`) === 'eagleeye' && q('S.gold') === 1e4 - 800 && q('S.stone') === 1e4 - 400, '🔭 Eagle Eye bought (🪙 800 🪨 400)');
 check(/already/.test(q(`buyPerk(__A, 0)`)), 'each upgrade once');
 check(q(`towerStats(__A).range`) === 6, '…+1.5 range');
 q(`buyPerk(__A, 1); buyPerk(__A, 2);`);
 check(q(`__A.perks.length`) === 3, 'all three on one tower');
+q(`S.gold = S.stone = 1e4; S.buildings.push({ type: 'cannon', lvl: 1, x: CENTER - 2, y: CENTER - 2 }); renderBuild();`);
+const bl = q(`document.getElementById('buildGrid').innerHTML`);
+check(/Tower upgrades/.test(bl) && /data-tower=/.test(bl) && /Heavy Balls/.test(bl), 'the 🏗️ Build panel lists your towers with their upgrades to buy');
+q(`(function(){ var btn = { dataset: {} }; var i = S.buildings.findIndex(function(b){ return b.type === 'cannon'; }); window.__ci = i; })()`);
+check(q(`(buyPerk(S.buildings[__ci], 1), hasPerk(S.buildings[__ci], 'reload'))`), '…and buying there works (⚡ Fast Reload on a level-1 Cannon)');
 check(/data-perk|✅ Done/.test(q(`(function(){ showInfo(__A); return document.getElementById('infoCard').innerHTML; })()`)) && /Tower upgrades/.test(q(`document.getElementById('infoCard').innerHTML`)), 'the tower\'s info card shows its upgrades');
 q(`hideInfo();`);
 check(q(`myIslandSnapshot().buildings.find(function(b){ return b.type === 'archer'; }).perks.length`) === 3, 'your upgrades defend your island online');

@@ -138,6 +138,9 @@ const B = {
   beehive:   { name: "Beehive Tower",   emoji: "🍯", hp: 340, th: 7,  base: { gold: 800, wood: 500 },   def: { range: 4.5, dmg: 6,  rate: 240, spawn: "bee", col: "#fbc531" }, desc: "Lets out a swarm of 🐝 bees (3 every 4 s, up to 6) that chase troops." },
   dojo:      { name: "Ninja Dojo",      emoji: "🏯", hp: 360, th: 9,  base: { gold: 1200, stone: 700 }, def: { range: 4.5, dmg: 9,  rate: 12, multi: 2, col: "#dcdde1" }, desc: "Ninjas throw shurikens super fast at 2 troops at once." },
   dragonstatue: { name: "Dragon Statue", emoji: "🐲", hp: 420, th: 10, base: { gold: 1500, stone: 900 }, def: { range: 3.5, dmg: 26, rate: 50, splash: 1.8, burn: 30, col: "#e84118" }, desc: "Breathes a huge blast of fire that BURNS every troop in it." },
+  // ⛩️ OWNER ONLY: summons 5 of every troop at the start of a battle and every 10 s after (up to 100 at a time).
+  // In your attacks they cross the bridge and go for the enemy's TOWERS; in raids they fight the raiders.
+  gate: { name: "Summoning Gate", emoji: "⛩️", hp: 2000, ownerOnly: true, summon: true, base: { gold: 5000, stone: 5000 }, desc: "👑 OWNER ONLY — summons 5 of EVERY troop at the start of each battle and every 10 s after. They charge over the bridge and smash the enemy's towers (in raids, they fight the raiders)." },
   // 🌟 Prestige towers: each Prestige unlocks one (2 of them). +600 storage a level.
   flame:   { name: "Flame Tower",   emoji: "🏮", hp: 380, prestige: 1, base: { gold: 1200, stone: 800 }, def: { range: 3,   dmg: 16, rate: 30,  splash: 0.8, burn: 25, col: "#ff793f" }, desc: "🌟 Prestige 1 — sprays fire: splash damage and troops BURN." },
   frost:   { name: "Frost Tower",   emoji: "🧊", hp: 380, prestige: 2, base: { gold: 1200, stone: 800 }, def: { range: 4.5, dmg: 14, rate: 40,  splash: 1.0, slow: true, col: "#74b9ff" }, desc: "🌟 Prestige 2 — ice blasts that SLOW every troop they hit." },
@@ -200,9 +203,10 @@ function towerStats(b) {
   if (hasPerk(b, "bigblast")) splash += 0.7;
   return { range, rate, dmg, splash, poison: D.poison || 0, spawn: D.spawn || null, multi: D.multi || 0, push: D.push || 0, stun: D.stun || 0, all: !!D.all, burn: D.burn || 0, slow: !!D.slow, chain: Math.max(D.chain || 0, hasPerk(b, "chain") ? 2 : 0), col: D.col };
 }
-const BUILD_ORDER = ["goldmine", "lumbermill", "quarry", "storage", "barracks", "archer", "cannon", "wizard", "boomerang", "poison", "beehive", "dojo", "dragonstatue", "wall", "flame", "frost", "tesla", "meteor", "crystal", "trident", "ufo", "sun", "rainbow", "blackhole"];
+const BUILD_ORDER = ["goldmine", "lumbermill", "quarry", "storage", "barracks", "archer", "cannon", "wizard", "boomerang", "poison", "beehive", "dojo", "dragonstatue", "wall", "flame", "frost", "tesla", "meteor", "crystal", "trident", "ufo", "sun", "rainbow", "blackhole", "gate"];
 // p: the island's Prestige (yours if left out) — prestige towers need it
 function limitOf(type, th, p) {
+  if (B[type] && B[type].ownerOnly) return typeof S === "object" && S && S.owner ? 1 : 0;   // ⛩️
   if (B[type] && B[type].th) return th >= Math.min(B[type].th + 2, MAX_TH) ? 2 : th >= B[type].th ? 1 : 0;   // 🏯 the Town Hall towers (2 at the top Town Hall)
   if (B[type] && B[type].prestige) return (p === undefined ? prest() : p) >= B[type].prestige ? 2 : 0;
   switch (type) {
@@ -582,6 +586,23 @@ function setupDuel(bt) {
   bt.waves = parties.map((party, w) => ({ at: 300 + w * 1500, party, sent: false }));
   bt.foeLv = (1 + 0.15 * (isl.th - 1)) * (1 + 0.1 * p);
 }
+const GATE_EVERY = 600, GATE_MAX = 100, GATE_N = 5;
+function gateStep(bt) {   // ⛩️ every Summoning Gate on YOUR island
+  const list = bt.foes ? bt.homeBlds : bt.opts.defense ? bt.blds : null; if (!list) return;
+  for (const g of list) {
+    if (g.type !== "gate" || g.hp <= 0 || bt.frame < (g.nextSummon || 1)) continue;
+    g.nextSummon = bt.frame + GATE_EVERY;
+    const lv = (1 + 0.1 * Math.max(0, barracksLvl() - 1)) * prestMul(), pool = bt.foes ? bt.troops : bt.mobs;
+    if (pool.filter((t) => t.summoned && t.hp > 0).length >= GATE_MAX) continue;
+    for (const k of Object.keys(T)) for (let i = 0; i < GATE_N; i++) {
+      const t = T[k], x = g.x + (Math.random() - 0.5) * 1.2, y = g.y + (Math.random() - 0.5) * 1.2;
+      if (bt.foes) bt.troops.push({ kind: k, x, y, hp: t.hp * lv, maxHp: t.hp * lv, dmg: t.dmg * lv, cd: i * 2, target: null, stage: 0, summoned: true, hunter: true });
+      else { const d = allyDef(k); bt.mobs.push({ kind: k, def: d, ally: true, summoned: true, x, y, homeX: x, homeY: y, hp: d.hp * lv, maxHp: d.hp * lv, dmg: d.dmg * lv, cd: 0, steal: 0 }); }
+    }
+    bt.casts.push({ x: g.x, y: g.y, r: 1.6, color: "#a29bfe", t: 60, emoji: "⛩️" });
+    bt.texts.push({ x: g.x, y: g.y - 0.8, t: 60, text: `⛩️ SUMMON! ×${GATE_N * Object.keys(T).length}` });
+  }
+}
 function foeWaves(bt) {
   for (const w of bt.waves || []) {
     if (w.sent || bt.frame < w.at) continue;
@@ -627,7 +648,7 @@ const INF = 9999, infTroops = () => !!S.infTroops;
 const troopN = (n) => n >= INF ? "∞" : n;
 function startBattle(island, opts) {
   const army = infTroops() ? Object.fromEntries(Object.keys(T).map((k) => [k, INF])) : Object.assign({}, S.army);
-  if (!Object.values(army).some((n) => n > 0)) return "Train some troops first (🛡️ Army).";
+  if (!Object.values(army).some((n) => n > 0) && !(countOf("gate") && !(opts && opts.online))) return "Train some troops first (🛡️ Army).";   // (a ⛩️ Summoning Gate brings its own)
   const abil = {}; for (const k of Object.keys(AB)) if (abUnlocked(k)) abil[k] = abilityUses(th());
   battle = { island, opts: opts || {}, frame: 0, army, brought: Object.assign({}, army), five: false, abil, casts: [], barricades: [], agents: [], troops: [], shots: [], fx: [], over: false, selected: Object.keys(army).find((k) => army[k] > 0),
              blds: island.buildings.map((b) => Object.assign({}, b, { hp: hpOf(b.type, b.lvl), maxHp: hpOf(b.type, b.lvl), cd: 0 })) };
@@ -786,7 +807,7 @@ function pickTarget(tr, blds) {
   blds = blds || battle.blds;
   const t = T[tr.kind], alive = blds.filter((b) => b.hp > 0 && b.type !== "wall");
   let pool = alive;
-  if (t.targets === "def") { const d = alive.filter((b) => B[b.type].def); if (d.length) pool = d; }
+  if (t.targets === "def" || tr.hunter) { const d = alive.filter((b) => B[b.type].def); if (d.length) pool = d; }   // (⛩️ summoned troops go for the towers)
   let best = null, bd = 1e9;
   for (const b of pool) { const d = Math.hypot(b.x - tr.x, b.y - tr.y); if (d < bd) { bd = d; best = b; } }
   if (!best) return null;
@@ -914,6 +935,7 @@ function battleStep() {
   if (bt.foes) {   // ⚔️ an offline fight: their army attacks YOUR island back, and your island defends itself
     const h = bt.bridge.home, homeCtr = { x: h.x, y: h.y, r: h.r + 2 };
     foeWaves(bt);
+    gateStep(bt);
     stepTroops(bt, bt.foes, bt.homeBlds, bt.homeMobs, true, bt.troops);
     stepTowers(bt, bt.homeBlds, bt.foes, bt.homeMobs, homeCtr, [], []);
     mobStep(bt, bt.homeMobs, bt.foes, homeCtr, true, bt.mobs);
@@ -921,6 +943,7 @@ function battleStep() {
   mobStep(bt);
   agentStep(bt);
   boatStep(bt);
+  if (bt.opts.defense) gateStep(bt);
   for (const m of (bt.mobs || []).concat(bt.homeMobs || [])) if (m.immortal && m.hp < 1) { m.hp = m.maxHp; bt.texts.push({ x: m.x, y: m.y - 0.5, t: 40, text: "♾️ BACK!" }); }   // ♾️ an immortal pet springs straight back up
   bt.shots = bt.shots.filter((s) => --s.t > 0); bt.fx = bt.fx.filter((f) => --f.t > 0); bt.casts = bt.casts.filter((c) => --c.t > 0);
   if (bt.texts) bt.texts = bt.texts.filter((t) => --t.t > 0);
@@ -998,7 +1021,7 @@ function maybeRevenge(island) {   // after you raid a computer island: 50% it co
 function endDefense(bt) {
   const pct = destroyedPct(bt), cap = capOf(), lost = pct >= 50;
   let back = 0;   // 🛡️ your troops still standing go home
-  for (const m of bt.mobs || []) if (m.ally && m.hp > 0) { if (!infTroops()) S.army[m.kind] = (S.army[m.kind] || 0) + 1; m.hp = 0; back++; }
+  for (const m of bt.mobs || []) if (m.ally && !m.summoned && m.hp > 0) { if (!infTroops()) S.army[m.kind] = (S.army[m.kind] || 0) + 1; m.hp = 0; back++; }
   let title, text;
   if (lost) {
     const gone = {}; for (const k of ["gold", "wood", "stone"]) { gone[k] = Math.floor(S[k] / 2); S[k] -= gone[k]; }
@@ -1366,8 +1389,8 @@ function panelAction(act, arg, owner) {
     for (const k of Object.keys(AB)) battle.abil[k] = abilityUses(MAX_TH) + 3; battle.drawBar && battle.drawBar(); return "✨ Every mini ability refilled (5 each)";
   }
   if (act === "tower") {   // 🏯 owner: place free towers (any kind, even locked ones) at the top level, fully upgraded
-    const all = Object.keys(B).filter((t) => B[t].def), kinds = arg === "all" ? all : [arg];
-    if (!kinds.every((t) => B[t] && B[t].def)) return "No such tower.";
+    const all = Object.keys(B).filter((t) => B[t].def || B[t].summon), kinds = arg === "all" ? all : [arg];
+    if (!kinds.every((t) => B[t] && (B[t].def || B[t].summon))) return "No such tower.";
     let added = 0;
     for (const t of kinds) {
       const want = limitOf(t, MAX_TH, MAX_PRESTIGE) - countOf(t);
@@ -1429,7 +1452,8 @@ function maxOutBase(keep) {
   place("archer", limitOf("archer", T8), 4.6, 0.4);
   place("cannon", limitOf("cannon", T8), 4.6, 1.2);
   place("barracks", limitOf("barracks", T8), 5.8, 0.8);
-  ["boomerang", "poison", "beehive", "dojo", "dragonstatue"].forEach((t, i) => place(t, limitOf(t, T8), 6.7, 0.15 + i * 0.6));   // 🏯 the Town Hall towers
+  ["boomerang", "poison", "beehive", "dojo", "dragonstatue"].forEach((t, i) => place(t, limitOf(t, T8), 6.7, 0.15 + i * 0.6));
+  place("gate", limitOf("gate", T8), 2.4, 3.1);   // ⛩️ (owner only)
   for (const P of PRESTIGE) place(P.tower, limitOf(P.tower, T8), 3.9, 0.2 + PRESTIGE.indexOf(P) * 0.35);   // 🌟 the prestige towers you've unlocked
   place("goldmine", limitOf("goldmine", T8), 7.6, 0);
   place("lumbermill", limitOf("lumbermill", T8), 7.6, 0.42);
@@ -1473,7 +1497,7 @@ function renderAdmin(owner) {
       sec("🏴‍☠️ Raids & 😠 revenge", btn("raidnow", "", "🏴‍☠️ Raid now", "red") + btn("revengenow", "", "😠 Revenge now", "red") + btn("noraids", "", S.noRaids ? "🏴‍☠️ Raids: OFF" : "🏴‍☠️ Raids: on", S.noRaids ? "" : "green")) +
       sec(`🌟 Prestige — you are ${prest()}/${MAX_PRESTIGE}`, btn("pnext", "", "🌟 +1 Prestige", "green") + btn("pmax", "", `🌟 Max (${MAX_PRESTIGE})`, "green") + btn("ptrial", "", "⚔️ Fight the next trial", "red") +
         PRESTIGE.map((P, i) => btn("pmap", i + 1, `${P.emoji} ${P.map}`, "red")).join("")) +
-      sec("🏯 Towers — free, at your Town Hall level (even locked ones)", Object.keys(B).filter((t) => B[t].def).map((t) => btn("tower", t, `${B[t].emoji} ${B[t].name} ${countOf(t)}/${limitOf(t, MAX_TH, MAX_PRESTIGE)}`, B[t].prestige ? "" : B[t].th ? "blue" : "green")).join("") + btn("tower", "all", "🏯 ALL towers", "red")) +
+      sec("🏯 Towers — free, at your Town Hall level (even locked ones)", Object.keys(B).filter((t) => B[t].def || B[t].summon).map((t) => btn("tower", t, `${B[t].emoji} ${B[t].name} ${countOf(t)}/${limitOf(t, MAX_TH, MAX_PRESTIGE)}`, B[t].prestige ? "" : B[t].th ? "blue" : "green")).join("") + btn("tower", "all", "🏯 ALL towers", "red")) +
       sec("⚔️ In battle", btn("win", "", "⚡ Win this battle", "green") + btn("abil", "", "✨ Refill abilities", "blue")) +
       sec("🧹 Clear", btn("army0", "", "Empty my army") + btn("golem0", "", "Remove golems") + btn("reset", "", "🔄 Start my island over", "red")) +
       sec("🏆 The best base", btn("maxkeep", "", "⬆️ Max out (keep my layout)", "green") + btn("maxbase", "", "🏆 Max out with a new layout", "green") +
@@ -1551,7 +1575,7 @@ function renderBuild() {
     const b = B[type], lim = limitOf(type, th()), have = countOf(type), c = costOf(type, 1);
     const ok = have < lim && canPay(c);
     return `<div class="card"><div class="e">${b.emoji}</div><div class="n">${b.name}</div><div class="d">${b.desc}</div>
-      <div class="c">${costText(c)}<br>${have}/${lim}${lim === 0 ? (b.prestige ? ` (🌟 Prestige ${b.prestige})` : " (bigger Town Hall)") : ""}</div>
+      <div class="c">${costText(c)}<br>${have}/${lim}${lim === 0 ? (b.ownerOnly ? " (👑 owner only)" : b.prestige ? ` (🌟 Prestige ${b.prestige})` : " (bigger Town Hall)") : ""}</div>
       <button class="small" data-place="${type}" ${ok ? "" : "disabled"}>Place</button></div>`;
   }).join("");
   // ⬆️ every tower you own, with its upgrades to buy

@@ -995,6 +995,25 @@ check(q(`panelAction('maxbase', '', false)`) === '👑 Owner only.' && q(`panelA
 q(`renderAdmin(false);`);
 check(/A free pet/.test(q(`document.getElementById('admBody').innerHTML`)) && /free tower/.test(q(`document.getElementById('admBody').innerHTML`)) && !/EVERYTHING ON/.test(q(`document.getElementById('admBody').innerHTML`)), 'the admin panel shows its new sections (not the owner ones)');
 
+// ---- ⛩️ Summoning Gate (owner only) ----
+reset({ gold: 1e4, stone: 1e4, army: {} });
+check(q(`limitOf('gate', 10)`) === 0 && /owner only/.test((q(`renderBuild(); document.getElementById('buildGrid').innerHTML`).match(/Summoning Gate[\s\S]*?owner only/) || [''])[0]), 'not the owner: no Summoning Gate (it says 👑 owner only)');
+q(`S.owner = true;`);
+check(q(`limitOf('gate', 1)`) === 1 && /1 tower placed/.test(q(`panelAction('tower', 'gate', true)`)) && q(`countOf('gate')`) === 1, 'the owner can have one (from the Owner Panel or the Build panel)');
+check(q(`startBattle(genIsland(6))`) === null, 'with a Gate you can attack even with no army (it brings its own)');
+q(`battle.waves = []; battleStep();`);
+check(q(`battle.troops.filter(function(t){ return t.summoned; }).length`) === 20 && ['warrior','archer','giant','mage'].every((k) => q(`battle.troops.filter(function(t){ return t.summoned && t.kind === '${k}'; }).length`) === 5), '⛩️ it summons 5 of EVERY troop at the start');
+q(`for (var i = 0; i < 600 && !battle.over; i++) battleStep();`);
+check(q(`battle.over || battle.troops.filter(function(t){ return t.summoned; }).length >= 40`), '…and again every 10 seconds');
+check(q(`battle.troops.filter(function(t){ return t.summoned && t.target; }).every(function(t){ return B[t.target.type].def || t.target.type === 'wall' || !battle.blds.some(function(b){ return b.hp > 0 && B[b.type].def; }); })`), 'they go for the enemy\'s towers');
+q(`if (!battle.over) endBattle(true); battle = null; hidePanels(); S.army = {};`);
+q(`startDefense(); battleStep();`);
+check(q(`battle.mobs.filter(function(m){ return m.summoned && m.ally; }).length`) === 20, 'in raids it summons defenders');
+q(`panelAction('win', '', true); battle = null; hidePanels();`);
+check(!/came home/.test(q(`document.getElementById('resText').textContent`)), 'summoned defenders don\'t join your army afterwards');
+q(`panelAction('maxbase', '', true);`);
+check(q(`countOf('gate')`) === 1, 'the owner\'s best base has the Summoning Gate');
+
 // ---- ♾️ owner: infinite troops ----
 reset({ army: {} }); q(`S.owner = true;`);
 check(/ON/.test(q(`panelAction('inftroops', '', true)`)) && q(`panelAction('inftroops', '', false)`) === '👑 Owner only.', 'owner switches on infinite troops (admins cannot)');

@@ -657,6 +657,23 @@ q(`battle.troops.forEach(function(t){ t.hp = 0; }); battleStep();`);
 check(/revenge/.test(q(`document.getElementById('resTitle').textContent`)) && q('S.revenge') === null && q('S.nextRaidAt') === t0, 'beat their revenge: it is over (and the 10-minute raid timer is not reset)');
 q(`battle = null; hidePanels();`);
 
+// ---- 🛡️ your troops defend in raids ----
+reset({ army: { warrior: 4, archer: 2 } });
+q(`startDefense();`);
+check(q(`battle.selected`) === 'warrior' && q(`deployDefender('warrior', 0, 0)`) === false, 'in a raid you pick a troop — and send it out on your island (not the far sea)');
+check(q(`deployDefender('warrior', 10, 9)`) === true && q('S.army.warrior') === 3 && q(`battle.mobs.filter(function(m){ return m.ally; }).length`) === 1, 'tap your island: the troop comes out to defend');
+q(`battle.drawBar();`);
+check(/data-sel="warrior"/.test(q(`document.getElementById('battlebar').innerHTML`)), 'your troops are buttons in the raid bar');
+check(q(`(function(){ var a = 0; while (battle && !battle.over && a++ < 600) battleStep(); return battle.over || battle.troops.some(function(t){ return t.hp > 0; }); })()`), 'the raid keeps going while raiders are left (your troops waiting at home do not stop it)');
+// a defender fights raiders that come near
+q(`endBattle(true); battle = null; hidePanels(); S.army = { giant: 3 }; startDefense(); battle.troops.forEach(function(t){ t.x = 10; t.y = 4; }); deployDefender('giant', 10, 5);`);
+const raiderHp0 = q(`battle.troops.reduce(function(a, t){ return a + t.hp; }, 0)`);
+q(`for (var i = 0; i < 120; i++) battleStep();`);
+check(q(`battle.troops.reduce(function(a, t){ return a + Math.max(0, t.hp); }, 0)`) < raiderHp0, 'your troops attack the raiders');
+q(`battle.troops.forEach(function(t){ t.hp = 0; }); battle.mobs.forEach(function(m){ if (m.ally) m.hp = m.maxHp; }); battleStep();`);
+check(q('S.army.giant') === 3 && /came home/.test(q(`document.getElementById('resText').textContent`)), 'the ones still standing come home after the raid');
+q(`battle = null; hidePanels();`);
+
 // ---- 🌟 prestige ----
 reset({ army: { warrior: 3 } });
 check(/Town Hall to level 8/.test(q(`startPrestige()`)), 'you need Town Hall 8 and rank 8 to prestige');

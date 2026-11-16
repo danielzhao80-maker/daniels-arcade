@@ -531,7 +531,7 @@ function castAbility(kind, x, y) {
 function mobStep(bt) {
   for (const m of bt.mobs || []) {
     if (m.hp <= 0 || m.frozenUntil > bt.frame) continue;
-    const M = MOB[m.kind];
+    const M = mobDef(m);
     if (M.heals && bt.frame % 60 === 0) {   // 💧 heals every animal around it once a second
       for (const o of bt.mobs) if (o.hp > 0 && Math.hypot(o.x - m.x, o.y - m.y) <= 2) o.hp = Math.min(o.maxHp, o.hp + o.maxHp * M.heals);
       bt.casts.push({ x: m.x, y: m.y, r: 2, color: "#0097e6", t: 24, emoji: "" });
@@ -631,7 +631,7 @@ function battleStep() {
     if (!tr.target || tr.target.hp <= 0) tr.target = pickTarget(tr);
     // 🐺 a defending mob in reach: fight it first
     let foe = null, fd = T[tr.kind].range + 0.6;
-    for (const m of bt.mobs || []) if (m.hp > 0 && !(MOB[m.kind].flying && T[tr.kind].range < 1)) { const dd = Math.hypot(m.x - tr.x, m.y - tr.y); if (dd < fd) { fd = dd; foe = m; } }   // 🦅 melee can't reach flyers
+    for (const m of bt.mobs || []) if (m.hp > 0 && !(mobDef(m).flying && T[tr.kind].range < 1)) { const dd = Math.hypot(m.x - tr.x, m.y - tr.y); if (dd < fd) { fd = dd; foe = m; } }   // 🦅 melee can't reach flyers
     const tg = foe || tr.target; if (!tg) continue;
     const t = T[tr.kind], d = Math.hypot(tg.x - tr.x, tg.y - tr.y);
     const raged = tr.rageUntil > bt.frame, spd = t.speed * (raged ? 1.4 : 1) * (tr.slowUntil > bt.frame ? 0.5 : 1), dmgNow = tr.dmg * (raged ? 1.6 : 1);   // 🔥 Rage, 🦂 slowed
@@ -639,11 +639,11 @@ function battleStep() {
     else if (--tr.cd <= 0) {
       tr.cd = t.rate;
       const hit = (b, dmg) => { b.hp -= dmg; if (b.hp <= 0) { b.hp = 0; bt.fx.push({ x: b.x, y: b.y, t: 30, boom: true }); } };
-      if (foe && MOB[foe.kind].catch && Math.random() < MOB[foe.kind].catch) {   // 🌪️ caught — and thrown back at the troop
+      if (foe && mobDef(foe).catch && Math.random() < mobDef(foe).catch) {   // 🌪️ caught — and thrown back at the troop
         tr.hp -= dmgNow; bt.texts && bt.texts.push({ x: foe.x, y: foe.y - 0.5, t: 40, text: "CAUGHT!" });
         bt.shots.push({ x: foe.x, y: foe.y, tx: tr.x, ty: tr.y, t: 10, col: "#dcdde1" });
       }
-      else if (foe && MOB[foe.kind].dodge && Math.random() < MOB[foe.kind].dodge) bt.texts && bt.texts.push({ x: foe.x, y: foe.y - 0.5, t: 40, text: "MISS!" });   // 👻
+      else if (foe && mobDef(foe).dodge && Math.random() < mobDef(foe).dodge) bt.texts && bt.texts.push({ x: foe.x, y: foe.y - 0.5, t: 40, text: "MISS!" });   // 👻
       else if (foe) { foe.hp -= dmgNow; if (foe.hp <= 0) bt.fx.push({ x: foe.x, y: foe.y, t: 16 }); }
       else if (t.splash) { for (const b of bt.blds) if (b.hp > 0 && Math.hypot(b.x - tg.x, b.y - tg.y) <= t.splash) hit(b, dmgNow); }
       else hit(tg, dmgNow);
@@ -699,7 +699,7 @@ function battleStep() {
   agentStep(bt);
   bt.shots = bt.shots.filter((s) => --s.t > 0); bt.fx = bt.fx.filter((f) => --f.t > 0); bt.casts = bt.casts.filter((c) => --c.t > 0);
   if (bt.texts) bt.texts = bt.texts.filter((t) => --t.t > 0);
-  const anyTroops = bt.troops.some((t) => t.hp > 0) || Object.values(bt.army).some((n) => n > 0) || bt.agents.some((a) => a.phase !== "done");
+  const anyTroops = bt.troops.some((t) => t.hp > 0) || (!bt.opts.defense && Object.values(bt.army).some((n) => n > 0)) || bt.agents.some((a) => a.phase !== "done");
   if (destroyedPct(bt) >= 100 || !anyTroops || bt.frame >= BATTLE_FRAMES) endBattle();
 }
 // ---- 🏴‍☠️ RAIDS ON YOUR ISLAND: every 10 minutes while you play, raiders sail in and your island defends
@@ -714,6 +714,21 @@ function raiderArmy(t) {
   return army;
 }
 function raiderLoot(rnd) { rnd = rnd || Math.random; const r = () => 70 + Math.floor(rnd() * 431); return { gold: r(), wood: r(), stone: r() }; }
+// 🛡️ In a raid on YOUR island you can send out your own troops: tap anywhere on your island. They hunt the
+// raiders near them (like your animals do), and the ones still standing go back to your army afterwards.
+const mobDef = (m) => m.def || MOB[m.kind];
+function allyDef(kind) {
+  const t = T[kind];
+  return { name: t.name, emoji: t.emoji, hp: t.hp, dmg: t.dmg, range: t.range, speed: t.speed, rate: t.rate, sight: 6, ring: "#dff9fb", big: kind === "giant" };
+}
+function deployDefender(kind, x, y) {
+  const bt = battle; if (!bt || bt.over || !bt.opts.defense || !(S.army[kind] > 0) || !T[kind]) return false;
+  if (Math.hypot(x - CENTER, y - CENTER) > landRadius(bt.island.th) + 1) return false;   // on your island (or its beach)
+  S.army[kind]--; bt.army[kind] = S.army[kind];
+  const d = allyDef(kind), lv = (1 + 0.1 * Math.max(0, barracksLvl() - 1)) * prestMul();
+  bt.mobs.push({ kind, def: d, ally: true, x, y, homeX: x, homeY: y, hp: d.hp * lv, maxHp: d.hp * lv, dmg: d.dmg * lv, cd: 0, steal: 0 });
+  return true;
+}
 // 😠 Revenge: an island you raided may attack you back (S.revenge = { name, th, at }).
 function startDefense(from) {
   if (battle) return "You're busy in a battle — the raiders will wait.";
@@ -721,8 +736,9 @@ function startDefense(from) {
   const isl = myIslandSnapshot(); isl.name = "your island"; isl.loot = {};
   const army = raiderArmy(from ? from.th : th()), loot = raiderLoot();
   if (from) for (const k in loot) loot[k] = Math.min(500 + 150 * from.th, Math.round(loot[k] * (1 + 0.25 * (from.th - 1))));   // a stronger island carries more
-  battle = { island: isl, opts: { defense: true, revenge: from ? from.name : null }, frame: 0, army: {}, brought: {}, five: false, abil: {}, casts: [], barricades: [], agents: [], troops: [], shots: [], fx: [], over: false, selected: null,
+  battle = { island: isl, opts: { defense: true, revenge: from ? from.name : null }, frame: 0, army: Object.assign({}, S.army), brought: Object.assign({}, S.army), five: false, abil: {}, casts: [], barricades: [], agents: [], troops: [], shots: [], fx: [], over: false, selected: null,
              blds: isl.buildings.map((b) => Object.assign({}, b, { hp: hpOf(b.type, b.lvl), maxHp: hpOf(b.type, b.lvl), cd: 0 })), raid: { army, loot } };
+  battle.selected = Object.keys(battle.army).find((k) => battle.army[k] > 0) || null;
   battle.total = battle.blds.filter((b) => b.type !== "wall").length;
   battle.mobs = spawnMobs(battle.blds, isl.golems, isl.prestige);
   battle.stolen = { gold: 0, wood: 0, stone: 0 }; battle.texts = [];
@@ -736,18 +752,20 @@ function startDefense(from) {
   return null;
 }
 function maybeRevenge(island) {   // after you raid a computer island: 50% it comes back for you in 2–4 minutes
-  if (!island || island.rankUp || S.revenge || Math.random() >= 0.5) return false;
+  if (!island || island.rankUp || island.prestigeTrial || S.revenge || Math.random() >= 0.5) return false;
   S.revenge = { name: island.name, th: island.th, at: Date.now() + (120 + Math.random() * 120) * 1000 };
   setTimeout(() => toast(`😠 ${island.name} swore REVENGE — they'll attack you soon!`), 1800);
   return true;
 }
 function endDefense(bt) {
   const pct = destroyedPct(bt), cap = capOf(), lost = pct >= 50;
+  let back = 0;   // 🛡️ your troops still standing go home
+  for (const m of bt.mobs || []) if (m.ally && m.hp > 0) { S.army[m.kind] = (S.army[m.kind] || 0) + 1; m.hp = 0; back++; }
   let title, text;
   if (lost) {
     const gone = {}; for (const k of ["gold", "wood", "stone"]) { gone[k] = Math.floor(S[k] / 2); S[k] -= gone[k]; }
     S.raidsLost = (S.raidsLost || 0) + 1;
-    title = bt.opts.revenge ? `😠 ${bt.opts.revenge} got their revenge` : "🏴‍☠️ The raiders won"; text = `They destroyed ${pct}% of your island and took HALF your stuff: ${costText(gone)}. Build more defences!`;
+    title = bt.opts.revenge ? `😠 ${bt.opts.revenge} got their revenge` : "🏴‍☠️ The raiders won"; text = `They destroyed ${pct}% of your island and took HALF your stuff: ${costText(gone)}. Build more defences — and send out your troops!`;
   } else {
     const joined = [];
     for (const [k, n] of Object.entries(bt.raid.army)) {   // the beaten raiders become your recruits
@@ -759,6 +777,7 @@ function endDefense(bt) {
     title = bt.opts.revenge ? `🛡️ You beat ${bt.opts.revenge}'s revenge!` : "🛡️ You beat the raiders!"; text = `They only destroyed ${pct}%. Recruits joined your army: ${joined.join(" ") || "none (no army space)"} · loot ${costText(got)} · 🏆 +5`;
   }
   if (bt.opts.revenge) S.revenge = null; else S.nextRaidAt = Date.now() + RAID_EVERY;   // revenge doesn't reset the raid timer
+  if (back) text += ` · 🛡️ ${back} of your troops came home.`;
   if (infinite() && lost) text += " (♾️ Infinite resources: you lost nothing.)";
   refillInfinite(); save(); showResult(title, text);
   document.getElementById("battlebar").style.display = "none";
@@ -1158,9 +1177,12 @@ function showBattleBar() {
     if (!battle || battle.over) return;
     if (battle.opts.defense) {
       const left = battle.troops.filter((t) => t.hp > 0).length;
-      bar.innerHTML = `<span class="pill">🏴‍☠️ Raiders left: ${left} · ⏱ ${Math.max(0, Math.ceil((BATTLE_FRAMES - battle.frame) / 120))}s · 💥 your island ${destroyedPct(battle)}% (50% = they win)</span>
+      bar.innerHTML = Object.entries(S.army).filter(([k, n]) => T[k] && (n > 0 || battle.brought[k] > 0)).map(([k, n]) =>
+        `<button class="troop small ${battle.selected === k ? "sel" : ""}" data-sel="${k}" ${n > 0 ? "" : "disabled"}>${T[k].emoji} ${n}</button>`).join("")
+        + `<span class="pill">🏴‍☠️ Raiders left: ${left} · ⏱ ${Math.max(0, Math.ceil((BATTLE_FRAMES - battle.frame) / 120))}s · 💥 your island ${destroyedPct(battle)}% (50% = they win)</span>
         <button class="small blue" id="skipRaid">⏩ Skip</button>`;
       $("skipRaid").onclick = () => { let n = 0; while (battle && !battle.over && n++ < BATTLE_FRAMES + 50) battleStep(); };
+      bar.querySelectorAll("[data-sel]").forEach((b) => (b.onclick = () => { battle.selected = b.dataset.sel; draw(); }));
       return;
     }
     bar.innerHTML = Object.entries(battle.army).filter(([k]) => battle.brought[k] > 0).map(([k, n]) =>
@@ -1333,11 +1355,11 @@ function frame(now) {
     }
     for (const m of bt.mobs || []) {   // 🐺 the island's defenders (a red outline marks them as enemies)
       if (m.hp <= 0) continue;
-      const [mx, my0] = toScreen(m.x, m.y), M = MOB[m.kind], rr = tile * (M.big ? 0.45 : M.small ? 0.2 : 0.3);
+      const [mx, my0] = toScreen(m.x, m.y), M = mobDef(m), rr = tile * (M.big ? 0.45 : M.small ? 0.2 : 0.3);
       if (M.flying) { ctx.fillStyle = "rgba(0,0,0,0.2)"; ctx.beginPath(); ctx.ellipse(mx, my0 + tile * 0.3, rr, rr * 0.4, 0, 0, Math.PI * 2); ctx.fill(); }
       const my = M.flying ? my0 - tile * 0.35 : my0;   // 🦅 drawn up in the air, its shadow below
       ctx.fillStyle = m.frozenUntil > bt.frame ? "rgba(116,185,255,0.9)" : M.ring; ctx.beginPath(); ctx.arc(mx, my, rr, 0, Math.PI * 2); ctx.fill();
-      ctx.strokeStyle = "#ff4757"; ctx.lineWidth = 2; ctx.stroke();
+      ctx.strokeStyle = m.ally ? "#2ecc71" : "#ff4757"; ctx.lineWidth = m.ally ? 3 : 2; ctx.stroke();   // 🛡️ your own troops: green
       ctx.font = `${rr * 1.8}px serif`; ctx.fillText(M.emoji, mx, my);
       if (M.golem && m.kind !== "golem") { ctx.font = `${rr * 0.9}px serif`; ctx.fillText("🗿", mx + rr * 0.6, my + rr * 0.55); }   // an elemental golem
       ctx.fillStyle = "#2d3436"; ctx.fillRect(mx - tile * 0.3, my - tile * 0.45, tile * 0.6, 3); ctx.fillStyle = "#ff4757"; ctx.fillRect(mx - tile * 0.3, my - tile * 0.45, tile * 0.6 * Math.max(0, m.hp) / m.maxHp, 3);
@@ -1364,7 +1386,7 @@ function frame(now) {
     }
     for (const b of bt.blds) if (b.frozenUntil > bt.frame && b.hp > 0) { const [x, y] = toScreen(b.x, b.y); ctx.fillStyle = "rgba(116,185,255,0.45)"; ctx.fillRect(x - tile * 0.45, y - tile * 0.45, tile * 0.9, tile * 0.9); }
     ctx.font = "bold 18px Nunito, sans-serif"; ctx.fillStyle = "#fff"; ctx.textAlign = "center";
-    ctx.fillText(bt.opts.defense ? "🏴‍☠️ Raiders are attacking your island! Your towers, animals and golems fight back." : bt.selected && bt.selected.startsWith("ab:") ? `${AB[bt.selected.slice(3)].emoji} Tap anywhere to cast ${AB[bt.selected.slice(3)].name}` : `⚔️ ${bt.island.name} — tap the sea or the beach to send in your ${bt.selected ? T[bt.selected].name.toLowerCase() + "s" : "troops"}`, innerWidth / 2, 74);
+    ctx.fillText(bt.opts.defense ? "🏴‍☠️ Raiders are attacking! Tap your island to send out your troops — your towers, animals and golems fight too." : bt.selected && bt.selected.startsWith("ab:") ? `${AB[bt.selected.slice(3)].emoji} Tap anywhere to cast ${AB[bt.selected.slice(3)].name}` : `⚔️ ${bt.island.name} — tap the sea or the beach to send in your ${bt.selected ? T[bt.selected].name.toLowerCase() + "s" : "troops"}`, innerWidth / 2, 74);
   } else {
     drawIsland(th(), S.buildings, time, { home: true, theme: prest() ? PRESTIGE[prest() - 1].theme : "tropical" });   // 🌟 your island takes on your newest Prestige map
     drawHomeDefenders(time);   // 🐺 your animals by their Barracks, 🗿 your golems by the Town Hall
@@ -1376,6 +1398,15 @@ cv.addEventListener("click", (e) => {
   setView(battle ? battle.island.th : th());
   const x = Math.floor((e.clientX - ox) / tile), y = Math.floor((e.clientY - oy) / tile);
   const fx = (e.clientX - ox) / tile - 0.5, fy = (e.clientY - oy) / tile - 0.5;
+  if (battle && !battle.over && battle.opts.defense) {   // 🛡️ send your troops out onto your island
+    const k = battle.selected; if (!k) return toast("You have no troops — train some in 🛡️ Army");
+    const n = e.shiftKey ? 5 : 1; let sent = 0;
+    for (let i = 0; i < n; i++) if (deployDefender(k, fx + (Math.random() - 0.5) * 0.4, fy + (Math.random() - 0.5) * 0.4)) sent++;
+    if (!sent) toast(S.army[k] > 0 ? "Tap on your island to send them out" : `No ${T[k].name}s left`);
+    if (!(S.army[k] > 0)) battle.selected = Object.keys(S.army).find((q) => T[q] && S.army[q] > 0) || k;
+    battle.drawBar && battle.drawBar();
+    return;
+  }
   if (battle && !battle.over) {
     const k = battle.selected; if (!k) return;
     if (k.startsWith("ab:")) {   // ✨ a mini ability: cast it right here

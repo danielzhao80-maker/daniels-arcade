@@ -678,7 +678,7 @@ q(`battle = null; hidePanels();`);
 reset({ army: { warrior: 3 } });
 check(/Town Hall to level 8/.test(q(`startPrestige()`)), 'you need Town Hall 8 and rank 8 to prestige');
 check(q(`limitOf('flame', 8)`) === 0 && q(`prodPerMin(1)`) === 18, 'no prestige: no prestige towers, no buff');
-q(`maxOutBase(false); S.army = { giant: 10, mage: 15, warrior: 40 };`);
+q(`maxOutBase(false); S.prestige = 0; S.army = { giant: 10, mage: 15, warrior: 40 };`);
 check(q(`startPrestige()`) === null && q(`battle.island.prestige`) === 1 && q(`battle.island.theme`) === 'lava', 'the Prestige 1 trial is on the new Lava map');
 check(q(`battle.blds.filter(function(b){ return b.type === 'flame'; }).length`) === 2 && q(`battle.mobs.some(function(m){ return m.kind === 'salamander'; })`), 'the trial has the new tower and the new mob');
 q(`battle.blds.forEach(function(b){ if (b.type !== 'wall') b.hp = 0; }); endBattle(); battle = null; hidePanels();`);
@@ -714,6 +714,33 @@ q(`endBattle(true); battle = null; hidePanels(); S.prestige = 0; S.owner = true;
 check(q(`panelAction('prestige', '3', true)`) === '🌟 Prestige set to 3' && q('S.prestige') === 3 && q(`panelAction('prestige', '3', false)`) === '👑 Owner only.', 'owner can set the Prestige (admins cannot)');
 check(q(`(function(){ try { renderPrestige(); renderInfo(); renderBuild(); renderTop(); return 'ok'; } catch (e) { return 'ERR ' + e.stack; } })()`) === 'ok', 'the panels draw with no errors');
 check(String(q(`document.getElementById('prestN').textContent`)) === '3' && /Prestige 4 Trial/.test(q(`document.getElementById('prestBody').innerHTML`)), 'the 🌟 panel and top bar show it');
+
+// ---- 👑 owner panel: everything ----
+reset({ army: { warrior: 5 } }); q(`S.owner = true;`);
+q(`panelAction('maxbase', '', true);`);
+check(q('S.prestige') === 8 && ['flame','frost','tesla','meteor','crystal','trident','ufo','sun'].every((t) => q(`countOf('${t}')`) === 2) && q(`S.buildings.every(function(b){ return b.lvl === 8; })`), 'the best base: Prestige 8 with 2 of every prestige tower, all level 8');
+check(['salamander','mammoth','bat','ghost','dragon','kraken','alien','lion'].every((m) => q(`homeDefenders().some(function(x){ return x.kind === '${m}'; })`)), 'the best base: every prestige animal guards it');
+check(q(`new Set(S.buildings.map(function(b){ return b.x + ',' + b.y; })).size === S.buildings.length && S.buildings.every(function(b){ return isLand(b.x, b.y); })`), 'the best base: nothing overlaps, all on land');
+q(`S.prestige = 0;`);
+check(/Prestige 1/.test(q(`panelAction('pnext', '', true)`)) && q('S.prestige') === 1 && /Prestige 8/.test(q(`panelAction('pmax', '', true)`)) && q('S.prestige') === 8, '🌟 +1 and Max Prestige');
+check(q(`panelAction('pnext', '', false)`) === '👑 Owner only.', 'admins cannot');
+q(`S.prestige = 2;`);
+check(/Trial/.test(q(`panelAction('ptrial', '', true)`)) && q('battle.opts.prestige') === 3, '⚔️ Fight the next trial straight away');
+check(q(`panelAction('win', '', true)`) === '⚡ You won!' && q('S.prestige') === 3, '⚡ Win this battle (and the trial counts)');
+q(`battle = null; hidePanels(); S.army = { warrior: 5 };`);
+check(/Attacking/.test(q(`panelAction('pmap', '7', true)`)) && q('battle.island.theme') === 'cosmic', 'raid any prestige map');
+check(/refilled/.test(q(`panelAction('abil', '', true)`)) && q('battle.abil.lightning') === 5, '✨ Refill abilities');
+q(`endBattle(true); battle = null; hidePanels();`);
+check(/revenge/.test(q(`panelAction('revengenow', '', true)`)) && q('!!battle.opts.revenge'), '😠 Revenge now');
+q(`panelAction('win', '', true); battle = null; hidePanels();`);
+check(/OFF/.test(q(`panelAction('noraids', '', true)`)), 'raids can be switched off');
+q(`S.nextRaidAt = Date.now() - 1; S.revenge = { name: 'x', th: 2, at: Date.now() - 1 }; frame(performance.now()); renderTop();`);
+check(q('battle') === null && String(q(`document.getElementById('raidIn').textContent`)) === 'off', 'raids off: no raid, no revenge');
+q(`panelAction('noraids', '', true); S.revenge = null;`);
+check(/emptied/.test(q(`panelAction('army0', '', true)`)) && q('armyUsed()') === 0 && /away/.test(q(`panelAction('golem0', '', true)`)) && q('S.golems.length') === 0, 'empty the army, remove golems');
+check(/over/.test(q(`panelAction('reset', '', true)`)) && q('th()') === 1 && q('S.owner') === true, 'start the island over (you stay owner)');
+q(`renderAdmin(true);`);
+check(/Prestige/.test(q(`document.getElementById('admBody').innerHTML`)) && /Win this battle/.test(q(`document.getElementById('admBody').innerHTML`)), 'the owner panel shows it all');
 
 // ---- drawing ----
 q(`for (var i = 0; i < 3; i++) frame(performance.now() + i * 16);`);

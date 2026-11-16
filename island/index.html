@@ -945,6 +945,32 @@ function panelAction(act, arg, owner) {
   if (act === "infinite") { S.infinite = !S.infinite; refillInfinite(); save(); return S.infinite ? "♾️ Infinite resources ON — everything is free!" : "♾️ Infinite resources off"; }
   if (act === "maxbase") { hidePanels(); return maxOutBase(false); }
   if (act === "maxkeep") { hidePanels(); return maxOutBase(true); }
+  if (act === "pnext") { if (prest() >= MAX_PRESTIGE) return `🌟 Already Prestige ${MAX_PRESTIGE} — the top!`; S.prestige = prest() + 1; homeMobsKey = ""; save(); return `🌟 Prestige ${S.prestige}: ${PRESTIGE[S.prestige - 1].emoji} ${PRESTIGE[S.prestige - 1].name} unlocked`; }
+  if (act === "pmax") { S.prestige = MAX_PRESTIGE; homeMobsKey = ""; save(); return `🌟 Prestige ${MAX_PRESTIGE} — every prestige tower, animal and map unlocked`; }
+  if (act === "ptrial") {   // fight the next trial now (no Town Hall / rank needed)
+    if (prest() >= MAX_PRESTIGE) return "🌟 Every Prestige is done!";
+    hidePanels(); const e = startBattle(prestigeIsland(prest() + 1), { prestige: prest() + 1 }); return e || `🌟 Prestige ${prest() + 1} Trial — go!`;
+  }
+  if (act === "pmap") {   // raid any prestige map (arg: 1–8)
+    const n = Math.max(1, Math.min(MAX_PRESTIGE, Math.floor(+arg) || 1)); hidePanels(); const e = startBattle(prestMap(n)); return e || `${PRESTIGE[n - 1].emoji} Attacking ${PRESTIGE[n - 1].map}!`;
+  }
+  if (act === "revengenow") {
+    hidePanels(); const isl = genIsland(Math.max(1, S.raidLevel), 1 + Math.floor(Math.random() * 999));
+    const e = startDefense({ name: isl.name, th: isl.th }); return e || `😠 ${isl.name} wants revenge!`;
+  }
+  if (act === "noraids") { S.noRaids = !S.noRaids; if (!S.noRaids) S.nextRaidAt = Date.now() + RAID_EVERY; save(); return S.noRaids ? "🏴‍☠️ Raids and revenge are OFF" : "🏴‍☠️ Raids are back on (next in 10 min)"; }
+  if (act === "win") {   // ⚡ win the battle you're in right now
+    if (!battle || battle.over) return "You're not in a battle.";
+    if (battle.opts.defense) battle.troops.forEach((t) => (t.hp = 0)); else battle.blds.forEach((b) => (b.hp = 0));
+    hidePanels(); battleStep(); return "⚡ You won!";
+  }
+  if (act === "abil") {   // ✨ refill every mini ability in this battle
+    if (!battle || battle.over || battle.opts.defense) return "Start an attack first — then refill your abilities.";
+    for (const k of Object.keys(AB)) battle.abil[k] = abilityUses(MAX_TH) + 3; battle.drawBar && battle.drawBar(); return "✨ Every mini ability refilled (5 each)";
+  }
+  if (act === "army0") { S.army = {}; save(); return "⚔️ Army emptied"; }
+  if (act === "golem0") { S.golems = []; save(); homeMobsKey = ""; return "🗿 Golems sent away"; }
+  if (act === "reset") { const keepOwner = S.owner; S = freshSave(); S.owner = keepOwner; S.nextRaidAt = Date.now() + RAID_EVERY; homeMobsKey = ""; save(); hidePanels(); return "🔄 Your island started over"; }
   if (act === "raidnow") { hidePanels(); const e = startDefense(); return e || "🏴‍☠️ Here they come!"; }
   return "?";
 }
@@ -953,6 +979,7 @@ function panelAction(act, arg, owner) {
 // Barracks behind them, mines on the outside — every tower upgrade, every golem, full stores and a full army.
 function maxOutBase(keep) {
   const T8 = MAX_TH;
+  S.prestige = MAX_PRESTIGE;   // 🌟 the best base has every Prestige: all 8 prestige towers and all 8 prestige animals
   // keep: your buildings stay where they are (everything to level 8, every upgrade); only the missing ones are added
   const list = keep ? S.buildings.map((b) => Object.assign({}, b, { lvl: T8 })) : [{ type: "townhall", lvl: T8, x: CENTER, y: CENTER }];
   const place = (type, n, dist, turn) => {   // n of `type` evenly round a ring at `dist`, nearest free tile
@@ -985,7 +1012,7 @@ function maxOutBase(keep) {
   S.army = {}; const fill = [["giant", 10], ["mage", 15], ["archer", 30], ["warrior", 999]];
   for (const [k, n] of fill) { const fit = Math.min(n, Math.floor((armyCap() - armyUsed()) / T[k].house)); if (fit > 0) S.army[k] = fit; }
   save(); homeMobsKey = "";
-  return `${keep ? "⬆️ Maxed out — your layout kept" : "🏆 Your base is maxed out"}: Town Hall ${T8}, ${list.length} buildings at level ${T8}, every tower upgrade, all 4 golems, ${cap.toLocaleString()} of everything and a full army (${armyUsed()}/${armyCap()}).`;
+  return `${keep ? "⬆️ Maxed out — your layout kept" : "🏆 Your base is maxed out"}: Town Hall ${T8}, ${list.length} buildings at level ${T8}, every tower upgrade, 🌟 Prestige ${MAX_PRESTIGE} (all ${MAX_PRESTIGE * 2} prestige towers, and every Barracks sends all ${MAX_PRESTIGE} prestige animals), all 4 golems, ${cap.toLocaleString()} of everything and a full army (${armyUsed()}/${armyCap()}).`;
 }
 function renderAdmin(owner) {
   $("admTitle").textContent = owner ? "👑 Owner Panel" : "🛠️ Admin Panel";
@@ -1000,9 +1027,13 @@ function renderAdmin(owner) {
     sec("🎁 Codes", btn("codes", "", "Reset my codes")) +
     (owner ? sec("🏰 Town Hall · 🎖️ Rank · 🌟 Prestige (0–8) · 🗺️ Raid · 🏆", `<input id="admNum" type="number" min="1" value="${th()}" style="width:90px;text-transform:none">` +
       btn("th", "#", "Set Town Hall") + btn("rank", "#", "Set Rank") + btn("prestige", "#", "Set 🌟 Prestige") + btn("raid", "#", "Set Raid level") + btn("trophies", "#", "Add 🏆")) +
-      sec("🏴‍☠️ Raids", btn("raidnow", "", "🏴‍☠️ Raid now", "red")) +
+      sec("🏴‍☠️ Raids & 😠 revenge", btn("raidnow", "", "🏴‍☠️ Raid now", "red") + btn("revengenow", "", "😠 Revenge now", "red") + btn("noraids", "", S.noRaids ? "🏴‍☠️ Raids: OFF" : "🏴‍☠️ Raids: on", S.noRaids ? "" : "green")) +
+      sec(`🌟 Prestige — you are ${prest()}/${MAX_PRESTIGE}`, btn("pnext", "", "🌟 +1 Prestige", "green") + btn("pmax", "", `🌟 Max (${MAX_PRESTIGE})`, "green") + btn("ptrial", "", "⚔️ Fight the next trial", "red") +
+        PRESTIGE.map((P, i) => btn("pmap", i + 1, `${P.emoji} ${P.map}`, "red")).join("")) +
+      sec("⚔️ In battle", btn("win", "", "⚡ Win this battle", "green") + btn("abil", "", "✨ Refill abilities", "blue")) +
+      sec("🧹 Clear", btn("army0", "", "Empty my army") + btn("golem0", "", "Remove golems") + btn("reset", "", "🔄 Start my island over", "red")) +
       sec("🏆 The best base", btn("maxkeep", "", "⬆️ Max out (keep my layout)", "green") + btn("maxbase", "", "🏆 Max out with a new layout", "green") +
-        `<span style="font-size:.75rem;opacity:.75">Town Hall 8, everything level 8, every tower upgrade, all golems, full stores and army. "Keep my layout" leaves your buildings where they are and only adds what's missing.</span>`) : "");
+        `<span style="font-size:.75rem;opacity:.75">Town Hall 8, 🌟 Prestige 8 with every prestige tower and animal, everything level 8, every tower upgrade, all golems, full stores and army. "Keep my layout" leaves your buildings where they are and only adds what's missing.</span>`) : "");
   $("admBody").querySelectorAll("[data-act]").forEach((b) => (b.onclick = () => {
     const arg = b.dataset.arg === "#" ? $("admNum").value : b.dataset.arg;
     const msg = panelAction(b.dataset.act, arg, owner); renderTop();
@@ -1067,7 +1098,7 @@ function renderTop() {
   $("prestPill").style.display = prest() ? "inline-block" : "none"; $("prestN").textContent = prest();
   if (S.revenge) { const rs = Math.max(0, Math.ceil((S.revenge.at - Date.now()) / 1000)); $("revPill").style.display = "inline-block"; $("revIn").textContent = `${Math.floor(rs / 60)}:${String(rs % 60).padStart(2, "0")}`; }
   else $("revPill").style.display = "none";
-  if (S.nextRaidAt) { const sec = Math.max(0, Math.ceil((S.nextRaidAt - Date.now()) / 1000)); $("raidIn").textContent = `${Math.floor(sec / 60)}:${String(sec % 60).padStart(2, "0")}`; } $("armyN").textContent = armyUsed(); $("armyCap").textContent = armyCap();
+  if (S.noRaids) $("raidIn").textContent = "off"; else if (S.nextRaidAt) { const sec = Math.max(0, Math.ceil((S.nextRaidAt - Date.now()) / 1000)); $("raidIn").textContent = `${Math.floor(sec / 60)}:${String(sec % 60).padStart(2, "0")}`; } $("armyN").textContent = armyUsed(); $("armyCap").textContent = armyCap();
 }
 function renderBuild() {
   $("buildGrid").innerHTML = BUILD_ORDER.map((type) => {
@@ -1325,12 +1356,12 @@ function frame(now) {
     if (battle && battle.drawBar && battle.frame % 15 === 0) battle.drawBar();
   }
   // 🏴‍☠️ raid timer
-  if (!battle && S.nextRaidAt) {
+  if (!battle && S.nextRaidAt && !S.noRaids) {
     const left = S.nextRaidAt - Date.now();
     if (left <= 10000 && !raidWarned) { raidWarned = true; toast("🏴‍☠️ Raiders spotted! They land in 10 seconds…"); }
     if (left <= 0) { raidWarned = false; startDefense(); }
   }
-  if (!battle && S.revenge && Date.now() >= S.revenge.at) startDefense(S.revenge);   // 😠
+  if (!battle && !S.noRaids && S.revenge && Date.now() >= S.revenge.at) startDefense(S.revenge);   // 😠
   // your mines keep working while you fight
   prodAcc += dt; if (prodAcc >= 1) { produce(prodAcc); refillInfinite(); prodAcc = 0; if (!battle) renderTop(); if (Math.random() < 0.1) save(); }
   setView(battle ? battle.island.th : th());

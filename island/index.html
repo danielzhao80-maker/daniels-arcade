@@ -116,11 +116,17 @@ const B = {
   lumbermill: { name: "Lumber Mill",  emoji: "🪓", hp: 260, base: { gold: 60 },                 makes: "wood",  desc: "Chops wood." },
   quarry:     { name: "Quarry",       emoji: "⚒️", hp: 260, base: { gold: 60, wood: 40 },       makes: "stone", desc: "Cuts stone." },
   storage:    { name: "Storage",      emoji: "📦", hp: 320, base: { gold: 100, wood: 100 },     desc: "Holds more of every resource: +1,500 a level (towers, mines and walls add some too)." },
-  barracks:   { name: "Barracks",     emoji: "⛺", hp: 320, base: { gold: 150, wood: 80 },      desc: "More army space and new troops — and it sends out animals to defend your island: 🐺 🐒 🦝, then 🐗 🐝 (Lv 2), 🐍 🦂 (Lv 3), 🐻 (Lv 4), 🦅 (Lv 5). (Buy 🗿 golems in 🛡️ Army to guard your island too.)" },
+  barracks:   { name: "Barracks",     emoji: "⛺", hp: 320, base: { gold: 150, wood: 80 },      desc: "More army space and new troops — and it sends out animals to defend your island: 🐺 🐒 🦝, then 🐗 🐝 (Lv 2), 🐍 🦂 (Lv 3), 🐻 (Lv 4), 🦅 (Lv 5), 🦍 (Lv 6), 🐊 (Lv 7), 🦏 (Lv 8), 🐅 (Lv 9), 🦉 (Lv 10). (Buy 🗿 golems in 🛡️ Army to guard your island too.)" },
   archer:     { name: "Archer Tower", emoji: "🏹", hp: 300, base: { gold: 120, wood: 60, stone: 30 }, def: { range: 4.5, dmg: 9, rate: 40 }, desc: "Shoots troops from far away. +250 storage a level." },
   cannon:     { name: "Cannon",       emoji: "💣", hp: 340, base: { gold: 200, stone: 80 },     def: { range: 3.5, dmg: 24, rate: 70 }, desc: "Big hits, shorter range. +300 storage a level." },
   wizard:     { name: "Wizard Tower", emoji: "🔮", hp: 300, base: { gold: 500, stone: 200 },    def: { range: 3.5, dmg: 14, rate: 60, splash: 1.3 }, desc: "Blasts groups of troops. +400 storage a level." },
   wall:       { name: "Wall",         emoji: "🧱", hp: 380, base: { stone: 25 },                desc: "Troops have to break through walls in their way." },
+  // 🏯 More towers, unlocked by the Town Hall (1 at first, 2 from two Town Hall levels later). +300 storage a level.
+  boomerang: { name: "Boomerang Tower", emoji: "🪃", hp: 320, th: 3,  base: { gold: 250, wood: 150 },   def: { range: 4,   dmg: 12, rate: 40, multi: 2, col: "#e1b12c" }, desc: "Throws boomerangs that hit 2 troops (there and back)." },
+  poison:    { name: "Poison Tower",    emoji: "🧪", hp: 330, th: 5,  base: { gold: 500, stone: 250 },  def: { range: 3.8, dmg: 8,  rate: 55, splash: 1.3, poison: 20, col: "#44bd32" }, desc: "Throws poison clouds: every troop in the cloud is POISONED for 3 s." },
+  beehive:   { name: "Beehive Tower",   emoji: "🍯", hp: 340, th: 7,  base: { gold: 800, wood: 500 },   def: { range: 4.5, dmg: 6,  rate: 240, spawn: "bee", col: "#fbc531" }, desc: "Lets out a swarm of 🐝 bees (3 every 4 s, up to 6) that chase troops." },
+  dojo:      { name: "Ninja Dojo",      emoji: "🏯", hp: 360, th: 9,  base: { gold: 1200, stone: 700 }, def: { range: 4.5, dmg: 9,  rate: 12, multi: 2, col: "#dcdde1" }, desc: "Ninjas throw shurikens super fast at 2 troops at once." },
+  dragonstatue: { name: "Dragon Statue", emoji: "🐲", hp: 420, th: 10, base: { gold: 1500, stone: 900 }, def: { range: 3.5, dmg: 26, rate: 50, splash: 1.8, burn: 30, col: "#e84118" }, desc: "Breathes a huge blast of fire that BURNS every troop in it." },
   // 🌟 Prestige towers: each Prestige unlocks one (2 of them). +600 storage a level.
   flame:   { name: "Flame Tower",   emoji: "🏮", hp: 380, prestige: 1, base: { gold: 1200, stone: 800 }, def: { range: 3,   dmg: 16, rate: 30,  splash: 0.8, burn: 25, col: "#ff793f" }, desc: "🌟 Prestige 1 — sprays fire: splash damage and troops BURN." },
   frost:   { name: "Frost Tower",   emoji: "🧊", hp: 380, prestige: 2, base: { gold: 1200, stone: 800 }, def: { range: 4.5, dmg: 14, rate: 40,  splash: 1.0, slow: true, col: "#74b9ff" }, desc: "🌟 Prestige 2 — ice blasts that SLOW every troop they hit." },
@@ -181,11 +187,12 @@ function towerStats(b) {
   if (hasPerk(b, "reload")) rate = Math.round(rate * 0.66);
   if (hasPerk(b, "explosive")) splash = Math.max(splash, 1.0);
   if (hasPerk(b, "bigblast")) splash += 0.7;
-  return { range, rate, dmg, splash, multi: D.multi || 0, push: D.push || 0, stun: D.stun || 0, all: !!D.all, burn: D.burn || 0, slow: !!D.slow, chain: Math.max(D.chain || 0, hasPerk(b, "chain") ? 2 : 0), col: D.col };
+  return { range, rate, dmg, splash, poison: D.poison || 0, spawn: D.spawn || null, multi: D.multi || 0, push: D.push || 0, stun: D.stun || 0, all: !!D.all, burn: D.burn || 0, slow: !!D.slow, chain: Math.max(D.chain || 0, hasPerk(b, "chain") ? 2 : 0), col: D.col };
 }
-const BUILD_ORDER = ["goldmine", "lumbermill", "quarry", "storage", "barracks", "archer", "cannon", "wizard", "wall", "flame", "frost", "tesla", "meteor", "crystal", "trident", "ufo", "sun", "rainbow", "blackhole"];
+const BUILD_ORDER = ["goldmine", "lumbermill", "quarry", "storage", "barracks", "archer", "cannon", "wizard", "boomerang", "poison", "beehive", "dojo", "dragonstatue", "wall", "flame", "frost", "tesla", "meteor", "crystal", "trident", "ufo", "sun", "rainbow", "blackhole"];
 // p: the island's Prestige (yours if left out) — prestige towers need it
 function limitOf(type, th, p) {
+  if (B[type] && B[type].th) return th >= Math.min(B[type].th + 2, MAX_TH) ? 2 : th >= B[type].th ? 1 : 0;   // 🏯 the Town Hall towers (2 at the top Town Hall)
   if (B[type] && B[type].prestige) return (p === undefined ? prest() : p) >= B[type].prestige ? 2 : 0;
   switch (type) {
     case "townhall": return 1;
@@ -229,6 +236,11 @@ const MOB = {
   eagle:    { name: "Eagle",    emoji: "🦅", hp: 80,  dmg: 11, range: 1.2, speed: 2.2, rate: 30, sight: 6,   ring: "#dcdde1", flying: true, desc: "FLIES: only archers and mages can hit it." },
   firegolem:  { name: "Fire Golem",  emoji: "🔥", hp: 480, dmg: 22, range: 0.9, speed: 0.8, rate: 55, sight: 4,   ring: "#e84118", big: true, golem: true, burn: 40, splash: 0.9, desc: "BURN: sets troops on fire, and each hit splashes the troops around." },
   watergolem: { name: "Water Golem", emoji: "💧", hp: 560, dmg: 18, range: 0.9, speed: 0.8, rate: 55, sight: 4,   ring: "#0097e6", big: true, golem: true, heals: 0.04, push: 0.8, desc: "HEALS every animal near it, and its hits push your troops back." },
+  gorilla:  { name: "Gorilla",   emoji: "🦍", hp: 380, dmg: 22, range: 0.8, speed: 1.3, rate: 45, sight: 5,   ring: "#535c68", big: true, splash: 0.9, stun: 40, desc: "GROUND POUND: smashes the troops round it and knocks them out. (Barracks Lv 6)" },
+  croc:     { name: "Crocodile", emoji: "🐊", hp: 320, dmg: 26, range: 0.8, speed: 1.2, rate: 40, sight: 4.5, ring: "#218c74", charge: 2, stun: 60, desc: "DEATH ROLL: a 2× first bite that holds your troop for 1 s. (Barracks Lv 7)" },
+  rhino:    { name: "Rhino",     emoji: "🦏", hp: 520, dmg: 20, range: 0.8, speed: 1.4, rate: 45, sight: 5,   ring: "#95afc0", big: true, charge: 4, push: 1.2, desc: "STAMPEDE: a 4× first hit that sends troops flying. (Barracks Lv 8)" },
+  tiger:    { name: "Tiger",     emoji: "🐅", hp: 260, dmg: 20, range: 0.7, speed: 2.4, rate: 22, sight: 6,   ring: "#f0932b", charge: 2, desc: "Super fast and attacks very quickly, with a 2× pounce. (Barracks Lv 9)" },
+  owl:      { name: "Owl",       emoji: "🦉", hp: 160, dmg: 16, range: 2.5, speed: 2.2, rate: 30, sight: 7,   ring: "#a0522d", flying: true, slow: 0.5, desc: "FLIES and swoops from range — troops it hits are slowed. (Barracks Lv 10)" },
   salamander: { name: "Lava Salamander", emoji: "🦎", hp: 150,  dmg: 12, range: 0.7, speed: 1.6, rate: 30, sight: 5,   ring: "#e84118", burn: 30, prestige: 1, desc: "🌟 Prestige 1 — BURN: sets your troop on fire." },
   mammoth:    { name: "Mammoth",         emoji: "🦣", hp: 700,  dmg: 26, range: 0.9, speed: 0.8, rate: 55, sight: 4.5, ring: "#b2bec3", big: true, push: 1.0, stun: 45, prestige: 2, desc: "🌟 Prestige 2 — huge: its tusks knock troops back and out." },
   bat:        { name: "Storm Bat",       emoji: "🦇", hp: 70,   dmg: 10, range: 0.6, speed: 2.8, rate: 16, sight: 6,   ring: "#6c5ce7", flying: true, stun: 20, prestige: 3, desc: "🌟 Prestige 3 — FLIES and shocks: only archers and mages can hit it." },
@@ -247,6 +259,9 @@ const golemsFor = (lvl) => lvl >= 7 ? ["firegolem", "windgolem"] : lvl >= 6 ? ["
 // Which animals a Barracks of this level can send (they take turns; a level-3+ Barracks leads with its Golem).
 const MOB_UNLOCK = [["wolf", 1], ["monkey", 1], ["raccoon", 1], ["boar", 2], ["bee", 2], ["snake", 3], ["scorpion", 3], ["bear", 4], ["eagle", 5]];
 const mobPool = (lvl) => MOB_UNLOCK.filter(([, l]) => lvl >= l).map(([k]) => k);
+// 🦍 Big Barracks (Lv 6+) also send one of each of these, on top of their pack
+const BIG_UNLOCK = [["gorilla", 6], ["croc", 7], ["rhino", 8], ["tiger", 9], ["owl", 10]];
+const bigPool = (lvl) => BIG_UNLOCK.filter(([, l]) => lvl >= l).map(([k]) => k);
 const MOB_CYCLE = mobPool(1);
 // 🗿 Golems for YOUR island are bought with gold (one of each); computer islands get theirs from their
 // Barracks level (golemsFor). Bought golems (`golems`) stand by the Town Hall.
@@ -272,6 +287,7 @@ function spawnMobs(blds, golems, p) {   // p: the island's 🌟 Prestige — eac
       const pool = mobPool(b.lvl), gl = bought ? [] : golemsFor(b.lvl), kind = i < gl.length ? gl[i] : pool[(i + (gl.length ? 2 : 0)) % pool.length], a = (Math.PI * 2 / n) * i;
       add(kind, b.x + Math.cos(a) * 0.6, b.y + Math.sin(a) * 0.6, lv);
     }
+    bigPool(b.lvl).forEach((k, j, all) => { const a = (Math.PI * 2 / all.length) * j + 1.1; add(k, b.x + Math.cos(a) * 0.8, b.y + Math.sin(a) * 0.8, lv); });
     for (let k = 0; k < Math.min(MAX_PRESTIGE, p || 0); k++) { const a = (Math.PI * 2 / (p || 1)) * k + 0.3; add(PRESTIGE[k].mob, b.x + Math.cos(a) * 0.95, b.y + Math.sin(a) * 0.95, lv); }
   }
   return mobs;
@@ -365,7 +381,7 @@ function startRankUp() {
 const countOf = (type) => S.buildings.filter((b) => b.type === type).length;
 // 📦 How much of each resource you can hold: a base, plus what every building adds per level —
 // Storage the most, the Town Hall, and the towers, mines and walls too.
-const STORE_PER_LVL = { rainbow: 600, blackhole: 600, trident: 600, ufo: 600, sun: 600, flame: 600, frost: 600, tesla: 600, meteor: 600, crystal: 600, storage: 1500, townhall: 500, archer: 250, cannon: 300, wizard: 400, goldmine: 100, lumbermill: 100, quarry: 100, wall: 25 };
+const STORE_PER_LVL = { boomerang: 300, poison: 300, beehive: 300, dojo: 300, dragonstatue: 300, rainbow: 600, blackhole: 600, trident: 600, ufo: 600, sun: 600, flame: 600, frost: 600, tesla: 600, meteor: 600, crystal: 600, storage: 1500, townhall: 500, archer: 250, cannon: 300, wizard: 400, goldmine: 100, lumbermill: 100, quarry: 100, wall: 25 };
 const storeOf = (b) => (STORE_PER_LVL[b.type] || 0) * b.lvl;
 function capOf() { return 1000 + S.buildings.reduce((a, b) => a + storeOf(b), 0); }
 function armyCap() { return 10 + S.buildings.filter((b) => b.type === "barracks").reduce((a, b) => a + b.lvl * 10, 0); }
@@ -452,7 +468,7 @@ function genIsland(lvl, seed, p) {   // p: a 🌟 Prestige island (its map, towe
   const spots = [];
   for (let y = 0; y < GRID; y++) for (let x = 0; x < GRID; x++) if (isLand(x, y, t) && !(x === CENTER && y === CENTER)) spots.push([x, y]);
   for (let i = spots.length - 1; i > 0; i--) { const j = Math.floor(r() * (i + 1)); [spots[i], spots[j]] = [spots[j], spots[i]]; }
-  const want = ["archer", "cannon", "wizard", "flame", "frost", "tesla", "meteor", "crystal", "trident", "ufo", "sun", "rainbow", "blackhole", "goldmine", "lumbermill", "quarry", "storage", "barracks"];
+  const want = ["archer", "cannon", "wizard", "boomerang", "poison", "beehive", "dojo", "dragonstatue", "flame", "frost", "tesla", "meteor", "crystal", "trident", "ufo", "sun", "rainbow", "blackhole", "goldmine", "lumbermill", "quarry", "storage", "barracks"];
   for (const type of want) for (let k = 0; k < limitOf(type, t, p); k++) {
     const sp = spots.pop(); if (!sp) break;
     const lv = Math.max(1, t - Math.floor(r() * 2)), perks = [];
@@ -668,6 +684,13 @@ function battleStep() {
     let tg = inRange[0] || null;
     if (!tg) continue;
     b.cd = D.rate;
+    if (D.spawn) {   // 🍯 a swarm out of the hive (up to 6 of its bees at a time) — they hunt like any animal
+      const lv = 1 + 0.3 * (b.lvl - 1), M = MOB[D.spawn];
+      for (let k = 0; k < 3 && bt.mobs.filter((m) => m.hive === b && m.hp > 0).length < 6; k++)
+        bt.mobs.push({ kind: D.spawn, hive: b, x: b.x + (Math.random() - 0.5) * 0.6, y: b.y + (Math.random() - 0.5) * 0.6, homeX: b.x, homeY: b.y, hp: M.hp * lv, maxHp: M.hp * lv, dmg: M.dmg * lv, cd: 0, steal: 0 });
+      bt.texts && bt.texts.push({ x: b.x, y: b.y - 0.5, t: 40, text: "BZZZ!" });
+      continue;
+    }
     const wall = bt.barricades.find((br) => br.hits > 0 && crossesBarricade(br, b.x, b.y, tg.x, tg.y));
     if (wall) {   // 🧱 the barricade takes the hit instead
       wall.hits--;
@@ -681,6 +704,7 @@ function battleStep() {
       for (const tr of hitList) {
         tr.hp -= d;
         if (hasPerk(b, "firearrows")) { tr.burnLeft = 180; tr.burnDps = 15 * (1 + 0.3 * (b.lvl - 1)); }   // 🔥
+        if (D.poison) { tr.poisonLeft = 180; tr.poisonDps = D.poison * (1 + 0.3 * (b.lvl - 1)); }           // 🧪
         if (D.burn) { tr.burnLeft = 180; tr.burnDps = D.burn * (1 + 0.3 * (b.lvl - 1)); }                    // 🏮
         if (hasPerk(b, "frost") || D.slow) tr.slowUntil = bt.frame + 150;                                    // ❄️ 🧊
         if (D.stun) tr.stunUntil = bt.frame + D.stun;                                                        // 🛸
@@ -1011,6 +1035,7 @@ function maxOutBase(keep) {
   place("archer", limitOf("archer", T8), 4.6, 0.4);
   place("cannon", limitOf("cannon", T8), 4.6, 1.2);
   place("barracks", limitOf("barracks", T8), 5.8, 0.8);
+  ["boomerang", "poison", "beehive", "dojo", "dragonstatue"].forEach((t, i) => place(t, limitOf(t, T8), 6.7, 0.15 + i * 0.6));   // 🏯 the Town Hall towers
   for (const P of PRESTIGE) place(P.tower, limitOf(P.tower, T8), 3.9, 0.2 + PRESTIGE.indexOf(P) * 0.35);   // 🌟 the prestige towers you've unlocked
   place("goldmine", limitOf("goldmine", T8), 7.6, 0);
   place("lumbermill", limitOf("lumbermill", T8), 7.6, 0.42);
@@ -1184,7 +1209,7 @@ function renderInfo() {
       + `<br><span style="opacity:.8">📦 Storage ${I.cap.toLocaleString()} = 1,000 base` + Object.keys(STORE_PER_LVL).map((t) => { const v = S.buildings.filter((b) => b.type === t).reduce((a, b) => a + storeOf(b), 0); return v ? ` + ${B[t].emoji} ${v.toLocaleString()}` : ""; }).join("") + `</span>`) +
     sec("🏗️ Buildings", I.blds.map((b) => `${B[b.type].emoji} ${B[b.type].name}: <b>${b.n}</b>/${b.lim}${b.type === "wall" ? "" : ` &nbsp;·&nbsp; Lv ${b.levels.join(", ")}`}`).join("<br>")) +
     sec("🛡️ Army", `${I.used}/${I.armyCap} space · Barracks Lv ${barracksLvl()}<br>` + (I.army.length ? I.army.map(([k, n]) => `${T[k].emoji} ${T[k].name} × <b>${n}</b>`).join(" &nbsp; ") : "<i>No troops — train some in 🛡️ Army</i>")) +
-    sec("🐾 Your island's defenders", `Your best Barracks (Lv ${barracksLvl()}) sends out: ` + (barracksLvl() ? mobPool(barracksLvl()).map((k) => `${MOB[k].emoji} ${MOB[k].name}`).join(", ") : "nothing yet") +
+    sec("🐾 Your island's defenders", `Your best Barracks (Lv ${barracksLvl()}) sends out: ` + (barracksLvl() ? mobPool(barracksLvl()).concat(bigPool(barracksLvl())).map((k) => `${MOB[k].emoji} ${MOB[k].name}`).join(", ") : "nothing yet") +
       "<br>🗿 Your golems: " + ((S.golems || []).length ? S.golems.map((k) => `${MOB[k].emoji} ${MOB[k].name}`).join(", ") : "none yet — buy them in 🛡️ Army") +
       (prest() ? "<br>🌟 Every Barracks also sends: " + PRESTIGE.slice(0, prest()).map((P) => `${MOB[P.mob].emoji} ${MOB[P.mob].name}`).join(", ") : "") +
       "<br>" + Object.values(MOB).filter((m) => !m.prestige || m.prestige <= prest()).map((m) => `${m.emoji} <b>${m.name}</b>: ${m.desc}`).join("<br>")) +

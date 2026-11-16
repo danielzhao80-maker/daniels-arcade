@@ -258,7 +258,7 @@ q(`document.getElementById('btnInfo').onclick();`);
 check(/Mini abilities/.test(q(`document.getElementById('infoBody').innerHTML`)) && /Your island's defenders/.test(q(`document.getElementById('infoBody').innerHTML`)), '📊 My Island lists the abilities and your defenders');
 
 // ---- 🐺 defending mobs ----
-check(q(`spawnMobs([{ type: 'barracks', lvl: 1, x: 5, y: 5 }]).length`) === 2 && q(`spawnMobs([{ type: 'barracks', lvl: 3, x: 5, y: 5 }, { type: 'barracks', lvl: 9, x: 6, y: 6 }]).length`) === 10, 'each Barracks sends out 1 + its level (max 6)');
+check(q(`spawnMobs([{ type: 'barracks', lvl: 1, x: 5, y: 5 }]).length`) === 2 && q(`spawnMobs([{ type: 'barracks', lvl: 3, x: 5, y: 5 }, { type: 'barracks', lvl: 9, x: 6, y: 6 }]).length`) === 14, 'each Barracks sends out 1 + its level (max 6) — plus a big animal for every level from 6');
 check(q(`spawnMobs([{ type: 'barracks', lvl: 2, x: 5, y: 5 }]).map(function(m){ return m.kind; }).join()`) === 'wolf,monkey,raccoon', 'wolves, monkeys and raccoons');
 check(q(`spawnMobs([{ type: 'barracks', lvl: 3, x: 5, y: 5 }])[0].kind`) === 'golem', '…and from Barracks level 3 an Earth Golem leads them');
 check(q(`mobPool(1).join()`) === 'wolf,monkey,raccoon' && q(`mobPool(2).join()`) === 'wolf,monkey,raccoon,boar,bee' && q(`mobPool(5).length`) === 9, 'bigger Barracks unlock more animals (🐗 🐝 at 2, 🐍 🦂 at 3, 🐻 at 4, 🦅 at 5)');
@@ -725,6 +725,20 @@ check(q(`battle.troops.filter(function(t){ return t.hp < t.maxHp; }).length`) ==
 q(`endBattle(true); battle = null; S.army = { warrior: 5 }; startBattle({ name: 't', th: 10, loot: {}, buildings: [{ type: 'townhall', lvl: 10, x: 10, y: 10 }, { type: 'blackhole', lvl: 1, x: 10, y: 6 }] }); battle.mobs = []; deploy('warrior', 10, 0.3); battle.troops[0].y = 2; battle.blds[1].cd = 0; battleStep();`);
 check(q('battle.troops[0].y') > 2.5 && q('battle.troops[0].y') < 6, '🌀 Black Hole Tower pulls troops in (but not past it)', q('battle.troops[0].y'));
 q(`endBattle(true); battle = null; hidePanels();`);
+
+// ---- 🏯 more towers and 🦍 more animals ----
+reset({});
+check(q(`limitOf('boomerang', 2)`) === 0 && q(`limitOf('boomerang', 3)`) === 1 && q(`limitOf('boomerang', 5)`) === 2 && q(`limitOf('dojo', 9)`) === 1 && q(`limitOf('dojo', 10)`) === 2 && q(`limitOf('dragonstatue', 10)`) === 2, 'the new towers unlock with the Town Hall (1, then 2)');
+check(['gorilla','croc','rhino','tiger','owl'].every((k) => q(`spawnMobs([{ type: 'barracks', lvl: 10, x: 5, y: 5 }]).some(function(m){ return m.kind === '${k}'; })`)) && !q(`spawnMobs([{ type: 'barracks', lvl: 5, x: 5, y: 5 }]).some(function(m){ return m.kind === 'gorilla'; })`), 'Barracks Lv 6–10 send a Gorilla, Crocodile, Rhino, Tiger and Owl');
+check(['boomerang','poison','beehive','dojo','dragonstatue'].every((t) => q(`genIsland(20).buildings.some(function(b){ return b.type === '${t}'; })`)), 'Town Hall 10 islands have all the new towers');
+q(`S.army = { warrior: 5 }; startBattle({ name: 't', th: 10, loot: {}, buildings: [{ type: 'townhall', lvl: 10, x: 10, y: 10 }, { type: 'beehive', lvl: 3, x: 10, y: 6 }, { type: 'poison', lvl: 1, x: 6, y: 10 }] }); battle.mobs = []; deploy('warrior', 10, 0.3); deploy('warrior', 0.3, 10); battle.troops[0].y = 3; battle.troops[1].x = 3.5; battle.blds[1].cd = 0; battle.blds[2].cd = 0; battleStep();`);
+check(q(`battle.mobs.filter(function(m){ return m.kind === 'bee' && m.hive; }).length`) === 3, '🍯 the Beehive lets out 3 bees');
+check(q(`battle.troops[1].poisonLeft`) > 0, '🧪 the Poison Tower poisons troops');
+q(`for (var i = 0; i < 2000; i++) { battle.blds[1].cd = 0; battleStep(); if (battle.over) break; }`);
+check(q(`battle.mobs.filter(function(m){ return m.hive && m.hp > 0; }).length`) <= 6, 'a hive never has more than 6 bees out');
+q(`if (!battle.over) endBattle(true); battle = null; hidePanels(); S.owner = true; panelAction('maxbase', '', true);`);
+check(['boomerang','poison','beehive','dojo','dragonstatue'].every((t) => q(`countOf('${t}')`) === 2) && q(`new Set(S.buildings.map(function(b){ return b.x + ',' + b.y; })).size === S.buildings.length && S.buildings.every(function(b){ return isLand(b.x, b.y); })`), 'the best base has 2 of every new tower (nothing overlapping)');
+check(['gorilla','croc','rhino','tiger','owl'].every((k) => q(`homeDefenders().some(function(m){ return m.kind === '${k}'; })`)), 'the best base has every new animal');
 
 // ---- 👑 owner panel: everything ----
 reset({ army: { warrior: 5 } }); q(`S.owner = true;`);

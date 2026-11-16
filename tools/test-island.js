@@ -607,6 +607,12 @@ check(mxs.th === 8 && mxs.rank === 8 && mxs.allMax && mxs.limits, '👑 Max out 
 check(mxs.perks && mxs.golems === 4 && mxs.full && mxs.army.split('/')[0] === mxs.army.split('/')[1], '…every tower upgrade, all 4 golems, full stores and a full army');
 check(mxs.land && mxs.overlap, '…all on the island, nothing on top of anything else');
 check(q(`(function(){ var near = function(t){ return S.buildings.filter(function(b){ return b.type === t; }).map(function(b){ return Math.hypot(b.x - CENTER, b.y - CENTER); }); }; return Math.max.apply(null, near('wizard')) < Math.min.apply(null, near('goldmine')); })()`), '…a strong layout (Wizard Towers in the middle, mines on the outside)');
+reset({ rank: 1 });
+q(`S.owner = true; S.buildings.push({ type: 'archer', lvl: 1, x: CENTER + 3, y: CENTER - 1 }, { type: 'cannon', lvl: 1, x: CENTER - 3, y: CENTER + 2 }); window.__spots = S.buildings.map(function(b){ return b.type + '@' + b.x + ',' + b.y; });`);
+q(`panelAction('maxkeep', '', true)`);
+const keep = JSON.parse(q(`JSON.stringify({ kept: __spots.every(function(sp){ return S.buildings.some(function(b){ return b.type + '@' + b.x + ',' + b.y === sp; }); }), allMax: S.buildings.every(function(b){ return b.lvl === MAX_TH; }), limits: Object.keys(B).every(function(t){ return t === 'townhall' || countOf(t) === limitOf(t, MAX_TH); }), perks: S.buildings.filter(function(b){ return PERKS[b.type]; }).every(function(b){ return b.perks.length === 3; }), overlap: new Set(S.buildings.map(function(b){ return b.x + ',' + b.y; })).size === S.buildings.length, th: th() })`));
+check(keep.kept && keep.allMax && keep.perks && keep.th === 8, '⬆️ Max out (keep my layout): your towers stay where you put them — all level 8, every upgrade', JSON.stringify(keep));
+check(keep.limits && keep.overlap, '…and only the missing buildings are added, in free spots');
 q(`S.nextRaidAt = 0; for (var i = 0; i < 10; i++) { startDefense(); var n = 0; while (battle && !battle.over && n++ < 6000) battleStep(); battle = null; hidePanels(); }`);
 check(q(`S.raidsWon`) === 10, 'the maxed base beats every raid (10 out of 10)');
 q(`S.owner = false;`);

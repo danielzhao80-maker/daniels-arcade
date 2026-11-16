@@ -318,9 +318,9 @@ function releasePet(i) {
 function spawnMobs(blds, golems, p, pets) {   // p: the island's 🌟 Prestige — each Barracks also sends one of every prestige animal; pets: 🐾 bought pets
   const mobs = [], bought = Array.isArray(golems);
   const add = (kind, x, y, lv) => { const m = MOB[kind]; mobs.push({ kind, x, y, homeX: x, homeY: y, hp: m.hp * lv, maxHp: m.hp * lv, dmg: m.dmg * lv, cd: 0, steal: m.steal ? Math.round(m.steal * lv) : 0 }); };
-  if (bought) {
-    const hall = blds.find((b) => b.type === "townhall") || { x: CENTER, y: CENTER, lvl: 1 };
-    golems.filter((k) => GOLEM_COST[k]).forEach((k, i, all) => { const a = (Math.PI * 2 / all.length) * i + 0.4; add(k, hall.x + Math.cos(a) * 1.1, hall.y + Math.sin(a) * 1.1, 1 + 0.15 * (hall.lvl - 1)); });
+  const hall = blds.find((b) => b.type === "townhall") || { x: CENTER, y: CENTER, lvl: 1 };
+  if (bought) golems.filter((k) => GOLEM_COST[k]).forEach((k, i, all) => { const a = (Math.PI * 2 / all.length) * i + 0.4; add(k, hall.x + Math.cos(a) * 1.1, hall.y + Math.sin(a) * 1.1, 1 + 0.15 * (hall.lvl - 1)); });
+  {
     (pets || []).filter((k) => MOB[k]).slice(0, PET_FIGHT_MAX).forEach((k, i, all) => {   // 🐾 in rings round the Town Hall
       const ring = Math.floor(i / 12), inRing = Math.min(12, all.length - ring * 12), a = (Math.PI * 2 / inRing) * (i % 12) + ring * 0.3, r = 2 + ring * 0.7;
       add(k, hall.x + Math.cos(a) * r, hall.y + Math.sin(a) * r, 1 + 0.15 * (hall.lvl - 1));
@@ -529,12 +529,15 @@ function genIsland(lvl, seed, p) {   // p: a 🌟 Prestige island (its map, towe
     if (tileFree(list, x, y)) list.push({ type: "wall", lvl: Math.max(1, t - 1), x, y });
   }
   const loot = { gold: 150 + lvl * 120, wood: 120 + lvl * 100, stone: 80 + lvl * 70 };
+  // 🐾 computer islands keep pets too: more on tougher islands, lots on prestige islands
+  const petPool = mobPool(t).concat(bigPool(t), PRESTIGE.slice(0, p).map((P) => P.mob)), pets = [];
+  for (let k = 0, n = Math.min(14, Math.floor(lvl / 2)) + (p ? 4 + 2 * p : 0); k < n; k++) pets.push(petPool[Math.floor(r() * petPool.length)]);
   if (p) {
     for (const k in loot) loot[k] = Math.round(loot[k] * (1 + 0.6 * p));
-    return { name: `${PRESTIGE[p - 1].emoji} ${PRESTIGE[p - 1].map}`, th: t, buildings: list, loot, level: lvl, prestige: p, theme: PRESTIGE[p - 1].theme };
+    return { name: `${PRESTIGE[p - 1].emoji} ${PRESTIGE[p - 1].map}`, th: t, buildings: list, loot, level: lvl, prestige: p, pets, theme: PRESTIGE[p - 1].theme };
   }
   const ni = (lvl * 7 + (seed || 0) * 13) % ISLAND_NAMES.length;   // 7 and 24 share no factor: every name comes up
-  return { name: ISLAND_NAMES[ni] + (lvl > ISLAND_NAMES.length ? " " + Math.ceil(lvl / ISLAND_NAMES.length) : ""), th: t, buildings: list, loot, level: lvl,
+  return { name: ISLAND_NAMES[ni] + (lvl > ISLAND_NAMES.length ? " " + Math.ceil(lvl / ISLAND_NAMES.length) : ""), th: t, buildings: list, loot, level: lvl, pets,
            theme: THEME_ORDER[((seed || lvl) + lvl) % THEME_ORDER.length] };
 }
 // Your island as someone else will see it (online).
@@ -669,8 +672,28 @@ function castAbility(kind, x, y) {
 // 🕵️ The Agent (invisible to defences): walks to the strongest defence and sabotages it (40% of its health,
 // knocked out 10 s), then to the Town Hall, plants a bomb, and 3 s later it blows for 35% of the Town Hall.
 // mobs: the animals; troops: who they fight; ctr: knock-backs stay near this island; noSteal: monkeys don't pinch
-function mobStep(bt, mobs, troops, ctr, noSteal) {
-  mobs = mobs || bt.mobs || []; troops = troops || bt.troops; ctr = ctr || { x: CENTER, y: CENTER, r: landRadius(bt.island.th) + 2 };
+// 🐾 PETS ATTACK ON SIGHT: a pet has no sight limit — it charges the nearest enemy anywhere (troops, animals and
+// the other side's pets), over the bridge if it's on the other island. Animals fight back against pets in sight.
+// hostile: the other side's animals and pets.
+// Which island is (x) on? Left of the bridge's middle = the island on the left.
+function ctrFor(bt, x) {
+  const br = bt.bridge;
+  if (br && x < (br.a.x + br.b.x) / 2) return { x: br.home.x, y: br.home.y, r: br.home.r + 2 };
+  return { x: CENTER, y: CENTER, r: landRadius(bt.island.th) + 2 };
+}
+// Walk towards (x, y) — over the bridge when it's on the other island (no swimming across).
+function walkTo(bt, m, x, y, sp) {
+  const br = bt.bridge;
+  if (br) {
+    const mid = (br.a.x + br.b.x) / 2, mL = m.x < mid, tL = x < mid, onBridge = m.x > br.a.x - 0.3 && m.x < br.b.x + 0.3 && Math.abs(m.y - br.a.y) < 0.6;
+    if (mL !== tL && !onBridge) { const w = mL ? br.a : br.b; x = w.x; y = w.y; }
+    else if (mL !== tL) { const w = mL ? br.b : br.a; x = w.x; y = w.y; }
+  }
+  const d = Math.hypot(x - m.x, y - m.y); if (d < 1e-6) return;
+  const st = Math.min(d, sp); m.x += (x - m.x) / d * st; m.y += (y - m.y) / d * st;
+}
+function mobStep(bt, mobs, troops, ctr, noSteal, hostile) {
+  mobs = mobs || bt.mobs || []; troops = troops || bt.troops; hostile = hostile || (mobs === bt.mobs ? bt.homeMobs : null) || [];
   for (const m of mobs) {
     if (m.hp <= 0 || m.frozenUntil > bt.frame) continue;
     const M = mobDef(m);
@@ -678,18 +701,26 @@ function mobStep(bt, mobs, troops, ctr, noSteal) {
       for (const o of mobs) if (o.hp > 0 && Math.hypot(o.x - m.x, o.y - m.y) <= 2) o.hp = Math.min(o.maxHp, o.hp + o.maxHp * M.heals);
       bt.casts.push({ x: m.x, y: m.y, r: 2, color: "#0097e6", t: 24, emoji: "" });
     }
-    let tg = null, bd = M.sight;
+    let tg = null, bd = m.pet ? Infinity : M.sight;
     for (const tr of troops) if (tr.hp > 0) { const d = Math.hypot(tr.x - m.x, tr.y - m.y); if (d < bd) { bd = d; tg = tr; } }
+    for (const o of hostile) if (o.hp > 0 && (m.pet || o.pet)) { const d = Math.hypot(o.x - m.x, o.y - m.y); if (d < bd && (m.pet || d < M.sight)) { bd = d; tg = o; } }   // 🐾
     if (!tg) {   // nothing near: walk back home
-      const hd = Math.hypot(m.homeX - m.x, m.homeY - m.y);
-      if (hd > 0.1) { m.x += (m.homeX - m.x) / hd * M.speed / 60; m.y += (m.homeY - m.y) / hd * M.speed / 60; }
+      if (Math.hypot(m.homeX - m.x, m.homeY - m.y) > 0.1) walkTo(bt, m, m.homeX, m.homeY, M.speed / 60);
       continue;
     }
-    if (bd > M.range + 0.3) { m.x += (tg.x - m.x) / bd * M.speed / 60; m.y += (tg.y - m.y) / bd * M.speed / 60; }
+    if (bd > M.range + 0.3) walkTo(bt, m, tg.x, tg.y, M.speed / 60);
     else if (--m.cd <= 0) {
       m.cd = M.rate;
       let dmg = m.dmg;
       if (M.charge && !m.charged) { dmg *= M.charge; m.charged = true; bt.texts.push({ x: m.x, y: m.y - 0.4, t: 40, text: "CHARGE!" }); }   // 🐗
+      if (tg.homeX !== undefined) {   // 🐾 an animal or pet: a plain hit (fights back with its own)
+        const od = tg.def || MOB[tg.kind] || {};
+        if (od.dodge && Math.random() < od.dodge) bt.texts.push({ x: tg.x, y: tg.y - 0.5, t: 40, text: "MISS!" });
+        else { tg.hp -= dmg; if (tg.hp <= 0) bt.fx.push({ x: tg.x, y: tg.y, t: 16 }); }
+        if (M.range > 1) bt.shots.push({ x: m.x, y: m.y, tx: tg.x, ty: tg.y, t: 8, col: m.mine || m.ally ? "#55efc4" : "#ff7675" });
+        continue;
+      }
+      ctr = ctrFor(bt, tg.x);
       tg.hp -= dmg;
       if (M.poison) { tg.poisonLeft = 180; tg.poisonDps = M.poison * (m.dmg / M.dmg); }   // 🐍 (scaled with the Barracks level)
       if (M.slow) tg.slowUntil = bt.frame + 180;                                          // 🦂
@@ -848,8 +879,8 @@ function stepTowers(bt, blds, troops, mobs, ctr, boats, barricades) {
         if (D.push) {   // 🔱 washed back, away from the tower (not out past the beach)
           const d0 = Math.hypot(tr.x - b.x, tr.y - b.y) || 1, amt = D.push < 0 ? -Math.min(-D.push, d0 * 0.7) : D.push;   // 🌀 a pull never goes past the tower
           tr.x += (tr.x - b.x) / d0 * amt; tr.y += (tr.y - b.y) / d0 * amt;
-          const r0 = Math.hypot(tr.x - ctr.x, tr.y - ctr.y), lim = ctr.r;
-          if (r0 > lim) { tr.x = ctr.x + (tr.x - ctr.x) / r0 * lim; tr.y = ctr.y + (tr.y - ctr.y) / r0 * lim; }
+          const c = ctrFor(bt, tr.x), r0 = Math.hypot(tr.x - c.x, tr.y - c.y), lim = c.r;
+          if (r0 > lim) { tr.x = c.x + (tr.x - c.x) / r0 * lim; tr.y = c.y + (tr.y - c.y) / r0 * lim; }
         }
       }
       bt.shots.push({ x: b.x, y: b.y, tx: t0.x, ty: t0.y, t: 8, col });
@@ -878,7 +909,7 @@ function battleStep() {
     foeWaves(bt);
     stepTroops(bt, bt.foes, bt.homeBlds, bt.homeMobs, true, bt.troops);
     stepTowers(bt, bt.homeBlds, bt.foes, bt.homeMobs, homeCtr, [], []);
-    mobStep(bt, bt.homeMobs, bt.foes, homeCtr, true);
+    mobStep(bt, bt.homeMobs, bt.foes, homeCtr, true, bt.mobs);
   }
   mobStep(bt);
   agentStep(bt);
@@ -1484,7 +1515,7 @@ function renderRaids() {
   const lv = S.raidLevel, opts = lv > 1 ? [lv - 1, lv, lv + 1, lv + 2, lv + 4, lv + 6] : [1, 2, 3, 4, 6, 8];   // 6 islands
   $("raidGrid").innerHTML = [...new Set(opts)].map((l) => {
     const isl = genIsland(l);
-    return `<div class="card"><div class="e">${THEMES[isl.theme].emoji}</div><div class="n">${isl.name}</div><div class="d">${THEMES[isl.theme].name} · Level ${l} · Town Hall ${isl.th}<br>${isl.buildings.filter((b) => B[b.type].def).length} defences · ${spawnMobs(isl.buildings).length} 🐺 mobs</div>
+    return `<div class="card"><div class="e">${THEMES[isl.theme].emoji}</div><div class="n">${isl.name}</div><div class="d">${THEMES[isl.theme].name} · Level ${l} · Town Hall ${isl.th}<br>${isl.buildings.filter((b) => B[b.type].def).length} defences · ${spawnMobs(isl.buildings).length} 🐺 mobs · ${(isl.pets || []).length} 🐾 pets</div>
       <div class="c">Loot up to ${costText(isl.loot)}</div><button class="small red" data-raid="${l}">Attack!</button></div>`;
   }).join("");
   for (let p = 1; p <= prest(); p++) {   // 🌟 the Prestige maps you've unlocked
@@ -1643,7 +1674,7 @@ $("btnRank").onclick = () => {
   $("rankBody").innerHTML = msg ? `<div class="sub" style="font-size:1rem">${msg}</div>` :
     `<div class="sub" style="font-size:1rem">Destroy a <b>Town Hall ${isl.th}</b> base (one level higher than yours) — get ⭐⭐: its Town Hall and half the base.<br>
      Win: <b>rank ${rank() + 1}</b>, 🏆 +25 and 🪙🪵🪨 ${(500 * (rank() + 1)).toLocaleString()} each — and your Town Hall can go up to level ${rank() + 1}.</div>
-     <div class="sub">${isl.buildings.filter((b) => B[b.type].def).length} defences · ${spawnMobs(isl.buildings).length} 🐺 mobs</div>
+     <div class="sub">${isl.buildings.filter((b) => B[b.type].def).length} defences · ${spawnMobs(isl.buildings).length} 🐺 mobs · ${(isl.pets || []).length} 🐾 pets</div>
      <div class="row"><button class="red" id="rankGo">⚔️ Fight the challenge</button></div>`;
   openPanel("rankPanel");
   const go = $("rankGo"); if (go) go.onclick = () => { const e = startRankUp(); if (e) toast(e); };

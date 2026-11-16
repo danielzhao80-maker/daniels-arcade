@@ -895,6 +895,20 @@ check(/× ∞/.test(q(`document.getElementById('petGrid').innerHTML`)), 'the �
 q(`panelAction('allpetsinf', '', true);`);
 check(q('allPetsInf()') === false && q(`homeDefenders().filter(function(m){ return m.pet; }).length`) === 0, 'switch it off: back to your own pets');
 
+// ---- 🐾 pets attack on sight (both sides) ----
+reset({ army: { warrior: 3 } });
+check(q('genIsland(1).pets.length') === 0 && q('genIsland(12).pets.length') === 6 && q('prestMap(3).pets.length') >= 10, 'computer islands keep pets (more on tougher islands, lots on prestige maps)');
+check(q(`spawnMobs(genIsland(12).buildings, undefined, 0, genIsland(12).pets).filter(function(m){ return m.pet; }).length`) === 6, 'their pets come out to fight');
+q(`S.pets = ['wolf', 'tiger']; homeMobsKey = ''; startBattle(genIsland(12)); battle.waves = []; battle.troops = []; battle.army = { warrior: 1 };`);
+const near0 = q(`(function(){ var p = battle.homeMobs.filter(function(m){ return m.pet; }); return Math.min.apply(null, p.map(function(m){ return m.x; })); })()`);
+q(`for (var i = 0; i < 240; i++) battleStep();`);
+check(q(`battle.homeMobs.filter(function(m){ return m.pet && m.hp > 0; }).some(function(m){ return m.x > battle.bridge.a.x; }) || battle.homeMobs.filter(function(m){ return m.pet; }).some(function(m){ return m.hp < m.maxHp; })`), '🐾 your pets charge straight out over the bridge (no sight limit)');
+q(`window.__pp = []; for (var i = 0; i < 1500 && !battle.over; i++) { battleStep(); battle.homeMobs.concat(battle.mobs).forEach(function(m){ if (m.pet && m.hp > 0) __pp.push([m.x, m.y]); }); }`);
+check(q(`__pp.filter(function(p){ return p[0] > battle.bridge.a.x + 0.3 && p[0] < battle.bridge.b.x - 0.3; }).every(function(p){ return Math.abs(p[1] - CENTER) < 0.7; })`), 'pets cross by the bridge (no swimming)');
+check(q(`battle.mobs.filter(function(m){ return m.pet; }).some(function(m){ return m.hp < m.maxHp; }) || battle.homeMobs.filter(function(m){ return m.pet; }).some(function(m){ return m.hp < m.maxHp; })`), 'both sides\' pets fight each other');
+check(q(`battle.homeMobs.concat(battle.mobs).every(function(m){ return isFinite(m.x) && isFinite(m.y) && isFinite(m.hp); })`), 'no broken positions');
+q(`endBattle(true); battle = null; hidePanels(); S.pets = [];`);
+
 // ---- ♾️ owner: infinite troops ----
 reset({ army: {} }); q(`S.owner = true;`);
 check(/ON/.test(q(`panelAction('inftroops', '', true)`)) && q(`panelAction('inftroops', '', false)`) === '👑 Owner only.', 'owner switches on infinite troops (admins cannot)');

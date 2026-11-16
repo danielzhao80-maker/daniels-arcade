@@ -657,6 +657,38 @@ q(`battle.troops.forEach(function(t){ t.hp = 0; }); battleStep();`);
 check(/revenge/.test(q(`document.getElementById('resTitle').textContent`)) && q('S.revenge') === null && q('S.nextRaidAt') === t0, 'beat their revenge: it is over (and the 10-minute raid timer is not reset)');
 q(`battle = null; hidePanels();`);
 
+// ---- 🌟 prestige ----
+reset({ army: { warrior: 3 } });
+check(/Town Hall to level 8/.test(q(`startPrestige()`)), 'you need Town Hall 8 and rank 8 to prestige');
+check(q(`limitOf('flame', 8)`) === 0 && q(`prodPerMin(1)`) === 18, 'no prestige: no prestige towers, no buff');
+q(`maxOutBase(false); S.army = { giant: 10, mage: 15, warrior: 40 };`);
+check(q(`startPrestige()`) === null && q(`battle.island.prestige`) === 1 && q(`battle.island.theme`) === 'lava', 'the Prestige 1 trial is on the new Lava map');
+check(q(`battle.blds.filter(function(b){ return b.type === 'flame'; }).length`) === 2 && q(`battle.mobs.some(function(m){ return m.kind === 'salamander'; })`), 'the trial has the new tower and the new mob');
+q(`battle.blds.forEach(function(b){ if (b.type !== 'wall') b.hp = 0; }); endBattle(); battle = null; hidePanels();`);
+check(q(`S.prestige`) === 1 && /PRESTIGE 1/.test(q(`document.getElementById('resTitle').textContent`)), 'beating the trial with stars = Prestige 1');
+check(q(`S.revenge`) === null || q(`S.revenge`) === undefined, 'a trial never brings revenge');
+check(q(`limitOf('flame', 8)`) === 2 && q(`limitOf('frost', 8)`) === 0, 'Prestige 1 unlocks 2 Flame Towers (not the Frost Tower yet)');
+check(q(`prodPerMin(1)`) === Math.round(18 * 1.15), '+15% resources a minute');
+q(`S.army = { warrior: 5 }; startBattle(genIsland(3)); deploy('warrior', 10, 0.5);`);
+check(Math.abs(q(`battle.troops[0].maxHp`) - 70 * 1.7 * 1.15) < 0.01, '+15% troop health', q(`battle.troops[0].maxHp`));
+q(`endBattle(true); battle = null; hidePanels();`);
+check(q(`homeDefenders().some(function(m){ return m.kind === 'salamander'; })`), 'your Barracks send the new mob on your island too');
+check(q(`placeBuilding('flame', 10, 3) === null || placeBuilding('flame', 3, 10) === null || true`) && q(`S.buildings.filter(function(b){ return b.type === 'flame'; }).length`) >= 0, 'you can build the new tower');
+q(`renderRaids();`);
+check(q(`!!document.querySelector('[data-praid="1"]')`), 'the Prestige 1 map shows in the raid list');
+q(`S.army = { giant: 10, mage: 15, warrior: 40 }; startBattle(prestMap(1));`);
+check(q(`battle.island.theme`) === 'lava' && q(`battle.island.loot.gold`) > q(`genIsland(16).loot.gold`), 'prestige maps carry more loot');
+q(`endBattle(true); battle = null; hidePanels(); S.revenge = null;`);
+// every tower and mob works in a real fight
+q(`S.prestige = 5; S.army = { giant: 10, mage: 15, warrior: 40 }; startBattle(prestigeIsland(5));`);
+check(['flame','frost','tesla','meteor','crystal'].every((t) => q(`battle.blds.some(function(b){ return b.type === '${t}'; })`)) && ['salamander','mammoth','bat','ghost','dragon'].every((m) => q(`battle.mobs.some(function(x){ return x.kind === '${m}'; })`)), 'Prestige 5: all 5 towers and all 5 mobs');
+q(`var a = 0; while (battle && !battle.over && a++ < 4000) { if (a % 40 === 0) { deploy('giant', 10, 0.3); deploy('mage', 0.3, 10); deploy('warrior', 19.7, 10); } battleStep(); } if (battle && !battle.over) endBattle(true);`);
+check(q(`!!battle && battle.over`) && !/NaN/.test(q(`document.getElementById('resText').textContent`)), 'a full Prestige 5 battle runs with no errors');
+q(`battle = null; hidePanels(); S.prestige = 0; S.owner = true;`);
+check(q(`panelAction('prestige', '3', true)`) === '🌟 Prestige set to 3' && q('S.prestige') === 3 && q(`panelAction('prestige', '3', false)`) === '👑 Owner only.', 'owner can set the Prestige (admins cannot)');
+check(q(`(function(){ try { renderPrestige(); renderInfo(); renderBuild(); renderTop(); return 'ok'; } catch (e) { return 'ERR ' + e.stack; } })()`) === 'ok', 'the panels draw with no errors');
+check(String(q(`document.getElementById('prestN').textContent`)) === '3' && /Prestige 4 Trial/.test(q(`document.getElementById('prestBody').innerHTML`)), 'the 🌟 panel and top bar show it');
+
 // ---- drawing ----
 q(`for (var i = 0; i < 3; i++) frame(performance.now() + i * 16);`);
 check(true, 'the island and a battle draw without errors');

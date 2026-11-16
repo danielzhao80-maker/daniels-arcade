@@ -188,6 +188,8 @@ const result = q(`(function(){
     raid: function(){ var e = startDefense(); if (e) return; var n = 0; while (battle && !battle.over && n++ < BATTLE_FRAMES + 50) { battleStep(); if (battle) battle.troops.forEach(function(t){ if (!isFinite(t.hp) || !isFinite(t.x)) errors.push('raider NaN'); }); } if (battle && !battle.over) errors.push('raid never ended'); battle = null; hidePanels(); },
     rankup: function(){ if (Math.random() < 0.5) { S.rank = Math.min(MAX_TH, rank() + 1); return; }   // half the time: a won challenge
       var e = startRankUp(); if (e) return; var n = 0; while (battle && !battle.over && n++ < BATTLE_FRAMES + 50) { if (Math.random() < 0.1) { var k = pick(Object.keys(battle.army)); deploy(k, CENTER - landRadius(battle.island.th) - 1, CENTER + Math.random() * 2 - 1); } battleStep(); } battle = null; hidePanels(); },
+    prestige: function(){ if (Math.random() < 0.4) { S.prestige = Math.min(MAX_PRESTIGE, prest() + 1); return; }
+      var e = Math.random() < 0.5 ? startPrestige() : (prest() ? startBattle(prestMap(rint(1, prest()))) : 'none'); if (e) return; var n = 0; while (battle && !battle.over && n++ < BATTLE_FRAMES + 50) { if (Math.random() < 0.1) { var k = pick(Object.keys(battle.army)); deploy(k, CENTER - landRadius(battle.island.th) - 1, CENTER + Math.random() * 2 - 1); } battleStep(); battle && battle.mobs.forEach(function(m){ if (!isFinite(m.hp) || !isFinite(m.x)) errors.push('mob NaN ' + m.kind); }); } battle = null; hidePanels(); renderPrestige(); },
     reload: function(){ save(); load(); },
     ui: function(){ renderTop(); renderBuild(); renderArmy(); renderRaids(); renderInfo(); showInfo(pick(S.buildings)); hideInfo(); hidePanels(); frame(performance.now()); },
   };

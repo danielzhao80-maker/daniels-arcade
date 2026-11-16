@@ -77,6 +77,7 @@
   <button id="btnArmy" class="blue">🛡️ Army</button>
   <button id="btnRaid" class="red">⚔️ Raid (offline)</button>
   <button id="btnOnline" class="green">🌐 Fight online</button>
+ <button id="btnPets" style="background:linear-gradient(180deg,#fab1a0,#e17055);box-shadow:0 4px 0 #8a3a24">🐾 Pets</button>
   <button id="btnTrade" style="background:linear-gradient(180deg,#ffeaa7,#e1b12c);box-shadow:0 4px 0 #8a6d00;color:#3d2c00">🤝 Trade</button>
   <button id="btnPrest" style="background:linear-gradient(180deg,#a29bfe,#6c5ce7);box-shadow:0 4px 0 #3c2f99">🌟 Prestige</button>
   <button id="btnRank" style="background:linear-gradient(180deg,#f9ca24,#d35400);box-shadow:0 4px 0 #7a3a00">🎖️ Rank Up</button>
@@ -88,6 +89,7 @@
 <div class="panel" id="buildPanel"><button class="close" data-close>✕</button><h2>🏗️ Build</h2><div class="sub">Pick a building, then tap an empty spot on your island.</div><div class="grid" id="buildGrid"></div></div>
 <div class="panel" id="armyPanel"><button class="close" data-close>✕</button><h2>🛡️ Army</h2><div class="sub" id="armySub"></div><div class="grid" id="armyGrid"></div></div>
 <div class="panel" id="raidPanel"><button class="close" data-close>✕</button><h2>⚔️ Raid an island</h2><div class="sub">Computer islands — the harder, the more loot.</div><div class="grid" id="raidGrid"></div></div>
+<div class="panel" id="petPanel"><button class="close" data-close>✕</button><h2>🐾 Pets</h2><div class="sub" id="petSub"></div><div class="grid" id="petGrid"></div></div>
 <div class="panel" id="tradePanel"><button class="close" data-close>✕</button><h2>🤝 Trade</h2><div class="sub" id="tradeTop"></div><div id="tradeBody"></div>
   <div class="card" style="text-align:left;margin-top:10px"><div class="n">🌐 Trade with a friend</div>
     <div class="d">Make a trade code, or join a friend's. Each of you puts in what you'll give, then both press ✅ Accept.</div>
@@ -282,12 +284,42 @@ function buyGolem(kind) {
   if (!infinite() && S.gold < GOLEM_COST[kind]) return `Not enough gold (🪙 ${GOLEM_COST[kind].toLocaleString()}) — you can hold ${capOf().toLocaleString()}: build Storage for more.`;
   if (!infinite()) S.gold -= GOLEM_COST[kind]; S.golems.push(kind); save(); return null;
 }
-function spawnMobs(blds, golems, p) {   // p: the island's 🌟 Prestige — each Barracks also sends one of every prestige animal
+// ---- 🐾 PETS: buy animals to guard your island (they stand round the Town Hall with your golems and fight anyone
+// who attacks you). You can have 3 + half your Town Hall level (8 at Town Hall 10). 👑 Infinite pets: free, no limit.
+const PET_FIGHT_MAX = 60;   // the most that come out in one battle (so a huge zoo doesn't slow the game down)
+const petKinds = () => Object.keys(MOB).filter((k) => !MOB[k].golem && (!MOB[k].prestige || MOB[k].prestige <= prest()));
+const petCost = (k) => Math.round((MOB[k].hp * 4 + MOB[k].dmg * 20) / 10) * 10;
+const infPets = () => !!S.infPets;
+const petLimit = () => infPets() ? Infinity : 3 + Math.floor(th() / 2);
+function buyPet(k, n) {
+  n = Math.max(1, Math.floor(n || 1));
+  if (!MOB[k] || MOB[k].golem) return "No such pet.";
+  if (!petKinds().includes(k)) return `🌟 Unlock it with Prestige ${MOB[k].prestige} first.`;
+  S.pets = S.pets || [];
+  if (S.pets.length + n > petLimit()) return `🐾 Pet limit: ${petLimit()} (you have ${S.pets.length}). Upgrade your Town Hall for more.`;
+  const c = { gold: petCost(k) * n };
+  if (!infPets() && !canPay(c)) return `Not enough gold (🪙 ${c.gold.toLocaleString()}).`;
+  if (!infPets()) pay(c);
+  for (let i = 0; i < n; i++) S.pets.push(k);
+  homeMobsKey = ""; save();
+  return `🐾 ${MOB[k].emoji} ${MOB[k].name}${n > 1 ? " ×" + n : ""} now guard${n > 1 ? "" : "s"} your island!`;
+}
+function releasePet(i) {
+  const k = (S.pets || [])[i]; if (!k) return "No such pet.";
+  S.pets.splice(i, 1); if (!infPets()) addRes("gold", Math.floor(petCost(k) / 2));
+  homeMobsKey = ""; save(); return `👋 ${MOB[k].emoji} ${MOB[k].name} went back to the wild${infPets() ? "" : ` (🪙 +${Math.floor(petCost(k) / 2).toLocaleString()} back)`}.`;
+}
+function spawnMobs(blds, golems, p, pets) {   // p: the island's 🌟 Prestige — each Barracks also sends one of every prestige animal; pets: 🐾 bought pets
   const mobs = [], bought = Array.isArray(golems);
   const add = (kind, x, y, lv) => { const m = MOB[kind]; mobs.push({ kind, x, y, homeX: x, homeY: y, hp: m.hp * lv, maxHp: m.hp * lv, dmg: m.dmg * lv, cd: 0, steal: m.steal ? Math.round(m.steal * lv) : 0 }); };
   if (bought) {
     const hall = blds.find((b) => b.type === "townhall") || { x: CENTER, y: CENTER, lvl: 1 };
     golems.filter((k) => GOLEM_COST[k]).forEach((k, i, all) => { const a = (Math.PI * 2 / all.length) * i + 0.4; add(k, hall.x + Math.cos(a) * 1.1, hall.y + Math.sin(a) * 1.1, 1 + 0.15 * (hall.lvl - 1)); });
+    (pets || []).filter((k) => MOB[k]).slice(0, PET_FIGHT_MAX).forEach((k, i, all) => {   // 🐾 in rings round the Town Hall
+      const ring = Math.floor(i / 12), inRing = Math.min(12, all.length - ring * 12), a = (Math.PI * 2 / inRing) * (i % 12) + ring * 0.3, r = 2 + ring * 0.7;
+      add(k, hall.x + Math.cos(a) * r, hall.y + Math.sin(a) * r, 1 + 0.15 * (hall.lvl - 1));
+      mobs[mobs.length - 1].pet = true;
+    });
   }
   for (const b of blds) {
     if (b.type !== "barracks") continue;
@@ -502,7 +534,7 @@ function genIsland(lvl, seed, p) {   // p: a 🌟 Prestige island (its map, towe
 // Your island as someone else will see it (online).
 function myIslandSnapshot() {
   const name = (() => { try { return (JSON.parse(localStorage.getItem("daniels-arcade-account") || "null") || {}).name || ""; } catch (e) { return ""; } })() || "Friend";
-  return { name: name + "'s island", th: th(), prestige: prest(), theme: prest() ? PRESTIGE[prest() - 1].theme : undefined, golems: (S.golems || []).slice(), buildings: S.buildings.map((b) => ({ type: b.type, lvl: b.lvl, x: b.x, y: b.y, perks: (b.perks || []).slice() })),
+  return { name: name + "'s island", th: th(), prestige: prest(), theme: prest() ? PRESTIGE[prest() - 1].theme : undefined, golems: (S.golems || []).slice(), pets: (S.pets || []).slice(), buildings: S.buildings.map((b) => ({ type: b.type, lvl: b.lvl, x: b.x, y: b.y, perks: (b.perks || []).slice() })),
            loot: { gold: Math.floor(S.gold * 0.1), wood: Math.floor(S.wood * 0.1), stone: Math.floor(S.stone * 0.1) } };
 }
 
@@ -527,7 +559,7 @@ function setupDuel(bt) {
   bt.bridge = { a: { x: HX + Rm + 0.2, y: CENTER }, b: { x: CENTER - Re - 0.2, y: CENTER }, home: { x: HX, y: CENTER, r: Rm, name: "Your island", th: th(), full: true, dx } };
   bt.homeBlds = S.buildings.map((b) => Object.assign({}, b, { x: b.x + dx, perks: (b.perks || []).slice(), hp: hpOf(b.type, b.lvl), maxHp: hpOf(b.type, b.lvl), cd: 0 }));
   bt.homeTotal = bt.homeBlds.filter((b) => b.type !== "wall").length;
-  bt.homeMobs = spawnMobs(bt.homeBlds, (S.golems || []).slice(), prest()); bt.homeMobs.forEach((m) => (m.mine = true));
+  bt.homeMobs = spawnMobs(bt.homeBlds, (S.golems || []).slice(), prest(), S.pets); bt.homeMobs.forEach((m) => (m.mine = true));
   bt.foes = [];
   const army = raiderArmy(isl.th), p = isl.prestige || 0, parties = [[], [], []]; let i = 0;
   for (const [k, n] of Object.entries(army)) for (let j = 0; j < n + p; j++) parties[i++ % 3].push(k);
@@ -584,7 +616,7 @@ function startBattle(island, opts) {
   battle = { island, opts: opts || {}, frame: 0, army, brought: Object.assign({}, army), five: false, abil, casts: [], barricades: [], agents: [], troops: [], shots: [], fx: [], over: false, selected: Object.keys(army).find((k) => army[k] > 0),
              blds: island.buildings.map((b) => Object.assign({}, b, { hp: hpOf(b.type, b.lvl), maxHp: hpOf(b.type, b.lvl), cd: 0 })) };
   battle.total = battle.blds.filter((b) => b.type !== "wall").length;
-  battle.mobs = spawnMobs(battle.blds, island.golems, island.prestige);   // 🐺 the island's defenders (+ its bought golems)
+  battle.mobs = spawnMobs(battle.blds, island.golems, island.prestige, island.pets);   // 🐺 the island's defenders (+ its bought golems)
   if (battle.opts.online) battle.bridge = makeBridge(island.th, "Your island", th());   // 🌉
   else setupDuel(battle);   // ⚔️ offline: your whole island joins theirs, and they fight back
   battle.stolen = { gold: 0, wood: 0, stone: 0 }; battle.texts = [];   // 🐒 what the monkeys took
@@ -888,7 +920,7 @@ function startDefense(from) {
              blds: isl.buildings.map((b) => Object.assign({}, b, { hp: hpOf(b.type, b.lvl), maxHp: hpOf(b.type, b.lvl), cd: 0 })), raid: { army, loot } };
   battle.selected = Object.keys(battle.army).find((k) => battle.army[k] > 0) || (infTroops() ? "warrior" : null);
   battle.total = battle.blds.filter((b) => b.type !== "wall").length;
-  battle.mobs = spawnMobs(battle.blds, isl.golems, isl.prestige);
+  battle.mobs = spawnMobs(battle.blds, isl.golems, isl.prestige, isl.pets);
   battle.stolen = { gold: 0, wood: 0, stone: 0 }; battle.texts = [];
   const lv = 1 + 0.15 * (th() - 1), r0 = landRadius(isl.th) + 1.4;
   if (from) {   // 😠 revenge: their island joins yours with a bridge and they march across it
@@ -1222,6 +1254,9 @@ function panelAction(act, arg, owner) {
   if (act === "rank") { S.rank = Math.max(1, Math.min(MAX_TH, +arg || 1)); save(); return `🎖️ Rank set to ${S.rank}`; }
   if (act === "raid") { S.raidLevel = Math.max(1, Math.min(99, +arg || 1)); save(); return `🗺️ Raid level set to ${S.raidLevel}`; }
   if (act === "trophies") { S.trophies += +arg || 0; save(); return `🏆 +${+arg || 0} trophies`; }
+  if (act === "infpets") { S.infPets = !S.infPets; if (!S.infPets && (S.pets || []).length > petLimit()) S.pets = S.pets.slice(0, petLimit()); homeMobsKey = ""; save(); return S.infPets ? "🐾 Infinite pets ON — every pet is free, no limit!" : `🐾 Infinite pets off (you keep ${(S.pets || []).length})`; }
+  if (act === "allpets") { S.pets = S.pets || []; const add = petKinds().filter(() => true); if (!infPets()) { const room = petLimit() - S.pets.length; if (room <= 0) return "🐾 Pet limit reached — switch on Infinite pets."; add.splice(room); } S.pets.push(...add); homeMobsKey = ""; save(); return `🐾 +${add.length} pets (${S.pets.length} now)`; }
+  if (act === "pets0") { S.pets = []; homeMobsKey = ""; save(); return "🐾 Every pet released"; }
   if (act === "inftroops") { S.infTroops = !S.infTroops; save(); return S.infTroops ? "⚔️ Infinite troops ON — every troop, as many as you want!" : "⚔️ Infinite troops off"; }
   if (act === "infinite") { S.infinite = !S.infinite; refillInfinite(); save(); return S.infinite ? "♾️ Infinite resources ON — everything is free!" : "♾️ Infinite resources off"; }
   if (act === "maxbase") { hidePanels(); return maxOutBase(false); }
@@ -1321,6 +1356,7 @@ function renderAdmin(owner) {
   $("admBody").innerHTML =
     sec("💰 Resources" + (owner ? "" : " — +500 a click"), ["gold", "wood", "stone"].map((k) => btn("res", k, `${R[k]} ${owner ? "Fill" : "+500"}`)).join("") + (owner ? btn("infinite", "", infinite() ? "♾️ Infinite: ON" : "♾️ Infinite: off", infinite() ? "green" : "") : left("gold"))) +
     sec("⚔️ Troops" + (owner ? " — fill your army" : " — 5 a click") + left("troops"), Object.entries(T).map(([k, t]) => btn("troops", k, `${t.emoji} ${t.name}`, "blue")).join("") + (owner ? btn("inftroops", "", infTroops() ? "♾️ Infinite troops: ON" : "♾️ Infinite troops: off", infTroops() ? "green" : "") : "")) +
+    (owner ? sec(`🐾 Pets — you have ${(S.pets || []).length}/${petLimit() === Infinity ? "∞" : petLimit()}`, btn("infpets", "", infPets() ? "♾️ Infinite pets: ON" : "♾️ Infinite pets: off", infPets() ? "green" : "") + btn("allpets", "", "🐾 One of every pet", "green") + btn("pets0", "", "Release all pets")) : "") +
     sec("🗿 Golems" + left("golems"), Object.keys(GOLEM_COST).map((k) => btn("golem", k, `${MOB[k].emoji} ${MOB[k].name}`, "green")).join("") + (owner ? btn("golem", "all", "All golems", "green") : "")) +
     sec("🎁 Codes", btn("codes", "", "Reset my codes")) +
     (owner ? sec("🏰 Town Hall · 🎖️ Rank · 🌟 Prestige (0–8) · 🗺️ Raid · 🏆", `<input id="admNum" type="number" min="1" value="${th()}" style="width:90px;text-transform:none">` +
@@ -1474,6 +1510,7 @@ function renderInfo() {
     sec("🏗️ Buildings", I.blds.map((b) => `${B[b.type].emoji} ${B[b.type].name}: <b>${b.n}</b>/${b.lim}${b.type === "wall" ? "" : ` &nbsp;·&nbsp; Lv ${b.levels.join(", ")}`}`).join("<br>")) +
     sec("🛡️ Army", `${I.used}/${I.armyCap} space · Barracks Lv ${barracksLvl()}<br>` + (I.army.length ? I.army.map(([k, n]) => `${T[k].emoji} ${T[k].name} × <b>${n}</b>`).join(" &nbsp; ") : "<i>No troops — train some in 🛡️ Army</i>")) +
     sec("🐾 Your island's defenders", `Your best Barracks (Lv ${barracksLvl()}) sends out: ` + (barracksLvl() ? mobPool(barracksLvl()).concat(bigPool(barracksLvl())).map((k) => `${MOB[k].emoji} ${MOB[k].name}`).join(", ") : "nothing yet") +
+      "<br>🐾 Your pets: " + ((S.pets || []).length ? `${S.pets.length} (${[...new Set(S.pets)].map((k) => MOB[k].emoji).join("")})` : "none yet — buy them with 🐾 Pets") +
       "<br>🗿 Your golems: " + ((S.golems || []).length ? S.golems.map((k) => `${MOB[k].emoji} ${MOB[k].name}`).join(", ") : "none yet — buy them in 🛡️ Army") +
       (prest() ? "<br>🌟 Every Barracks also sends: " + PRESTIGE.slice(0, prest()).map((P) => `${MOB[P.mob].emoji} ${MOB[P.mob].name}`).join(", ") : "") +
       "<br>" + Object.values(MOB).filter((m) => !m.prestige || m.prestige <= prest()).map((m) => `${m.emoji} <b>${m.name}</b>: ${m.desc}`).join("<br>")) +
@@ -1568,6 +1605,22 @@ function renderTradeLive() {
   $("tAccept").onclick = () => { tradeMsg(acceptTrade()); renderTradeLive(); };
   $("tLeave").onclick = () => { tradeReset(); tradeMsg("You left the trade."); renderTradeLive(); };
 }
+function renderPets() {
+  const have = (S.pets || []).length, lim = petLimit();
+  $("petSub").textContent = `Your pets guard your island round the Town Hall and fight anyone who attacks you. You have ${have}/${lim === Infinity ? "∞" : lim}${infPets() ? " · ♾️ Infinite pets (free!)" : " — upgrade your Town Hall for more"}.`;
+  const counts = {}; (S.pets || []).forEach((k) => (counts[k] = (counts[k] || 0) + 1));
+  $("petGrid").innerHTML = Object.keys(MOB).filter((k) => !MOB[k].golem).map((k) => {
+    const M = MOB[k], locked = !petKinds().includes(k), full = have >= lim, c = petCost(k);
+    return `<div class="card"><div class="e">${M.emoji}</div><div class="n">${M.name}${counts[k] ? ` × ${counts[k]}` : ""}</div><div class="d">${M.desc.replace(/ \(Barracks Lv \d+\)/, "")}<br>❤️ ${M.hp} · 💥 ${M.dmg}</div>
+      <div class="c">${locked ? `🔒 🌟 Prestige ${M.prestige}` : infPets() ? "FREE" : `🪙 ${c.toLocaleString()}`}</div>
+      <button class="small" data-pet="${k}" ${locked || full || (!infPets() && !canPay({ gold: c })) ? "disabled" : ""}>Buy</button>${infPets() ? ` <button class="small" data-pet10="${k}" ${locked ? "disabled" : ""}>+10</button>` : ""}
+      ${counts[k] ? ` <button class="small red" data-rel="${k}">Release</button>` : ""}</div>`;
+  }).join("");
+  $("petGrid").querySelectorAll("[data-pet]").forEach((b) => (b.onclick = () => { toast(buyPet(b.dataset.pet, 1)); renderTop(); renderPets(); }));
+  $("petGrid").querySelectorAll("[data-pet10]").forEach((b) => (b.onclick = () => { toast(buyPet(b.dataset.pet10, 10)); renderPets(); }));
+  $("petGrid").querySelectorAll("[data-rel]").forEach((b) => (b.onclick = () => { toast(releasePet(S.pets.lastIndexOf(b.dataset.rel))); renderTop(); renderPets(); }));
+}
+$("btnPets").onclick = () => { hideInfo(); renderPets(); openPanel("petPanel"); };
 $("btnTrade").onclick = () => { hideInfo(); tradeMsg(""); renderTrade(); openPanel("tradePanel"); };
 $("tHost").onclick = hostTrade;
 $("tJoin").onclick = () => joinTrade($("tCode").value);
@@ -1695,8 +1748,8 @@ function drawIsland(t, list, time, opts) {
 // your bought golems stand guard round the Town Hall (green rings: they're yours). Tap one to see what it does.
 let homeMobs = [], homeMobsKey = "";
 function homeDefenders() {
-  const key = JSON.stringify([S.buildings.filter((b) => b.type === "barracks" || b.type === "townhall").map((b) => [b.type, b.lvl, b.x, b.y]), S.golems || [], prest()]);
-  if (key !== homeMobsKey) { homeMobsKey = key; homeMobs = spawnMobs(S.buildings, (S.golems || []).slice(), prest()); }
+  const key = JSON.stringify([S.buildings.filter((b) => b.type === "barracks" || b.type === "townhall").map((b) => [b.type, b.lvl, b.x, b.y]), S.golems || [], prest(), S.pets || []]);
+  if (key !== homeMobsKey) { homeMobsKey = key; homeMobs = spawnMobs(S.buildings, (S.golems || []).slice(), prest(), S.pets); }
   return homeMobs;
 }
 function homeMobPos(m, i, time) {   // a gentle wander round its post
@@ -1855,7 +1908,7 @@ cv.addEventListener("click", (e) => {
     return;
   }
   const pet = defenderAt(fx, fy, performance.now() / 1000);
-  if (pet) { hideInfo(); const M = MOB[pet.kind]; toast(`${M.emoji} ${M.name} — ${M.desc}${M.golem && pet.kind !== "golem" || (S.golems || []).includes(pet.kind) ? " (your golem)" : " (from your Barracks)"}`); return; }
+  if (pet) { hideInfo(); const M = MOB[pet.kind]; toast(`${M.emoji} ${M.name} — ${M.desc}${pet.pet ? " (your pet 🐾)" : M.golem && pet.kind !== "golem" || (S.golems || []).includes(pet.kind) ? " (your golem)" : " (from your Barracks)"}`); return; }
   const b = S.buildings.find((q) => q.x === x && q.y === y);
   if (b) showInfo(b); else hideInfo();
 });

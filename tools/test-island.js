@@ -855,6 +855,34 @@ q(`battle = null; hidePanels(); S.army = { warrior: 2 }; startBattle(genIsland(2
 check(/held/.test(q(`document.getElementById('resText').textContent`)) && q('S.gold') >= 750, 'nothing broken: you lose nothing');
 q(`battle = null; hidePanels();`);
 
+// ---- 🐾 pets ----
+reset({ gold: 5000 });
+check(q('petLimit()') === 3 && q(`petCost('wolf')`) === 620, 'pets: 3 + half your Town Hall level; a wolf costs 🪙 620');
+check(/guards/.test(q(`buyPet('wolf')`)) && q('S.gold') === 4380 && q('S.pets.length') === 1, '🐾 buy a pet with gold');
+check(/Prestige/.test(q(`buyPet('dragon')`)) && /No such/.test(q(`buyPet('golem')`)), 'prestige pets are locked; golems are not pets');
+q(`S.gold = 1e5; buyPet('bee', 2);`);
+check(/limit/.test(q(`buyPet('bee')`)) && q('S.pets.length') === 3, 'there is a limit');
+check(q(`homeDefenders().filter(function(m){ return m.pet; }).length`) === 3, 'your pets stand on your island');
+q(`S.army = { warrior: 2 }; startDefense(); landAllBoats(battle);`);
+check(q(`battle.mobs.filter(function(m){ return m.pet; }).length`) === 3, 'they defend in raids');
+q(`panelAction('win', '', true); battle = null; hidePanels(); S.owner = true; S.army = { warrior: 2 }; startBattle(genIsland(2));`);
+check(q(`battle.homeMobs.filter(function(m){ return m.pet; }).length`) === 3, '…and in offline fights');
+q(`endBattle(true); battle = null; hidePanels();`);
+check(q(`myIslandSnapshot().pets.length`) === 3, '…and online (your friend fights them)');
+q('S.gold = 500;'); const g0 = q('S.gold');
+check(/wild/.test(q(`releasePet(0)`)) && q('S.pets.length') === 2 && q('S.gold') === g0 + 310, 'release a pet: half the gold back');
+// owner
+check(/ON/.test(q(`panelAction('infpets', '', true)`)) && q('petLimit()') === Infinity && q(`panelAction('infpets', '', false)`) === '👑 Owner only.', '♾️ owner: infinite pets (admins cannot)');
+const g1 = q('S.gold');
+q(`for (var i = 0; i < 10; i++) buyPet('bear', 10);`);
+check(q('S.pets.length') === 102 && q('S.gold') === g1, 'infinite pets: free and no limit (102 pets)');
+check(q(`homeDefenders().filter(function(m){ return m.pet; }).length`) === 60, 'a huge zoo: 60 come out to fight (so the game stays fast)');
+check(/\+/.test(q(`panelAction('allpets', '', true)`)) && /released/.test(q(`panelAction('pets0', '', true)`)) && q('S.pets.length') === 0, 'one of every pet / release all');
+q(`buyPet('wolf', 9); panelAction('infpets', '', true);`);
+check(q('S.pets.length') === q('petLimit()'), 'switch it off: back down to the limit');
+q(`renderPets(); renderAdmin(true); renderInfo();`);
+check(/Release/.test(q(`document.getElementById('petGrid').innerHTML`)) && /Infinite pets/.test(q(`document.getElementById('admBody').innerHTML`)), 'the 🐾 Pets panel and the owner buttons');
+
 // ---- ♾️ owner: infinite troops ----
 reset({ army: {} }); q(`S.owner = true;`);
 check(/ON/.test(q(`panelAction('inftroops', '', true)`)) && q(`panelAction('inftroops', '', false)`) === '👑 Owner only.', 'owner switches on infinite troops (admins cannot)');

@@ -831,6 +831,26 @@ q(`for (var i = 0; i < 900; i++) battleStep();`);
 check(q(`battle.over || battle.troops.some(function(t){ return t.stage === 2; })`), '…and they come over the bridge');
 q(`if (!battle.over) endBattle(true); battle = null; hidePanels();`);
 
+// ---- ♾️ owner: infinite troops ----
+reset({ army: {} }); q(`S.owner = true;`);
+check(/ON/.test(q(`panelAction('inftroops', '', true)`)) && q(`panelAction('inftroops', '', false)`) === '👑 Owner only.', 'owner switches on infinite troops (admins cannot)');
+check(q(`startBattle(genIsland(2))`) === null && Object.keys(JSON.parse(q('JSON.stringify(battle.army)'))).length === 4 && q('battle.army.giant') === 9999, 'attack with an empty army: every troop, infinite');
+q(`for (var i = 0; i < 50; i++) deploy('giant', 0, 0);`);
+check(q('battle.army.giant') === 9999 && q('battle.troops.length') === 50, 'send as many as you want — it never runs out');
+q(`battle.drawBar();`);
+check(/∞/.test(q(`document.getElementById('battlebar').innerHTML`)), 'the battle bar shows ∞');
+q(`endBattle(true); battle = null; hidePanels();`);
+check(q(`JSON.stringify(S.army)`) === '{}', 'your real army is never touched');
+q(`startDefense(); landAllBoats(battle);`);
+check(q(`deployDefender('mage', 10, 9)`) === true && q(`deployDefender('mage', 10, 9)`) === true && q(`JSON.stringify(S.army)`) === '{}', 'in raids too: send out any troop, as many as you want');
+q(`battle.drawBar();`);
+check(/∞/.test(q(`document.getElementById('battlebar').innerHTML`)), 'the raid bar shows ∞');
+q(`panelAction('win', '', true); battle = null; hidePanels();`);
+q(`S.army = {};`);
+check(q('hasArmy()') === true, 'online fights work with no real troops');
+q(`panelAction('inftroops', '', true);`);
+check(q('infTroops()') === false && /Train some troops/.test(q(`startBattle(genIsland(2))`)), 'switch it off: back to your real army');
+
 // ---- 👑 owner: towers ----
 reset({}); q(`S.owner = true; panelAction('th', '10', true);`);
 check(/2 towers placed/.test(q(`panelAction('tower', 'dragonstatue', true)`)) && q(`countOf('dragonstatue')`) === 2 && q(`S.buildings.filter(function(b){ return b.type === 'dragonstatue'; }).every(function(b){ return b.lvl === 10; })`), '🏯 owner places 2 Dragon Statues at level 10');

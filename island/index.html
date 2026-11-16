@@ -547,8 +547,11 @@ function landBoat(bt, bo) {
 }
 const landAllBoats = (bt) => (bt.boats || []).forEach((bo) => bo.hp > 0 && landBoat(bt, bo));
 const boatCrew = (bt) => (bt.boats || []).filter((bo) => bo.hp > 0 && !bo.landed).reduce((a, bo) => a + bo.party.length, 0);
+// ⚔️ Owner: infinite troops — every troop, as many as you like, in attacks and raids (your army is never used up).
+const INF = 9999, infTroops = () => !!S.infTroops;
+const troopN = (n) => n >= INF ? "∞" : n;
 function startBattle(island, opts) {
-  const army = Object.assign({}, S.army);
+  const army = infTroops() ? Object.fromEntries(Object.keys(T).map((k) => [k, INF])) : Object.assign({}, S.army);
   if (!Object.values(army).some((n) => n > 0)) return "Train some troops first (🛡️ Army).";
   const abil = {}; for (const k of Object.keys(AB)) if (abUnlocked(k)) abil[k] = abilityUses(th());
   battle = { island, opts: opts || {}, frame: 0, army, brought: Object.assign({}, army), five: false, abil, casts: [], barricades: [], agents: [], troops: [], shots: [], fx: [], over: false, selected: Object.keys(army).find((k) => army[k] > 0),
@@ -557,7 +560,7 @@ function startBattle(island, opts) {
   battle.mobs = spawnMobs(battle.blds, island.golems, island.prestige);   // 🐺 the island's defenders (+ its bought golems)
   battle.bridge = makeBridge(island.th, "Your island", th());   // 🌉
   battle.stolen = { gold: 0, wood: 0, stone: 0 }; battle.texts = [];   // 🐒 what the monkeys took
-  for (const k in army) S.army[k] = 0;   // the army goes into battle (survivors don't come back)
+  if (!infTroops()) for (const k in army) S.army[k] = 0;   // the army goes into battle (survivors don't come back)
   save();
   showBattleBar(); hidePanels(); hideInfo();
   return null;
@@ -570,7 +573,7 @@ function starsOf(bt) {
 function deploy(kind, x, y) {
   const bt = battle; if (!bt || bt.over || !(bt.army[kind] > 0)) return false;
   if (bt.bridge && !onHome(bt.bridge, x, y)) [x, y] = homeSpot(bt.bridge);   // 🌉 troops start on YOUR island
-  bt.army[kind]--;
+  if (!infTroops()) bt.army[kind]--;
   const t = T[kind], lv = (1 + 0.1 * Math.max(0, barracksLvl() - 1)) * prestMul();   // 🌟 +15% a Prestige
   bt.troops.push({ kind, x, y, hp: t.hp * lv, maxHp: t.hp * lv, dmg: t.dmg * lv, cd: 0, target: null, stage: bt.bridge ? 0 : 2 });
   return true;
@@ -816,9 +819,9 @@ function allyDef(kind) {
   return { name: t.name, emoji: t.emoji, hp: t.hp, dmg: t.dmg, range: t.range, speed: t.speed, rate: t.rate, sight: 6, ring: "#dff9fb", big: kind === "giant" };
 }
 function deployDefender(kind, x, y) {
-  const bt = battle; if (!bt || bt.over || !bt.opts.defense || !(S.army[kind] > 0) || !T[kind]) return false;
+  const bt = battle; if (!bt || bt.over || !bt.opts.defense || !T[kind] || !(infTroops() || S.army[kind] > 0)) return false;
   if (Math.hypot(x - CENTER, y - CENTER) > landRadius(bt.island.th) + 1) return false;   // on your island (or its beach)
-  S.army[kind]--; bt.army[kind] = S.army[kind];
+  if (!infTroops()) { S.army[kind]--; bt.army[kind] = S.army[kind]; }
   const d = allyDef(kind), lv = (1 + 0.1 * Math.max(0, barracksLvl() - 1)) * prestMul();
   bt.mobs.push({ kind, def: d, ally: true, x, y, homeX: x, homeY: y, hp: d.hp * lv, maxHp: d.hp * lv, dmg: d.dmg * lv, cd: 0, steal: 0 });
   return true;
@@ -832,7 +835,7 @@ function startDefense(from) {
   if (from) for (const k in loot) loot[k] = Math.min(500 + 150 * from.th, Math.round(loot[k] * (1 + 0.25 * (from.th - 1))));   // a stronger island carries more
   battle = { island: isl, opts: { defense: true, revenge: from ? from.name : null }, frame: 0, army: Object.assign({}, S.army), brought: Object.assign({}, S.army), five: false, abil: {}, casts: [], barricades: [], agents: [], troops: [], shots: [], fx: [], over: false, selected: null,
              blds: isl.buildings.map((b) => Object.assign({}, b, { hp: hpOf(b.type, b.lvl), maxHp: hpOf(b.type, b.lvl), cd: 0 })), raid: { army, loot } };
-  battle.selected = Object.keys(battle.army).find((k) => battle.army[k] > 0) || null;
+  battle.selected = Object.keys(battle.army).find((k) => battle.army[k] > 0) || (infTroops() ? "warrior" : null);
   battle.total = battle.blds.filter((b) => b.type !== "wall").length;
   battle.mobs = spawnMobs(battle.blds, isl.golems, isl.prestige);
   battle.stolen = { gold: 0, wood: 0, stone: 0 }; battle.texts = [];
@@ -866,7 +869,7 @@ function maybeRevenge(island) {   // after you raid a computer island: 50% it co
 function endDefense(bt) {
   const pct = destroyedPct(bt), cap = capOf(), lost = pct >= 50;
   let back = 0;   // 🛡️ your troops still standing go home
-  for (const m of bt.mobs || []) if (m.ally && m.hp > 0) { S.army[m.kind] = (S.army[m.kind] || 0) + 1; m.hp = 0; back++; }
+  for (const m of bt.mobs || []) if (m.ally && m.hp > 0) { if (!infTroops()) S.army[m.kind] = (S.army[m.kind] || 0) + 1; m.hp = 0; back++; }
   let title, text;
   if (lost) {
     const gone = {}; for (const k of ["gold", "wood", "stone"]) { gone[k] = Math.floor(S[k] / 2); S[k] -= gone[k]; }
@@ -894,7 +897,7 @@ function endBattle(forced) {
   bt.over = true;
   if (bt.opts.defense) return endDefense(bt);
   // troops you never deployed go home
-  for (const [k, n] of Object.entries(bt.army)) if (n > 0) S.army[k] = (S.army[k] || 0) + n;
+  if (!infTroops()) for (const [k, n] of Object.entries(bt.army)) if (n > 0) S.army[k] = (S.army[k] || 0) + n;
   const pct = destroyedPct(bt), stars = starsOf(bt);
   const loot = {};
   for (const [k, v] of Object.entries(bt.island.loot || {})) loot[k] = Math.floor(v * pct / 100);
@@ -958,7 +961,7 @@ function wireConn(conn) {
     }
   });
 }
-const hasArmy = () => Object.values(S.army).some((n) => n > 0);
+const hasArmy = () => infTroops() || Object.values(S.army).some((n) => n > 0);
 // ---- 🤝 TRADING ----------------------------------------------------------------------------------------
 // 🏪 The merchant swaps any resource for another (2 for 1). ⭐ Special deals change every 10 minutes (each once).
 // 🌐 Trade with a friend (PeerJS): each side puts in an offer, both press Accept, and the stuff swaps over.
@@ -1161,6 +1164,7 @@ function panelAction(act, arg, owner) {
   if (act === "rank") { S.rank = Math.max(1, Math.min(MAX_TH, +arg || 1)); save(); return `🎖️ Rank set to ${S.rank}`; }
   if (act === "raid") { S.raidLevel = Math.max(1, Math.min(99, +arg || 1)); save(); return `🗺️ Raid level set to ${S.raidLevel}`; }
   if (act === "trophies") { S.trophies += +arg || 0; save(); return `🏆 +${+arg || 0} trophies`; }
+  if (act === "inftroops") { S.infTroops = !S.infTroops; save(); return S.infTroops ? "⚔️ Infinite troops ON — every troop, as many as you want!" : "⚔️ Infinite troops off"; }
   if (act === "infinite") { S.infinite = !S.infinite; refillInfinite(); save(); return S.infinite ? "♾️ Infinite resources ON — everything is free!" : "♾️ Infinite resources off"; }
   if (act === "maxbase") { hidePanels(); return maxOutBase(false); }
   if (act === "maxkeep") { hidePanels(); return maxOutBase(true); }
@@ -1258,7 +1262,7 @@ function renderAdmin(owner) {
   const left = (k) => owner ? "" : ` <span style="opacity:.7;font-size:.8rem">(${Math.max(0, adminLeft(k))} left)</span>`;
   $("admBody").innerHTML =
     sec("💰 Resources" + (owner ? "" : " — +500 a click"), ["gold", "wood", "stone"].map((k) => btn("res", k, `${R[k]} ${owner ? "Fill" : "+500"}`)).join("") + (owner ? btn("infinite", "", infinite() ? "♾️ Infinite: ON" : "♾️ Infinite: off", infinite() ? "green" : "") : left("gold"))) +
-    sec("⚔️ Troops" + (owner ? " — fill your army" : " — 5 a click") + left("troops"), Object.entries(T).map(([k, t]) => btn("troops", k, `${t.emoji} ${t.name}`, "blue")).join("")) +
+    sec("⚔️ Troops" + (owner ? " — fill your army" : " — 5 a click") + left("troops"), Object.entries(T).map(([k, t]) => btn("troops", k, `${t.emoji} ${t.name}`, "blue")).join("") + (owner ? btn("inftroops", "", infTroops() ? "♾️ Infinite troops: ON" : "♾️ Infinite troops: off", infTroops() ? "green" : "") : "")) +
     sec("🗿 Golems" + left("golems"), Object.keys(GOLEM_COST).map((k) => btn("golem", k, `${MOB[k].emoji} ${MOB[k].name}`, "green")).join("") + (owner ? btn("golem", "all", "All golems", "green") : "")) +
     sec("🎁 Codes", btn("codes", "", "Reset my codes")) +
     (owner ? sec("🏰 Town Hall · 🎖️ Rank · 🌟 Prestige (0–8) · 🗺️ Raid · 🏆", `<input id="admNum" type="number" min="1" value="${th()}" style="width:90px;text-transform:none">` +
@@ -1335,7 +1339,7 @@ function renderTop() {
   $("prestPill").style.display = prest() ? "inline-block" : "none"; $("prestN").textContent = prest();
   if (S.revenge) { const rs = Math.max(0, Math.ceil((S.revenge.at - Date.now()) / 1000)); $("revPill").style.display = "inline-block"; $("revIn").textContent = `${Math.floor(rs / 60)}:${String(rs % 60).padStart(2, "0")}`; }
   else $("revPill").style.display = "none";
-  if (S.noRaids) $("raidIn").textContent = "off"; else if (S.nextRaidAt) { const sec = Math.max(0, Math.ceil((S.nextRaidAt - Date.now()) / 1000)); $("raidIn").textContent = `${Math.floor(sec / 60)}:${String(sec % 60).padStart(2, "0")}`; } $("armyN").textContent = armyUsed(); $("armyCap").textContent = armyCap();
+  if (S.noRaids) $("raidIn").textContent = "off"; else if (S.nextRaidAt) { const sec = Math.max(0, Math.ceil((S.nextRaidAt - Date.now()) / 1000)); $("raidIn").textContent = `${Math.floor(sec / 60)}:${String(sec % 60).padStart(2, "0")}`; } $("armyN").textContent = infTroops() ? "∞" : armyUsed(); $("armyCap").textContent = armyCap();
 }
 function renderBuild() {
   $("buildGrid").innerHTML = BUILD_ORDER.map((type) => {
@@ -1445,8 +1449,8 @@ function showBattleBar() {
     if (!battle || battle.over) return;
     if (battle.opts.defense) {
       const left = battle.troops.filter((t) => t.hp > 0).length + boatCrew(battle);
-      bar.innerHTML = Object.entries(S.army).filter(([k, n]) => T[k] && (n > 0 || battle.brought[k] > 0)).map(([k, n]) =>
-        `<button class="troop small ${battle.selected === k ? "sel" : ""}" data-sel="${k}" ${n > 0 ? "" : "disabled"}>${T[k].emoji} ${n}</button>`).join("")
+      bar.innerHTML = (infTroops() ? Object.keys(T).map((k) => [k, INF]) : Object.entries(S.army)).filter(([k, n]) => T[k] && (n > 0 || battle.brought[k] > 0)).map(([k, n]) =>
+        `<button class="troop small ${battle.selected === k ? "sel" : ""}" data-sel="${k}" ${n > 0 ? "" : "disabled"}>${T[k].emoji} ${troopN(n)}</button>`).join("")
         + `<span class="pill">🏴‍☠️ Raiders left: ${left} · ⏱ ${Math.max(0, Math.ceil((BATTLE_FRAMES - battle.frame) / 120))}s · 💥 your island ${destroyedPct(battle)}% (50% = they win)</span>
         <button class="small blue" id="skipRaid">⏩ Skip</button>`;
       $("skipRaid").onclick = () => { let n = 0; while (battle && !battle.over && n++ < BATTLE_FRAMES + 50) battleStep(); };
@@ -1454,7 +1458,7 @@ function showBattleBar() {
       return;
     }
     bar.innerHTML = Object.entries(battle.army).filter(([k]) => battle.brought[k] > 0).map(([k, n]) =>
-      `<button class="troop small ${battle.selected === k ? "sel" : ""}" data-sel="${k}" ${n > 0 ? "" : "disabled"}>${T[k].emoji} ${n}</button>`).join("")
+      `<button class="troop small ${battle.selected === k ? "sel" : ""}" data-sel="${k}" ${n > 0 ? "" : "disabled"}>${T[k].emoji} ${troopN(n)}</button>`).join("")
       + Object.entries(battle.abil).map(([k, n]) =>
       `<button class="troop small blue ${battle.selected === "ab:" + k ? "sel" : ""}" data-sel="ab:${k}" title="${AB[k].name}: ${AB[k].desc}" ${n > 0 ? "" : "disabled"}>${AB[k].emoji} ${n}</button>`).join("")
       + `<span class="pill">⏱ ${Math.max(0, Math.ceil((BATTLE_FRAMES - battle.frame) / 120))}s · 💥 ${destroyedPct(battle)}% · ${"⭐".repeat(starsOf(battle))}</span>
@@ -1735,8 +1739,8 @@ cv.addEventListener("click", (e) => {
     const k = battle.selected; if (!k) return toast("You have no troops — train some in 🛡️ Army");
     const n = e.shiftKey ? 5 : 1; let sent = 0;
     for (let i = 0; i < n; i++) if (deployDefender(k, fx + (Math.random() - 0.5) * 0.4, fy + (Math.random() - 0.5) * 0.4)) sent++;
-    if (!sent) toast(S.army[k] > 0 ? "Tap on your island to send them out" : `No ${T[k].name}s left`);
-    if (!(S.army[k] > 0)) battle.selected = Object.keys(S.army).find((q) => T[q] && S.army[q] > 0) || k;
+    if (!sent) toast(infTroops() || S.army[k] > 0 ? "Tap on your island to send them out" : `No ${T[k].name}s left`);
+    if (!infTroops() && !(S.army[k] > 0)) battle.selected = Object.keys(S.army).find((q) => T[q] && S.army[q] > 0) || k;
     battle.drawBar && battle.drawBar();
     return;
   }

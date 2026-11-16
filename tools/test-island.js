@@ -975,6 +975,26 @@ q(`renderAdmin(true);`);
 check(/EVERYTHING ON/.test(q(`document.getElementById('admBody').innerHTML`)) && /Max out all Storage/.test(q(`document.getElementById('admBody').innerHTML`)) && /∞ of ALL pets/.test(q(`document.getElementById('admSub').textContent`)), 'the owner panel shows the new buttons and what is switched on');
 q(`panelAction('alloff', '', true);`);
 
+// ---- 🛠️ admin panel extras (daily limits) ----
+reset({ gold: 500, wood: 500, stone: 500, army: { warrior: 3 } }); q(`S.admin = true; S.buildings.push({ type: 'storage', lvl: 1, x: 12, y: 12 }); S.buildings[0].lvl = 4; S.rank = 4;`);
+check(/Free/.test(q(`panelAction('apet', 'wolf', false)`)) && q('S.pets.length') === 1 && /Daily limit/.test(q(`panelAction('apet', 'wolf', false)`)), '🐾 admin: 1 free pet a day');
+check(/locked/.test(q(`panelAction('apet', 'dragon', false)`)), '…only pets you have unlocked');
+check(/Free/.test(q(`panelAction('atower', 'archer', false)`)) && /Daily limit/.test(q(`panelAction('atower', 'archer', false)`)), '🏯 admin: 1 free tower a day');
+check(/locked/.test(q(`panelAction('atower', 'dragonstatue', false)`)), '…only towers your Town Hall allows');
+check(/level 2/.test(q(`panelAction('astore', '', false)`)) && /Daily limit/.test(q(`panelAction('astore', '', false)`)), '📦 admin: +1 Storage level a day');
+check(/New special deals/.test(q(`panelAction('adeals', '', false)`)) && /Daily limit/.test(q(`panelAction('adeals', '', false)`)), '⭐ admin: new deals once a day');
+q('S.nextRaidAt = Date.now() + 60000;'); const nr = q('S.nextRaidAt');
+check(/min from now/.test(q(`panelAction('askip', '', false)`)) && q('S.nextRaidAt') >= nr + 600000 - 5 && (q(`panelAction('askip', '', false)`), q(`panelAction('askip', '', false)`), /Daily limit/.test(q(`panelAction('askip', '', false)`))), '⏩ admin: push the raid back (3 a day)');
+check(/attack first/.test(q(`panelAction('aabil', '', false)`)), 'refill abilities needs a battle');
+q(`startBattle(genIsland(2)); battle.abil.lightning = 0;`);
+check(/refilled/.test(q(`panelAction('aabil', '', false)`)) && q('battle.abil.lightning') >= 1 && /Daily limit/.test(q(`panelAction('aabil', '', false)`)), '✨ admin: 1 ability refill a day');
+q(`endBattle(true); battle = null; hidePanels();`);
+check(/Here they come/.test(q(`panelAction('araid', '', false)`)) && q('battle.opts.defense'), '🏴‍☠️ admin: raid now');
+q(`panelAction('win', '', true); battle = null; hidePanels();`);
+check(q(`panelAction('maxbase', '', false)`) === '👑 Owner only.' && q(`panelAction('allon', '', false)`) === '👑 Owner only.', 'admins still cannot use owner powers');
+q(`renderAdmin(false);`);
+check(/A free pet/.test(q(`document.getElementById('admBody').innerHTML`)) && /free tower/.test(q(`document.getElementById('admBody').innerHTML`)) && !/EVERYTHING ON/.test(q(`document.getElementById('admBody').innerHTML`)), 'the admin panel shows its new sections (not the owner ones)');
+
 // ---- ♾️ owner: infinite troops ----
 reset({ army: {} }); q(`S.owner = true;`);
 check(/ON/.test(q(`panelAction('inftroops', '', true)`)) && q(`panelAction('inftroops', '', false)`) === '👑 Owner only.', 'owner switches on infinite troops (admins cannot)');

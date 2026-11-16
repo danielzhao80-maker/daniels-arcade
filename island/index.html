@@ -296,6 +296,8 @@ function myPets() {
   if (!allPetsInf()) return (S.pets || []).slice();
   const kinds = petKinds(), out = []; for (let i = 0; i < PET_FIGHT_MAX; i++) out.push(kinds[i % kinds.length]); return out;
 }
+// ♾️ With Infinite pets (or ∞ of ALL pets) on, your pets can't die in your battles.
+const petsImmortal = () => !!(S.infPets || S.allPetsInf);
 const petLimit = () => infPets() ? Infinity : 3 + Math.floor(th() / 2);
 function buyPet(k, n) {
   n = Math.max(1, Math.floor(n || 1));
@@ -573,7 +575,7 @@ function setupDuel(bt) {
   bt.bridge = { a: { x: HX + Rm + 0.2, y: CENTER }, b: { x: CENTER - Re - 0.2, y: CENTER }, home: { x: HX, y: CENTER, r: Rm, name: "Your island", th: th(), full: true, dx } };
   bt.homeBlds = S.buildings.map((b) => Object.assign({}, b, { x: b.x + dx, perks: (b.perks || []).slice(), hp: hpOf(b.type, b.lvl), maxHp: hpOf(b.type, b.lvl), cd: 0 }));
   bt.homeTotal = bt.homeBlds.filter((b) => b.type !== "wall").length;
-  bt.homeMobs = spawnMobs(bt.homeBlds, (S.golems || []).slice(), prest(), myPets()); bt.homeMobs.forEach((m) => (m.mine = true));
+  bt.homeMobs = spawnMobs(bt.homeBlds, (S.golems || []).slice(), prest(), myPets()); bt.homeMobs.forEach((m) => { m.mine = true; if (m.pet && petsImmortal()) m.immortal = true; });
   bt.foes = [];
   const army = raiderArmy(isl.th), p = isl.prestige || 0, parties = [[], [], []]; let i = 0;
   for (const [k, n] of Object.entries(army)) for (let j = 0; j < n + p; j++) parties[i++ % 3].push(k);
@@ -919,6 +921,7 @@ function battleStep() {
   mobStep(bt);
   agentStep(bt);
   boatStep(bt);
+  for (const m of (bt.mobs || []).concat(bt.homeMobs || [])) if (m.immortal && m.hp < 1) { m.hp = m.maxHp; bt.texts.push({ x: m.x, y: m.y - 0.5, t: 40, text: "♾️ BACK!" }); }   // ♾️ an immortal pet springs straight back up
   bt.shots = bt.shots.filter((s) => --s.t > 0); bt.fx = bt.fx.filter((f) => --f.t > 0); bt.casts = bt.casts.filter((c) => --c.t > 0);
   if (bt.texts) bt.texts = bt.texts.filter((t) => --t.t > 0);
   const anyTroops = bt.troops.some((t) => t.hp > 0) || (!bt.opts.defense && Object.values(bt.army).some((n) => n > 0)) || boatCrew(bt) > 0 || bt.agents.some((a) => a.phase !== "done");
@@ -963,6 +966,7 @@ function startDefense(from) {
   battle.selected = Object.keys(battle.army).find((k) => battle.army[k] > 0) || (infTroops() ? "warrior" : null);
   battle.total = battle.blds.filter((b) => b.type !== "wall").length;
   battle.mobs = spawnMobs(battle.blds, isl.golems, isl.prestige, isl.pets);
+  if (petsImmortal()) battle.mobs.forEach((m) => { if (m.pet) m.immortal = true; });   // ♾️ your pets can't die
   battle.stolen = { gold: 0, wood: 0, stone: 0 }; battle.texts = [];
   const lv = 1 + 0.15 * (th() - 1), r0 = landRadius(isl.th) + 1.4;
   if (from) {   // 😠 revenge: their island joins yours with a bridge and they march across it
@@ -1653,7 +1657,7 @@ function renderTradeLive() {
 }
 function renderPets() {
   const have = (S.pets || []).length, lim = petLimit();
-  $("petSub").textContent = `Your pets guard your island round the Town Hall and fight anyone who attacks you. ` + (allPetsInf() ? `♾️ You have INFINITE of every pet — ${PET_FIGHT_MAX} come out in every battle.` : `You have ${have}/${lim === Infinity ? "∞" : lim}${infPets() ? " · ♾️ Infinite pets (free!)" : " — upgrade your Town Hall for more"}.`);
+  $("petSub").textContent = `Your pets guard your island round the Town Hall and fight anyone who attacks you. ` + (allPetsInf() ? `♾️ You have INFINITE of every pet — ${PET_FIGHT_MAX} come out in every battle, and they can't die.` : `You have ${have}/${lim === Infinity ? "∞" : lim}${infPets() ? " · ♾️ Infinite pets (free, and they can't die!)" : " — upgrade your Town Hall for more"}.`);
   const counts = {}; (S.pets || []).forEach((k) => (counts[k] = (counts[k] || 0) + 1));
   $("petGrid").innerHTML = Object.keys(MOB).filter((k) => !MOB[k].golem).map((k) => {
     const M = MOB[k], locked = !petKinds().includes(k), full = have >= lim, c = petCost(k);

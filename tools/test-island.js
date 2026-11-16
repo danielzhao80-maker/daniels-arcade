@@ -946,6 +946,21 @@ q(`showInfo(S.buildings[1]); renderInfo();`);
 check(/MAXED/.test(q(`document.getElementById('infoCard').innerHTML`)) && /maxed-out Storage/.test(q(`document.getElementById('infoBody').innerHTML`)), 'the building info and 📊 My Island show it');
 q(`hideInfo();`);
 
+// ---- ♾️ infinite pets can't die ----
+reset({ army: { warrior: 3 } }); q(`S.owner = true; S.pets = ['wolf', 'bear'];`);
+q(`startBattle(genIsland(6)); battle.waves = [];`);
+check(q(`battle.homeMobs.filter(function(m){ return m.pet; }).every(function(m){ return !m.immortal; })`), 'normal pets can die');
+q(`endBattle(true); battle = null; hidePanels(); panelAction('infpets', '', true); S.army = { warrior: 3 }; startBattle(genIsland(6)); battle.waves = [];`);
+check(q(`battle.homeMobs.filter(function(m){ return m.pet; }).every(function(m){ return m.immortal; }) && battle.homeMobs.filter(function(m){ return !m.pet; }).every(function(m){ return !m.immortal; })`), '♾️ infinite pets: your pets (only) are immortal');
+check(q(`battle.mobs.filter(function(m){ return m.pet; }).every(function(m){ return !m.immortal; })`), 'the enemy\'s pets are not');
+q(`battle.homeMobs.forEach(function(m){ if (m.pet) m.hp = -50; }); battleStep();`);
+check(q(`battle.homeMobs.filter(function(m){ return m.pet; }).every(function(m){ return m.hp === m.maxHp; })`), 'knocked down: they spring straight back up');
+q(`endBattle(true); battle = null; hidePanels(); startDefense(); landAllBoats(battle); battle.mobs.forEach(function(m){ if (m.pet) m.hp = 0; }); battleStep();`);
+check(q(`battle.mobs.filter(function(m){ return m.pet; }).length`) === 2 && q(`battle.mobs.filter(function(m){ return m.pet; }).every(function(m){ return m.hp > 0; })`), 'in raids too');
+q(`panelAction('win', '', true); battle = null; hidePanels(); panelAction('infpets', '', true); panelAction('allpetsinf', '', true); homeMobsKey = ''; S.army = { warrior: 3 }; startBattle(genIsland(6));`);
+check(q(`battle.homeMobs.filter(function(m){ return m.pet; }).every(function(m){ return m.immortal; })`), '∞ of ALL pets: immortal too');
+q(`endBattle(true); battle = null; hidePanels(); panelAction('allpetsinf', '', true); S.pets = [];`);
+
 // ---- ♾️ owner: infinite troops ----
 reset({ army: {} }); q(`S.owner = true;`);
 check(/ON/.test(q(`panelAction('inftroops', '', true)`)) && q(`panelAction('inftroops', '', false)`) === '👑 Owner only.', 'owner switches on infinite troops (admins cannot)');

@@ -815,8 +815,44 @@ function panelAction(act, arg, owner) {
   if (act === "rank") { S.rank = Math.max(1, Math.min(MAX_TH, +arg || 1)); save(); return `🎖️ Rank set to ${S.rank}`; }
   if (act === "raid") { S.raidLevel = Math.max(1, Math.min(99, +arg || 1)); save(); return `🗺️ Raid level set to ${S.raidLevel}`; }
   if (act === "trophies") { S.trophies += +arg || 0; save(); return `🏆 +${+arg || 0} trophies`; }
+  if (act === "maxbase") { hidePanels(); return maxOutBase(); }
   if (act === "raidnow") { hidePanels(); const e = startDefense(); return e || "🏴‍☠️ Here they come!"; }
   return "?";
+}
+// 👑 Max out my base: Town Hall 8 and rank 8, the most of every building at level 8 in a strong layout —
+// Storage and Wizard Towers in the middle, a ring of walls, Archer Towers and Cannons spread round it,
+// Barracks behind them, mines on the outside — every tower upgrade, every golem, full stores and a full army.
+function maxOutBase() {
+  const T8 = MAX_TH, list = [{ type: "townhall", lvl: T8, x: CENTER, y: CENTER }];
+  const place = (type, n, dist, turn) => {   // n of `type` evenly round a ring at `dist`, nearest free tile
+    for (let i = 0; i < n; i++) {
+      const a = (Math.PI * 2 / n) * i + (turn || 0);
+      let best = null, bd = 1e9;
+      for (let y = 0; y < GRID; y++) for (let x = 0; x < GRID; x++) {
+        if (!isLand(x, y, T8) || !tileFree(list, x, y)) continue;
+        const d = Math.hypot(x - (CENTER + Math.cos(a) * dist), y - (CENTER + Math.sin(a) * dist));
+        if (d < bd) { bd = d; best = [x, y]; }
+      }
+      if (best) list.push({ type, lvl: T8, x: best[0], y: best[1], perks: PERKS[type] ? PERKS[type].map((p) => p.id) : undefined });
+    }
+  };
+  place("storage", limitOf("storage", T8), 1.4, 0.3);
+  place("wizard", limitOf("wizard", T8), 1.6, 1.3);
+  place("wall", limitOf("wall", T8), 3.2, 0);
+  place("archer", limitOf("archer", T8), 4.6, 0.4);
+  place("cannon", limitOf("cannon", T8), 4.6, 1.2);
+  place("barracks", limitOf("barracks", T8), 5.8, 0.8);
+  place("goldmine", limitOf("goldmine", T8), 7.6, 0);
+  place("lumbermill", limitOf("lumbermill", T8), 7.6, 0.42);
+  place("quarry", limitOf("quarry", T8), 7.6, 0.84);
+  for (const b of list) if (!b.perks) delete b.perks;
+  S.buildings = list; S.rank = MAX_TH;
+  S.golems = Object.keys(GOLEM_COST);
+  const cap = capOf(); S.gold = S.wood = S.stone = cap;
+  S.army = {}; const fill = [["giant", 10], ["mage", 15], ["archer", 30], ["warrior", 999]];
+  for (const [k, n] of fill) { const fit = Math.min(n, Math.floor((armyCap() - armyUsed()) / T[k].house)); if (fit > 0) S.army[k] = fit; }
+  save(); homeMobsKey = "";
+  return `🏆 Your base is maxed out: Town Hall ${T8}, ${list.length} buildings at level ${T8}, every tower upgrade, all 4 golems, ${cap.toLocaleString()} of everything and a full army (${armyUsed()}/${armyCap()}).`;
 }
 function renderAdmin(owner) {
   $("admTitle").textContent = owner ? "👑 Owner Panel" : "🛠️ Admin Panel";
@@ -831,10 +867,13 @@ function renderAdmin(owner) {
     sec("🎁 Codes", btn("codes", "", "Reset my codes")) +
     (owner ? sec("🏰 Town Hall · 🎖️ Rank · 🗺️ Raid · 🏆", `<input id="admNum" type="number" min="1" value="${th()}" style="width:90px;text-transform:none">` +
       btn("th", "#", "Set Town Hall") + btn("rank", "#", "Set Rank") + btn("raid", "#", "Set Raid level") + btn("trophies", "#", "Add 🏆")) +
-      sec("🏴‍☠️ Raids", btn("raidnow", "", "🏴‍☠️ Raid now", "red")) : "");
+      sec("🏴‍☠️ Raids", btn("raidnow", "", "🏴‍☠️ Raid now", "red")) +
+      sec("🏆 The best base", btn("maxbase", "", "🏆 Max out my base", "green") + `<span style="font-size:.75rem;opacity:.75">Town Hall 8, everything level 8 in a strong layout, every upgrade, all golems, full stores and army. (Replaces your layout.)</span>`) : "");
   $("admBody").querySelectorAll("[data-act]").forEach((b) => (b.onclick = () => {
     const arg = b.dataset.arg === "#" ? $("admNum").value : b.dataset.arg;
-    $("admMsg").textContent = panelAction(b.dataset.act, arg, owner); renderTop(); renderAdmin(owner);
+    const msg = panelAction(b.dataset.act, arg, owner); renderTop();
+    if (b.dataset.act === "maxbase") { toast(msg); return; }
+    $("admMsg").textContent = msg; renderAdmin(owner);
   }));
 }
 function refreshPanelButtons() { $("btnAdmin").style.display = isAdmin() && !isOwner() ? "inline-block" : "none"; $("btnOwner").style.display = isOwner() ? "inline-block" : "none"; }

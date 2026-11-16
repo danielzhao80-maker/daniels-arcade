@@ -595,6 +595,22 @@ q(`S.owner = true;`);
 check(/Here they come/.test(q(`panelAction('raidnow', '', true)`)) && q(`battle.opts.defense`), '👑 owner: Raid now');
 q(`var n = 0; while (battle && !battle.over && n++ < 6000) battleStep(); battle = null; hidePanels(); S.owner = false;`);
 
+// ---- 👑 max out my base ----
+reset({ rank: 1 });
+check(/Owner only|Not allowed/.test(q(`panelAction('maxbase', '', false)`)), 'admins cannot max out their base');
+q(`S.owner = true;`);
+const mx = q(`panelAction('maxbase', '', true)`);
+const mxs = JSON.parse(q(`JSON.stringify({ th: th(), rank: rank(), n: S.buildings.length, allMax: S.buildings.every(function(b){ return b.lvl === MAX_TH; }), golems: S.golems.length, full: S.gold === capOf() && S.wood === capOf() && S.stone === capOf(), army: armyUsed() + '/' + armyCap(),
+  limits: Object.keys(B).every(function(t){ return t === 'townhall' || countOf(t) === limitOf(t, MAX_TH); }), perks: S.buildings.filter(function(b){ return PERKS[b.type]; }).every(function(b){ return b.perks.length === 3; }),
+  land: S.buildings.every(function(b){ return isLand(b.x, b.y); }), overlap: new Set(S.buildings.map(function(b){ return b.x + ',' + b.y; })).size === S.buildings.length })`));
+check(mxs.th === 8 && mxs.rank === 8 && mxs.allMax && mxs.limits, '👑 Max out my base: Town Hall 8, the most of every building, all level 8', JSON.stringify(mxs));
+check(mxs.perks && mxs.golems === 4 && mxs.full && mxs.army.split('/')[0] === mxs.army.split('/')[1], '…every tower upgrade, all 4 golems, full stores and a full army');
+check(mxs.land && mxs.overlap, '…all on the island, nothing on top of anything else');
+check(q(`(function(){ var near = function(t){ return S.buildings.filter(function(b){ return b.type === t; }).map(function(b){ return Math.hypot(b.x - CENTER, b.y - CENTER); }); }; return Math.max.apply(null, near('wizard')) < Math.min.apply(null, near('goldmine')); })()`), '…a strong layout (Wizard Towers in the middle, mines on the outside)');
+q(`S.nextRaidAt = 0; for (var i = 0; i < 10; i++) { startDefense(); var n = 0; while (battle && !battle.over && n++ < 6000) battleStep(); battle = null; hidePanels(); }`);
+check(q(`S.raidsWon`) === 10, 'the maxed base beats every raid (10 out of 10)');
+q(`S.owner = false;`);
+
 // ---- drawing ----
 q(`for (var i = 0; i < 3; i++) frame(performance.now() + i * 16);`);
 check(true, 'the island and a battle draw without errors');

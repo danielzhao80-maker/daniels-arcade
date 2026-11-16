@@ -1014,6 +1014,40 @@ check(!/came home/.test(q(`document.getElementById('resText').textContent`)), 's
 q(`panelAction('maxbase', '', true);`);
 check(q(`countOf('gate')`) === 1, 'the owner\'s best base has the Summoning Gate');
 
+// ---- 🐾 pets smash the other island too; 🌐 online shows both whole islands ----
+reset({ army: { warrior: 1 } });
+q(`S.pets = ['bear', 'bear', 'bear']; homeMobsKey = ''; startBattle(genIsland(2)); battle.waves = []; battle.mobs = battle.mobs.filter(function(m){ return false; }); battle.troops = [];`);
+const pb0 = q(`battle.blds.filter(function(b){ return b.hp < b.maxHp; }).length`);
+q(`for (var i = 0; i < 2400 && !battle.over; i++) battleStep();`);
+check(pb0 === 0 && q(`battle.blds.filter(function(b){ return b.type !== 'wall' && b.hp < b.maxHp; }).length`) > 0, "🐾 your pets cross over and smash the other island's buildings");
+q(`if (!battle.over) endBattle(true); battle = null; hidePanels(); S.pets = []; homeMobsKey = '';`);
+q(`var isl = genIsland(10); S.army = { warrior: 1 }; startBattle(isl); battle.waves = []; battle.troops = []; battle.homeMobs = battle.homeMobs.filter(function(m){ return false; });`);
+q(`for (var i = 0; i < 3000 && !battle.over; i++) battleStep();`);
+check(q(`battle.homeBlds.filter(function(b){ return b.type !== 'wall' && b.hp < b.maxHp; }).length`) > 0 || q(`battle.mobs.filter(function(m){ return m.pet; }).length`) === 0, '🐾 their pets come over and smash YOUR island');
+q(`if (!battle.over) endBattle(true); battle = null; hidePanels();`);
+// online
+reset({ army: { warrior: 3 } });
+q(`startBattle(Object.assign(myIslandSnapshot(), { name: "Friend's island" }), { online: true });`);
+check(q('battle.bridge.home.full') === true && q('battle.homeBlds.length') === q('S.buildings.length') && q('battle.waves.length') === 0, '🌐 online: both WHOLE islands (and no attack waves — your friend attacks you in their own game)');
+q(`battle.homeBlds.forEach(function(b){ if (b.type !== 'wall') b.hp = 0; }); S.gold = 500; endBattle(true);`);
+check(q('S.gold') >= 500 && !/wrecked/.test(String(q('NET.mine && NET.mine.pct'))), '🌐 online: nothing is taken from you here');
+q(`battle = null; hidePanels(); netReset();`);
+
+// ---- ⛩️ owner panel: Summoning Gate controls ----
+reset({ army: {} }); q(`S.owner = true;`);
+check(/placed/.test(q(`panelAction('gateplace', '', true)`)) && q(`countOf('gate')`) === 1 && /already/.test(q(`panelAction('gateplace', '', true)`)), '⛩️ Place the Gate (once)');
+check(/every 5 s/.test(q(`panelAction('gatespeed', '', true)`)) && /every 2 s/.test(q(`panelAction('gatespeed', '', true)`)) && /every 10 s/.test(q(`panelAction('gatespeed', '', true)`)), '⏱ speed: 10 → 5 → 2 → 10 s');
+check(/10 of every/.test(q(`panelAction('gateamount', '', true)`)) && /20 of every/.test(q(`panelAction('gateamount', '', true)`)), '👥 amount: 5 → 10 → 20 of each');
+check(/battle first/.test(q(`panelAction('gatenow', '', true)`)), 'summon now needs a battle');
+q(`startBattle(genIsland(6)); battle.waves = []; battleStep();`);
+check(q(`battle.troops.filter(function(t){ return t.summoned; }).length`) === 80, '20 of each: 80 troops a summon');
+check(/SUMMON/.test(q(`panelAction('gatenow', '', true)`)) && q(`battle.troops.filter(function(t){ return t.summoned; }).length`) === 160, '⛩️ Summon now: another 80 straight away');
+q(`panelAction('gatenow', '', true); panelAction('gatenow', '', true);`);
+check(q(`battle.troops.filter(function(t){ return t.summoned && t.hp > 0; }).length`) <= 240, 'there is still a cap (so the game stays fast)');
+q(`endBattle(true); battle = null; hidePanels(); renderAdmin(true);`);
+check(/Summoning Gate —/.test(q(`document.getElementById('admBody').innerHTML`)) && q(`panelAction('gatespeed', '', false)`) === '👑 Owner only.', 'its own section in the owner panel (owner only)');
+q(`panelAction('gateamount', '', true);`);
+
 // ---- ♾️ owner: infinite troops ----
 reset({ army: {} }); q(`S.owner = true;`);
 check(/ON/.test(q(`panelAction('inftroops', '', true)`)) && q(`panelAction('inftroops', '', false)`) === '👑 Owner only.', 'owner switches on infinite troops (admins cannot)');

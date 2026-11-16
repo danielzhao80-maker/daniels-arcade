@@ -583,24 +583,28 @@ function setupDuel(bt) {
   bt.foes = [];
   const army = raiderArmy(isl.th), p = isl.prestige || 0, parties = [[], [], []]; let i = 0;
   for (const [k, n] of Object.entries(army)) for (let j = 0; j < n + p; j++) parties[i++ % 3].push(k);
-  bt.waves = parties.map((party, w) => ({ at: 300 + w * 1500, party, sent: false }));
+  bt.waves = bt.opts.online ? [] : parties.map((party, w) => ({ at: 300 + w * 1500, party, sent: false }));   // 🌐 online your friend attacks you in THEIR game
   bt.foeLv = (1 + 0.15 * (isl.th - 1)) * (1 + 0.1 * p);
 }
-const GATE_EVERY = 600, GATE_MAX = 100, GATE_N = 5;
+// 👑 the owner can change how often (S.gateEvery, seconds) and how many of each troop (S.gateN) it summons
+const GATE_SPEEDS = [10, 5, 2], GATE_AMOUNTS = [5, 10, 20];
+const gateEvery = () => 60 * (GATE_SPEEDS.includes(S.gateEvery) ? S.gateEvery : 10);
+const gateN = () => (GATE_AMOUNTS.includes(S.gateN) ? S.gateN : 5);
+const gateMax = () => Math.max(100, gateN() * 4 * 3);
 function gateStep(bt) {   // ⛩️ every Summoning Gate on YOUR island
-  const list = bt.foes ? bt.homeBlds : bt.opts.defense ? bt.blds : null; if (!list) return;
+  const list = bt.opts.online ? null : bt.foes ? bt.homeBlds : bt.opts.defense ? bt.blds : null; if (!list) return;   // (not in online fights)
   for (const g of list) {
     if (g.type !== "gate" || g.hp <= 0 || bt.frame < (g.nextSummon || 1)) continue;
-    g.nextSummon = bt.frame + GATE_EVERY;
+    g.nextSummon = bt.frame + gateEvery();
     const lv = (1 + 0.1 * Math.max(0, barracksLvl() - 1)) * prestMul(), pool = bt.foes ? bt.troops : bt.mobs;
-    if (pool.filter((t) => t.summoned && t.hp > 0).length >= GATE_MAX) continue;
-    for (const k of Object.keys(T)) for (let i = 0; i < GATE_N; i++) {
+    if (pool.filter((t) => t.summoned && t.hp > 0).length >= gateMax()) continue;
+    for (const k of Object.keys(T)) for (let i = 0; i < gateN(); i++) {
       const t = T[k], x = g.x + (Math.random() - 0.5) * 1.2, y = g.y + (Math.random() - 0.5) * 1.2;
       if (bt.foes) bt.troops.push({ kind: k, x, y, hp: t.hp * lv, maxHp: t.hp * lv, dmg: t.dmg * lv, cd: i * 2, target: null, stage: 0, summoned: true, hunter: true });
       else { const d = allyDef(k); bt.mobs.push({ kind: k, def: d, ally: true, summoned: true, x, y, homeX: x, homeY: y, hp: d.hp * lv, maxHp: d.hp * lv, dmg: d.dmg * lv, cd: 0, steal: 0 }); }
     }
     bt.casts.push({ x: g.x, y: g.y, r: 1.6, color: "#a29bfe", t: 60, emoji: "⛩️" });
-    bt.texts.push({ x: g.x, y: g.y - 0.8, t: 60, text: `⛩️ SUMMON! ×${GATE_N * Object.keys(T).length}` });
+    bt.texts.push({ x: g.x, y: g.y - 0.8, t: 60, text: `⛩️ SUMMON! ×${gateN() * Object.keys(T).length}` });
   }
 }
 function foeWaves(bt) {
@@ -654,8 +658,7 @@ function startBattle(island, opts) {
              blds: island.buildings.map((b) => Object.assign({}, b, { hp: hpOf(b.type, b.lvl), maxHp: hpOf(b.type, b.lvl), cd: 0 })) };
   battle.total = battle.blds.filter((b) => b.type !== "wall").length;
   battle.mobs = spawnMobs(battle.blds, island.golems, island.prestige, island.pets);   // 🐺 the island's defenders (+ its bought golems)
-  if (battle.opts.online) battle.bridge = makeBridge(island.th, "Your island", th());   // 🌉
-  else setupDuel(battle);   // ⚔️ offline: your whole island joins theirs, and they fight back
+  setupDuel(battle);   // ⚔️ both WHOLE islands, joined by the bridge (offline they fight back; online your friend attacks you in their game)
   battle.stolen = { gold: 0, wood: 0, stone: 0 }; battle.texts = [];   // 🐒 what the monkeys took
   if (!infTroops()) for (const k in army) S.army[k] = 0;   // the army goes into battle (survivors don't come back)
   save();
@@ -720,8 +723,10 @@ function walkTo(bt, m, x, y, sp) {
   const d = Math.hypot(x - m.x, y - m.y); if (d < 1e-6) return;
   const st = Math.min(d, sp); m.x += (x - m.x) / d * st; m.y += (y - m.y) / d * st;
 }
-function mobStep(bt, mobs, troops, ctr, noSteal, hostile) {
+// enemyBlds: the OTHER island's buildings — 🐾 pets smash them too (whatever enemy is nearest: troop, animal or building).
+function mobStep(bt, mobs, troops, ctr, noSteal, hostile, enemyBlds) {
   mobs = mobs || bt.mobs || []; troops = troops || bt.troops; hostile = hostile || (mobs === bt.mobs ? bt.homeMobs : null) || [];
+  enemyBlds = enemyBlds || (mobs === bt.mobs ? bt.homeBlds : null) || [];
   for (const m of mobs) {
     if (m.hp <= 0 || m.frozenUntil > bt.frame) continue;
     const M = mobDef(m);
@@ -732,6 +737,7 @@ function mobStep(bt, mobs, troops, ctr, noSteal, hostile) {
     let tg = null, bd = m.pet ? Infinity : M.sight;
     for (const tr of troops) if (tr.hp > 0) { const d = Math.hypot(tr.x - m.x, tr.y - m.y); if (d < bd) { bd = d; tg = tr; } }
     for (const o of hostile) if (o.hp > 0 && (m.pet || o.pet)) { const d = Math.hypot(o.x - m.x, o.y - m.y); if (d < bd && (m.pet || d < M.sight)) { bd = d; tg = o; } }   // 🐾
+    if (m.pet) for (const b of enemyBlds) if (b.hp > 0 && b.type !== "wall") { const d = Math.hypot(b.x - m.x, b.y - m.y); if (d < bd) { bd = d; tg = b; } }   // 🐾 …and the other island
     if (!tg) {   // nothing near: walk back home
       if (Math.hypot(m.homeX - m.x, m.homeY - m.y) > 0.1) walkTo(bt, m, m.homeX, m.homeY, M.speed / 60);
       continue;
@@ -741,6 +747,11 @@ function mobStep(bt, mobs, troops, ctr, noSteal, hostile) {
       m.cd = M.rate;
       let dmg = m.dmg;
       if (M.charge && !m.charged) { dmg *= M.charge; m.charged = true; bt.texts.push({ x: m.x, y: m.y - 0.4, t: 40, text: "CHARGE!" }); }   // 🐗
+      if (tg.type && B[tg.type]) {   // 🐾 a building on the other island
+        tg.hp -= dmg; if (tg.hp <= 0) { tg.hp = 0; bt.fx.push({ x: tg.x, y: tg.y, t: 30, boom: true }); }
+        if (M.range > 1) bt.shots.push({ x: m.x, y: m.y, tx: tg.x, ty: tg.y, t: 8, col: m.mine || m.ally ? "#55efc4" : "#ff7675" });
+        continue;
+      }
       if (tg.homeX !== undefined) {   // 🐾 an animal or pet: a plain hit (fights back with its own)
         const od = tg.def || MOB[tg.kind] || {};
         if (od.dodge && Math.random() < od.dodge) bt.texts.push({ x: tg.x, y: tg.y - 0.5, t: 40, text: "MISS!" });
@@ -938,7 +949,7 @@ function battleStep() {
     gateStep(bt);
     stepTroops(bt, bt.foes, bt.homeBlds, bt.homeMobs, true, bt.troops);
     stepTowers(bt, bt.homeBlds, bt.foes, bt.homeMobs, homeCtr, [], []);
-    mobStep(bt, bt.homeMobs, bt.foes, homeCtr, true, bt.mobs);
+    mobStep(bt, bt.homeMobs, bt.foes, homeCtr, true, bt.mobs, bt.blds);
   }
   mobStep(bt);
   agentStep(bt);
@@ -1061,7 +1072,7 @@ function endBattle(forced) {
   const stoleText = costText(Object.fromEntries(Object.entries(stolen).filter(([, v]) => v > 0)));
   let title = stars > 0 ? `⭐`.repeat(stars) + " Victory!" : "💥 Defeat";
   let text = `You destroyed ${pct}% of ${bt.island.name}. Loot: ${costText(loot) || "none"}.${stoleText ? ` 🐒 Monkeys stole ${stoleText}!` : ""}`;
-  if (bt.homeBlds) {   // ⚔️ how your island did against their attack
+  if (bt.homeBlds && !bt.opts.online) {   // ⚔️ how your island did against their attack (online: your friend's game decides that)
     const theirs = pctOf(bt.homeBlds, bt.homeTotal), lost = {};
     if (!infinite()) for (const k of RES) { lost[k] = Math.floor(S[k] * 0.25 * theirs / 100); S[k] -= lost[k]; }
     const lostText = costText(Object.fromEntries(Object.entries(lost).filter(([, v]) => v > 0)));
@@ -1419,6 +1430,16 @@ function panelAction(act, arg, owner) {
     return `📦 ${maxedStorages()} maxed-out Storages: storage ×${storeBoost().toFixed(2).replace(/\.?0+$/, "")} = ${capOf().toLocaleString()} of each`;
   }
   if (act === "newdeals") { S.dealShift = (S.dealShift || 0) + 1; S.deals = null; save(); return "⭐ New special deals are in the 🤝 Trade panel!"; }
+  if (act === "gateplace") { if (countOf("gate")) return "⛩️ You already have the Summoning Gate."; return panelAction("tower", "gate", true); }
+  if (act === "gatenow") {   // summon right now (in a battle)
+    if (!battle || battle.over) return "Start a battle first — then summon.";
+    const list = battle.foes ? battle.homeBlds : battle.opts.defense ? battle.blds : null;
+    const gs = (list || []).filter((b) => b.type === "gate" && b.hp > 0);
+    if (!gs.length) return list ? "Your Summoning Gate isn't in this battle (place it first)." : "The Gate only works in offline fights and raids.";
+    gs.forEach((g) => (g.nextSummon = 0)); gateStep(battle); hidePanels(); return `⛩️ SUMMON! ${gateN() * 4 * gs.length} troops`;
+  }
+  if (act === "gatespeed") { const i = (GATE_SPEEDS.indexOf(gateEvery() / 60) + 1) % GATE_SPEEDS.length; S.gateEvery = GATE_SPEEDS[i]; save(); return `⛩️ The Gate now summons every ${S.gateEvery} s`; }
+  if (act === "gateamount") { const i = (GATE_AMOUNTS.indexOf(gateN()) + 1) % GATE_AMOUNTS.length; S.gateN = GATE_AMOUNTS[i]; save(); return `⛩️ The Gate now summons ${S.gateN} of every troop (${S.gateN * 4} a time)`; }
   if (act === "army0") { S.army = {}; save(); return "⚔️ Army emptied"; }
   if (act === "golem0") { S.golems = []; save(); homeMobsKey = ""; return "🗿 Golems sent away"; }
   if (act === "reset") { const keepOwner = S.owner; S = freshSave(); S.owner = keepOwner; S.nextRaidAt = Date.now() + RAID_EVERY; homeMobsKey = ""; save(); hidePanels(); return "🔄 Your island started over"; }
@@ -1498,6 +1519,10 @@ function renderAdmin(owner) {
       sec(`🌟 Prestige — you are ${prest()}/${MAX_PRESTIGE}`, btn("pnext", "", "🌟 +1 Prestige", "green") + btn("pmax", "", `🌟 Max (${MAX_PRESTIGE})`, "green") + btn("ptrial", "", "⚔️ Fight the next trial", "red") +
         PRESTIGE.map((P, i) => btn("pmap", i + 1, `${P.emoji} ${P.map}`, "red")).join("")) +
       sec("🏯 Towers — free, at your Town Hall level (even locked ones)", Object.keys(B).filter((t) => B[t].def || B[t].summon).map((t) => btn("tower", t, `${B[t].emoji} ${B[t].name} ${countOf(t)}/${limitOf(t, MAX_TH, MAX_PRESTIGE)}`, B[t].prestige ? "" : B[t].th ? "blue" : "green")).join("") + btn("tower", "all", "🏯 ALL towers", "red")) +
+      sec(`⛩️ Summoning Gate — ${countOf("gate") ? "on your island" : "not placed yet"} · ${gateN()} of every troop every ${gateEvery() / 60} s (up to ${gateMax()})`,
+        btn("gateplace", "", countOf("gate") ? "⛩️ Placed ✅" : "⛩️ Place the Gate", "green") + btn("gatenow", "", "⛩️ Summon now (in battle)", "red") +
+        btn("gatespeed", "", `⏱ Every ${gateEvery() / 60} s`, "blue") + btn("gateamount", "", `👥 ${gateN()} of each`, "blue") +
+        `<span style="font-size:.75rem;opacity:.75">Owner only. In offline fights its troops cross the bridge and smash the enemy's towers; in raids they fight the raiders. Tap ⏱ / 👥 to change them.</span>`) +
       sec("⚔️ In battle", btn("win", "", "⚡ Win this battle", "green") + btn("abil", "", "✨ Refill abilities", "blue")) +
       sec("🧹 Clear", btn("army0", "", "Empty my army") + btn("golem0", "", "Remove golems") + btn("reset", "", "🔄 Start my island over", "red")) +
       sec("🏆 The best base", btn("maxkeep", "", "⬆️ Max out (keep my layout)", "green") + btn("maxbase", "", "🏆 Max out with a new layout", "green") +

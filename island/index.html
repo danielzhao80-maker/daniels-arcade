@@ -457,9 +457,7 @@ function doRebirth(force) {   // force: the owner skips the Town Hall 10 / rank 
   return `🔁 REBIRTH ${S.rebirths}! Your island starts again — with +${Math.round(REBIRTH_BUFF * 100 * S.rebirths)}% troops and resources for good, and a head start of ${costText({ gold: bonus, wood: bonus, stone: bonus })}.`;
 }
 // ---- 🏆 LEADERBOARD: most trophies and most rebirths. You, arcade players on this computer (through the
-// arcade server, when you're logged in to an arcade account), friends you've fought online, and 🤖 computer rivals.
-const BOTS = [["Captain Coral", 150, 0], ["Pirate Pete", 400, 0], ["Kraken King", 800, 1], ["Shark Bait", 1300, 1], ["Lagoon Lord", 2100, 2],
-  ["Storm Queen", 3200, 3], ["Golden Gull", 5000, 5], ["Ultra Turtle", 8000, 8], ["Mega Mermaid", 12000, 12], ["The Island Emperor", 20000, 20]];
+// arcade server, when you're logged in to an arcade account) and friends you've fought online. Real players only.
 const account = () => { try { return JSON.parse(localStorage.getItem("daniels-arcade-account") || "null") || {}; } catch (e) { return {}; } };
 const hasServer = () => location.protocol !== "file:" && !/\.github\.io$/.test(location.hostname) && !!window.fetch;
 let boardPlayers = [], boardAt = 0, lastScore = "";
@@ -477,7 +475,6 @@ async function loadBoard() {
 function leaderboard(by) {   // by: "trophies" | "rebirths" — the rows, best first
   const me = account().name || "You", rows = new Map();
   const put = (name, trophies, rebirths, kind) => { const k = name.toLowerCase(), old = rows.get(k); if (!old || kind === "you" || (old.kind !== "you" && trophies > old.trophies)) rows.set(k, { name, trophies, rebirths, kind }); };
-  for (const [n, t, r] of BOTS) put("🤖 " + n, t, r, "bot");
   for (const p of boardPlayers) put(p.name, p.trophies || 0, p.rebirths || 0, "player");
   for (const [n, m] of Object.entries(S.met || {})) put(n, m.trophies || 0, m.rebirths || 0, "friend");
   put(me, S.trophies || 0, rebirths(), "you");
@@ -1924,7 +1921,7 @@ function renderBoard() {
   const rows = leaderboard(boardBy), me = rows.findIndex((r) => r.kind === "you");
   const acc = account();
   $("boardSub").textContent = (acc.token && hasServer() ? "👤 Arcade players on this computer are here too." : "Log in to an arcade account (on this computer) to be on the arcade leaderboard.") + ` You are #${me + 1}.`;
-  const icon = { you: "⭐", player: "👤", friend: "🌐", bot: "" };
+  const icon = { you: "⭐", player: "👤", friend: "🌐" };
   $("boardBody").innerHTML = rows.slice(0, 30).map((r, i) => `<div class="card" style="display:flex;justify-content:space-between;align-items:center;text-align:left;margin-bottom:6px;${r.kind === "you" ? "border:2px solid #feca57" : ""}">
       <span><b>${i === 0 ? "🥇" : i === 1 ? "🥈" : i === 2 ? "🥉" : "#" + (i + 1)}</b> ${icon[r.kind]} ${r.name.replace(/[<>&]/g, "")}${r.kind === "you" ? " (you)" : ""}</span>
       <span><b>🏆 ${r.trophies.toLocaleString()}</b> · 🔁 ${r.rebirths}</span></div>`).join("")

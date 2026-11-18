@@ -1065,7 +1065,7 @@ check(String(q(`document.getElementById('rebN').textContent`)) === '5' && /Rebir
 // ---- 🏆 leaderboard ----
 q(`S.trophies = 900; S.rebirths = 5; boardPlayers = [{ name: 'Daniel2', trophies: 5000, rebirths: 1 }, { name: 'Sis', trophies: 100, rebirths: 9 }]; meetPlayer({ name: "Bob's island", trophies: 2000, rebirths: 3 });`);
 const byT = JSON.parse(q(`JSON.stringify(leaderboard('trophies').map(function(r){ return [r.name, r.kind]; }))`));
-check(byT[0][0] === '🤖 The Island Emperor' && byT.some((r) => r[0] === 'Daniel2' && r[1] === 'player') && byT.some((r) => r[0] === 'Bob' && r[1] === 'friend') && byT.some((r) => r[1] === 'you'), '🏆 trophies: you, arcade players, online friends and 🤖 rivals', JSON.stringify(byT.slice(0, 4)));
+check(byT[0][0] === 'Daniel2' && byT.some((r) => r[0] === 'Bob' && r[1] === 'friend') && byT.some((r) => r[1] === 'you') && byT.length === 4 && !byT.some((r) => /🤖/.test(r[0])), '🏆 trophies: you, arcade players and online friends — real players only, no bots', JSON.stringify(byT));
 const t = JSON.parse(q(`JSON.stringify(leaderboard('trophies').map(function(r){ return r.trophies; }))`));
 check(t.every((v, i) => i === 0 || t[i - 1] >= v), '…best first');
 const byR = JSON.parse(q(`JSON.stringify(leaderboard('rebirths').map(function(r){ return [r.name, r.rebirths]; }))`));

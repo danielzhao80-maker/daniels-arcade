@@ -524,7 +524,10 @@ check(th5.themes === 5 && th5.names >= 20, 'islands come in 5 themes (🌴 🌿 
 reset({ rank: 1 });
 check(/OWNER_HASH = "[0-9a-z]+"/.test(html) && !(process.env.OWNER_CODE && html.toUpperCase().includes(process.env.OWNER_CODE.toUpperCase())), 'the owner code is not in the page (only its hash)');
 check(q(`panelAction('res', 'gold', false)`) === '🔒 Not allowed.' && q(`panelAction('th', 3, true)`) === '🔒 Not allowed.', 'no panels until you have the code');
-q(`document.getElementById('codeIn').value = 'nop2wgames'; document.getElementById('codeBtn').onclick();`);
+check(/ADMIN_HASH = "[0-9a-z]+"/.test(html) && !/ADMIN_CODE\s*=/.test(html) && !(process.env.ADMIN_CODE && html.toUpperCase().includes(process.env.ADMIN_CODE.toUpperCase())), 'the admin code is not in the page either (only its hash)');
+// the real admin code is only checked when given (ADMIN_CODE=... node tools/test-island.js) — it is never written here
+if (process.env.ADMIN_CODE) q(`document.getElementById('codeIn').value = ${JSON.stringify(process.env.ADMIN_CODE.toLowerCase())}; document.getElementById('codeBtn').onclick();`);
+else { console.log('  (skip) set ADMIN_CODE=... to check the real admin code'); q(`S.admin = true; refreshPanelButtons(); openAdmin(false);`); }
 check(q('S.admin') === true && q(`document.getElementById('adminPanel').style.display`) === 'block' && q(`document.getElementById('btnAdmin').style.display`) === 'none', '🛠️ the admin code opens the Admin Panel (no button until you use it)');
 q(`S.gold = 0; S.buildings.push({ type: 'storage', lvl: 5, x: CENTER + 3, y: CENTER });`);
 const adm = JSON.parse(q(`(function(){ var r = []; for (var i = 0; i < 8; i++) r.push(panelAction('res', 'gold', false)); return JSON.stringify({ gold: S.gold, last: r[r.length - 1] }); })()`));

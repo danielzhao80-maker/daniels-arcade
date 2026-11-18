@@ -1280,7 +1280,7 @@ function redeemCode(raw) {
   const code = String(raw || "").trim().toUpperCase().replace(/\s+/g, "");
   if (!code) return "Type a code first.";
   if (codeHash(code) === OWNER_HASH) { S.owner = true; save(); refreshPanelButtons(); openAdmin(true); return "👑 OWNER PANEL unlocked — no limits!"; }
-  if (code === ADMIN_CODE) { S.admin = true; save(); refreshPanelButtons(); openAdmin(false); return "🛠️ Admin Panel unlocked!"; }
+  if (codeHash(code) === ADMIN_HASH) { S.admin = true; save(); refreshPanelButtons(); openAdmin(false); return "🛠️ Admin Panel unlocked!"; }
   const c = CODES[code]; if (!c) return "❌ That code doesn't exist.";
   S.codes = S.codes || [];
   if (S.codes.includes(code)) return "You already used that code.";
@@ -1298,7 +1298,7 @@ function redeemCode(raw) {
 // ---- 🛠️ Admin Panel (daily limits) and 👑 Owner Panel (no limits) ------------------------------------------
 // Opened from the 🎁 code box. The owner's code is NOT written in this file (the game is public on GitHub) —
 // only its hash. Admin: the admin code, or an arcade admin. Once opened, its button stays in the top bar.
-const OWNER_HASH = "1nzwpznwvfj", ADMIN_CODE = "NOP2WGAMES";
+const OWNER_HASH = "1nzwpznwvfj", ADMIN_HASH = "2dfmr18c9r3";   // 🛠️ both codes are scrambled (one-way hashes) — neither is written here
 function codeHash(str, seed = 67) {   // cyrb53 (the same hash Monster Attack! uses for its owner code)
   let h1 = 0xdeadbeef ^ seed, h2 = 0x41c6ce57 ^ seed;
   for (let i = 0, ch; i < str.length; i++) { ch = str.charCodeAt(i); h1 = Math.imul(h1 ^ ch, 2654435761); h2 = Math.imul(h2 ^ ch, 1597334677); }

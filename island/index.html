@@ -60,10 +60,12 @@
   <span class="pill">🏆 <b id="trophies">0</b></span>
   <span class="pill">🎖️ <b id="rankN">1</b></span>
   <span class="pill" id="prestPill" style="display:none" title="Prestige">🌟 <b id="prestN">0</b></span>
+  <span class="pill" id="rebPill" style="display:none" title="Rebirths">🔁 <b id="rebN">0</b></span>
   <span class="pill" title="Raiders arrive in…">🏴‍☠️ <b id="raidIn">10:00</b></span>
   <span class="pill" id="revPill" style="display:none" title="An island you raided is coming for revenge">😠 <b id="revIn">0:00</b></span>
   <span class="pill">⚔️ <b id="armyN">0</b>/<b id="armyCap">0</b></span>
   <button id="btnInfo" class="blue small">📊 My Island</button>
+  <button id="btnBoard" class="small" style="background:linear-gradient(180deg,#ffd32a,#e1a400);box-shadow:0 4px 0 #8a6d00;color:#3d2c00">🏆 Leaders</button>
   <button id="btnAdmin" class="small" style="display:none;background:linear-gradient(180deg,#ff7675,#c0392b);box-shadow:0 4px 0 #7b1d14">🛠️ Admin</button>
   <button id="btnOwner" class="small" style="display:none;background:linear-gradient(180deg,#f9ca24,#b8860b);box-shadow:0 4px 0 #6b4f00">👑 Owner</button>
 </div>
@@ -105,6 +107,9 @@
 </div>
 <div class="panel" id="infoPanel"><button class="close" data-close>✕</button><h2>📊 My Island</h2><div class="sub">Everything about your island.</div><div id="infoBody"></div></div>
 <div class="panel" id="adminPanel"><button class="close" data-close>✕</button><h2 id="admTitle"></h2><div class="sub" id="admSub"></div><div id="admBody"></div><div class="sub" id="admMsg" style="font-weight:900;font-size:1rem;margin-top:10px"></div></div>
+<div class="panel" id="boardPanel"><button class="close" data-close>✕</button><h2>🏆 Leaderboard</h2>
+  <div class="row"><button class="small" id="boardT">🏆 Most trophies</button><button class="small" id="boardR">🔁 Most rebirths</button></div>
+  <div class="sub" id="boardSub"></div><div id="boardBody"></div></div>
 <div class="panel" id="prestPanel"><button class="close" data-close>✕</button><h2>🌟 Prestige</h2><div id="prestBody"></div></div>
 <div class="panel" id="rankPanel"><button class="close" data-close>✕</button><h2>🎖️ Rank Up</h2><div id="rankBody"></div></div>
 <div class="panel" id="resultPanel"><h2 id="resTitle"></h2><div class="sub" id="resText" style="font-size:1rem"></div><div class="row"><button id="resOk">Back to my island</button></div></div>
@@ -171,6 +176,12 @@ const PRESTIGE = [
 const MAX_PRESTIGE = PRESTIGE.length, PRESTIGE_BUFF = 0.15;
 const prest = () => (typeof S === "object" && S ? Math.max(0, Math.min(MAX_PRESTIGE, S.prestige || 0)) : 0);
 const prestMul = () => 1 + PRESTIGE_BUFF * prest();
+// 🔁 REBIRTH: at Town Hall 10 and rank 10 you can be reborn — your island starts again from Town Hall 1, and
+// every rebirth gives +25% troop health, troop damage and resources a minute, for good (it stacks with Prestige).
+// You keep your trophies, Prestige, pets, golems, codes and owner/admin powers.
+const REBIRTH_BUFF = 0.25;
+const rebirths = () => (typeof S === "object" && S ? Math.max(0, Math.floor(S.rebirths || 0)) : 0);
+const buffMul = () => prestMul() * (1 + REBIRTH_BUFF * rebirths());
 // ⬆️ Tower upgrades: three one-time upgrades per tower — buy any of them, in any order, on any tower level.
 const PERKS = {
   archer: [ { id: "eagleeye", emoji: "🔭", name: "Eagle Eye",   desc: "+1.5 range" },
@@ -225,7 +236,7 @@ const costOf = (type, lvl) => { const o = {}; for (const [k, v] of Object.entrie
 const hpOf = (type, lvl) => Math.round(B[type].hp * (1 + 0.5 * (lvl - 1)));
 const landRadius = (th) => Math.min(9.5, 3.6 + th * 0.8);
 const GRID = 21, CENTER = 10;
-const prodPerMin = (lvl) => Math.round(18 * lvl * prestMul());   // 🌟 +15% a Prestige
+const prodPerMin = (lvl) => Math.round(18 * lvl * buffMul());   // 🌟 +15% a Prestige, 🔁 +25% a Rebirth
 
 // ---- troops ------------------------------------------------------------------------------------
 const T = {
@@ -302,7 +313,7 @@ function myPets() {
 }
 // ♾️ With Infinite pets (or ∞ of ALL pets) on, your pets can't die in your battles.
 const petsImmortal = () => !!(S.infPets || S.allPetsInf);
-const petLimit = () => infPets() ? Infinity : 3 + Math.floor(th() / 2);
+const petLimit = () => infPets() ? Infinity : 3 + Math.floor(Math.max(th(), S.bestTh || 0) / 2);   // (🔁 after a rebirth: your best Town Hall still counts)
 function buyPet(k, n) {
   n = Math.max(1, Math.floor(n || 1));
   if (!MOB[k] || MOB[k].golem) return "No such pet.";
@@ -426,6 +437,57 @@ function prestigeBlock() {   // why you can't prestige yet (or null)
   if (prest() >= MAX_PRESTIGE) return "🌟 You've done every Prestige — you're a legend!";
   if (th() < MAX_TH || rank() < MAX_TH) return `🌟 Get your Town Hall to level ${MAX_TH} and 🎖️ rank ${MAX_TH} first.`;
   return null;
+}
+function rebirthBlock() {
+  if (battle) return "Finish your battle first.";
+  if (th() < MAX_TH || rank() < MAX_TH) return `🔁 Get your Town Hall to level ${MAX_TH} and 🎖️ rank ${MAX_TH} first.`;
+  return null;
+}
+const REBIRTH_KEEP = ["prestige", "trophies", "wins", "codes", "codesReset", "owner", "ownerUsed", "admin", "adminUsed", "adminDay", "infinite", "infTroops", "infPets", "allPetsInf",
+  "pets", "golems", "rebirths", "bestTh", "met", "raidsWon", "raidsLost", "noRaids", "gateN", "gateEvery", "dealShift", "deals", "trades"];
+function doRebirth(force) {   // force: the owner skips the Town Hall 10 / rank 10 rule
+  const why = rebirthBlock(); if (why && !(force && !battle)) return why;
+  const keep = {}; for (const k of REBIRTH_KEEP) if (S[k] !== undefined) keep[k] = S[k];
+  keep.bestTh = Math.max(keep.bestTh || 0, th());   // 🐾 your pet limit stays as it was
+  S = Object.assign(freshSave(), keep);
+  S.rebirths = (keep.rebirths || 0) + 1;
+  const bonus = 1000 * S.rebirths; for (const k of ["gold", "wood", "stone"]) S[k] = Math.min(capOf(), S[k] + bonus);   // a head start
+  S.nextRaidAt = Date.now() + RAID_EVERY; S.revenge = null;
+  refillInfinite(); homeMobsKey = ""; placing = null; moving = null; save(); submitScore(true);
+  return `🔁 REBIRTH ${S.rebirths}! Your island starts again — with +${Math.round(REBIRTH_BUFF * 100 * S.rebirths)}% troops and resources for good, and a head start of ${costText({ gold: bonus, wood: bonus, stone: bonus })}.`;
+}
+// ---- 🏆 LEADERBOARD: most trophies and most rebirths. You, arcade players on this computer (through the
+// arcade server, when you're logged in to an arcade account), friends you've fought online, and 🤖 computer rivals.
+const BOTS = [["Captain Coral", 150, 0], ["Pirate Pete", 400, 0], ["Kraken King", 800, 1], ["Shark Bait", 1300, 1], ["Lagoon Lord", 2100, 2],
+  ["Storm Queen", 3200, 3], ["Golden Gull", 5000, 5], ["Ultra Turtle", 8000, 8], ["Mega Mermaid", 12000, 12], ["The Island Emperor", 20000, 20]];
+const account = () => { try { return JSON.parse(localStorage.getItem("daniels-arcade-account") || "null") || {}; } catch (e) { return {}; } };
+const hasServer = () => location.protocol !== "file:" && !/\.github\.io$/.test(location.hostname) && !!window.fetch;
+let boardPlayers = [], boardAt = 0, lastScore = "";
+function submitScore(now) {   // send your numbers to the arcade server (only when logged in to an arcade account)
+  const acc = account(); if (!acc.token || !hasServer()) return;
+  const body = { game: "island", trophies: S.trophies || 0, rebirths: rebirths(), prestige: prest(), th: th() }, key = JSON.stringify(body);
+  if (key === lastScore && !now) return; lastScore = key;
+  try { fetch("/api/arcade/score", { method: "POST", headers: { "Content-Type": "application/json", "x-arcade-token": acc.token }, body: key }).catch(() => {}); } catch (e) {}
+}
+async function loadBoard() {
+  if (!hasServer() || Date.now() - boardAt < 15000) return;
+  boardAt = Date.now();
+  try { const r = await fetch("/api/arcade/leaderboard?game=island"); if (r.ok) boardPlayers = ((await r.json()) || {}).players || []; } catch (e) {}
+}
+function leaderboard(by) {   // by: "trophies" | "rebirths" — the rows, best first
+  const me = account().name || "You", rows = new Map();
+  const put = (name, trophies, rebirths, kind) => { const k = name.toLowerCase(), old = rows.get(k); if (!old || kind === "you" || (old.kind !== "you" && trophies > old.trophies)) rows.set(k, { name, trophies, rebirths, kind }); };
+  for (const [n, t, r] of BOTS) put("🤖 " + n, t, r, "bot");
+  for (const p of boardPlayers) put(p.name, p.trophies || 0, p.rebirths || 0, "player");
+  for (const [n, m] of Object.entries(S.met || {})) put(n, m.trophies || 0, m.rebirths || 0, "friend");
+  put(me, S.trophies || 0, rebirths(), "you");
+  return [...rows.values()].sort((a, b) => (b[by] - a[by]) || (b.trophies - a.trophies));
+}
+function meetPlayer(isl) {   // 🌐 someone you fought online joins your leaderboard
+  if (!isl || typeof isl.name !== "string") return;
+  const name = isl.name.replace(/'s island$/, "").slice(0, 24); if (!name || name === "Friend") return;
+  S.met = S.met || {}; S.met[name] = { trophies: Math.max(0, Math.floor(+isl.trophies || 0)), rebirths: Math.max(0, Math.floor(+isl.rebirths || 0)), at: Date.now() };
+  save();
 }
 function startPrestige() { const why = prestigeBlock(); if (why) return why; return startBattle(prestigeIsland(prest() + 1), { prestige: prest() + 1 }); }
 function startRankUp() {
@@ -554,7 +616,7 @@ function genIsland(lvl, seed, p) {   // p: a 🌟 Prestige island (its map, towe
 // Your island as someone else will see it (online).
 function myIslandSnapshot() {
   const name = (() => { try { return (JSON.parse(localStorage.getItem("daniels-arcade-account") || "null") || {}).name || ""; } catch (e) { return ""; } })() || "Friend";
-  return { name: name + "'s island", th: th(), prestige: prest(), theme: prest() ? PRESTIGE[prest() - 1].theme : undefined, golems: (S.golems || []).slice(), pets: myPets(), buildings: S.buildings.map((b) => ({ type: b.type, lvl: b.lvl, x: b.x, y: b.y, perks: (b.perks || []).slice() })),
+  return { name: name + "'s island", trophies: S.trophies || 0, rebirths: rebirths(), th: th(), prestige: prest(), theme: prest() ? PRESTIGE[prest() - 1].theme : undefined, golems: (S.golems || []).slice(), pets: myPets(), buildings: S.buildings.map((b) => ({ type: b.type, lvl: b.lvl, x: b.x, y: b.y, perks: (b.perks || []).slice() })),
            loot: { gold: Math.floor(S.gold * 0.1), wood: Math.floor(S.wood * 0.1), stone: Math.floor(S.stone * 0.1) } };
 }
 
@@ -596,7 +658,7 @@ function gateStep(bt) {   // ⛩️ every Summoning Gate on YOUR island
   for (const g of list) {
     if (g.type !== "gate" || g.hp <= 0 || bt.frame < (g.nextSummon || 1)) continue;
     g.nextSummon = bt.frame + gateEvery();
-    const lv = (1 + 0.1 * Math.max(0, barracksLvl() - 1)) * prestMul(), pool = bt.foes ? bt.troops : bt.mobs;
+    const lv = (1 + 0.1 * Math.max(0, barracksLvl() - 1)) * buffMul(), pool = bt.foes ? bt.troops : bt.mobs;
     if (pool.filter((t) => t.summoned && t.hp > 0).length >= gateMax()) continue;
     for (const k of Object.keys(T)) for (let i = 0; i < gateN(); i++) {
       const t = T[k], x = g.x + (Math.random() - 0.5) * 1.2, y = g.y + (Math.random() - 0.5) * 1.2;
@@ -674,7 +736,7 @@ function deploy(kind, x, y) {
   const bt = battle; if (!bt || bt.over || !(bt.army[kind] > 0)) return false;
   if (bt.bridge && !onHome(bt.bridge, x, y)) [x, y] = homeSpot(bt.bridge);   // 🌉 troops start on YOUR island
   if (!infTroops()) bt.army[kind]--;
-  const t = T[kind], lv = (1 + 0.1 * Math.max(0, barracksLvl() - 1)) * prestMul();   // 🌟 +15% a Prestige
+  const t = T[kind], lv = (1 + 0.1 * Math.max(0, barracksLvl() - 1)) * buffMul();   // 🌟 +15% a Prestige, 🔁 +25% a Rebirth
   bt.troops.push({ kind, x, y, hp: t.hp * lv, maxHp: t.hp * lv, dmg: t.dmg * lv, cd: 0, target: null, stage: bt.bridge ? 0 : 2 });
   return true;
 }
@@ -992,7 +1054,7 @@ function deployDefender(kind, x, y) {
   const bt = battle; if (!bt || bt.over || !bt.opts.defense || !T[kind] || !(infTroops() || S.army[kind] > 0)) return false;
   if (Math.hypot(x - CENTER, y - CENTER) > landRadius(bt.island.th) + 1) return false;   // on your island (or its beach)
   if (!infTroops()) { S.army[kind]--; bt.army[kind] = S.army[kind]; }
-  const d = allyDef(kind), lv = (1 + 0.1 * Math.max(0, barracksLvl() - 1)) * prestMul();
+  const d = allyDef(kind), lv = (1 + 0.1 * Math.max(0, barracksLvl() - 1)) * buffMul();
   bt.mobs.push({ kind, def: d, ally: true, x, y, homeX: x, homeY: y, hp: d.hp * lv, maxHp: d.hp * lv, dmg: d.dmg * lv, cd: 0, steal: 0 });
   return true;
 }
@@ -1124,7 +1186,7 @@ function wireConn(conn) {
   conn.on("data", (m) => {
     if (!m || typeof m !== "object") return;
     if (m.t === "hello" && m.island && Array.isArray(m.island.buildings)) {
-      NET.enemy = m.island;
+      NET.enemy = m.island; meetPlayer(m.island);
       onlineMsg(`⚔️ Attacking ${m.island.name}! Destroy as much as you can.`);
       setTimeout(() => { const err = startBattle(NET.enemy, { online: true }); if (err) { toast(err); netSend({ t: "result", pct: 0, stars: 0, frames: BATTLE_FRAMES }); NET.mine = { pct: 0, stars: 0, frames: BATTLE_FRAMES }; onlineResult(); } }, 900);
     } else if (m.t === "result") { NET.theirs = { pct: +m.pct || 0, stars: +m.stars || 0, frames: +m.frames || BATTLE_FRAMES }; onlineResult(); }
@@ -1440,6 +1502,8 @@ function panelAction(act, arg, owner) {
     homeMobsKey = ""; save();
     return added ? `🏯 ${added} tower${added > 1 ? "s" : ""} placed (level ${th()})` : arg === "all" ? "You already have every tower (or no room left)." : `You already have the most ${B[arg].name}s (or no room left).`;
   }
+  if (act === "rebirth") { hidePanels(); return doRebirth(true); }
+  if (act === "setrebirths") { S.rebirths = Math.max(0, Math.min(999, Math.floor(+arg) || 0)); homeMobsKey = ""; save(); submitScore(true); return `🔁 Rebirths set to ${S.rebirths}`; }
   if (act === "allon" || act === "alloff") {   // 👑 every infinite switch at once
     const on = act === "allon"; S.infinite = S.infTroops = S.infPets = S.allPetsInf = on; refillInfinite(); homeMobsKey = ""; save();
     return on ? "👑 EVERYTHING ON: ♾️ resources, ♾️ troops, ♾️ pets (free, no limit, can't die) and ∞ of every pet!" : "👑 Every infinite switch is off";
@@ -1539,8 +1603,9 @@ function renderAdmin(owner) {
       `<span style="font-size:.75rem;opacity:.75">Every Storage you can have, at level ${MAX_TH}. Each maxed one makes your whole storage ×1.5.</span>`) +
       sec("🤝 Trade", btn("newdeals", "", "⭐ New deals now", "green")) : "") +
     (owner ? sec("🏰 Town Hall · 🎖️ Rank · 🌟 Prestige (0–${MAX_PRESTIGE}) · 🗺️ Raid · 🏆", `<input id="admNum" type="number" min="1" value="${th()}" style="width:90px;text-transform:none">` +
-      btn("th", "#", "Set Town Hall") + btn("rank", "#", "Set Rank") + btn("prestige", "#", "Set 🌟 Prestige") + btn("raid", "#", "Set Raid level") + btn("trophies", "#", "Add 🏆")) +
+      btn("th", "#", "Set Town Hall") + btn("rank", "#", "Set Rank") + btn("prestige", "#", "Set 🌟 Prestige") + btn("setrebirths", "#", "Set 🔁 Rebirths") + btn("raid", "#", "Set Raid level") + btn("trophies", "#", "Add 🏆")) +
       sec("🏴‍☠️ Raids & 😠 revenge", btn("raidnow", "", "🏴‍☠️ Raid now", "red") + btn("revengenow", "", "😠 Revenge now", "red") + btn("noraids", "", S.noRaids ? "🏴‍☠️ Raids: OFF" : "🏴‍☠️ Raids: on", S.noRaids ? "" : "green")) +
+      sec(`🔁 Rebirth — you have ${rebirths()} (+${Math.round(REBIRTH_BUFF * 100 * rebirths())}%)`, btn("rebirth", "", "🔁 Rebirth now (island starts again)", "red") + `<span style="font-size:.75rem;opacity:.75">Owner: no Town Hall 10 needed. Set a number with "Set 🔁 Rebirths" above.</span>`) +
       sec(`🌟 Prestige — you are ${prest()}/${MAX_PRESTIGE}`, btn("pnext", "", "🌟 +1 Prestige", "green") + btn("pmax", "", `🌟 Max (${MAX_PRESTIGE})`, "green") + btn("ptrial", "", "⚔️ Fight the next trial", "red") +
         PRESTIGE.map((P, i) => btn("pmap", i + 1, `${P.emoji} ${P.map}`, "red")).join("")) +
       sec("🏯 Towers — free, at your Town Hall level (even locked ones)", Object.keys(B).filter((t) => B[t].def || B[t].summon).map((t) => btn("tower", t, `${B[t].emoji} ${B[t].name} ${countOf(t)}/${B[t].ownerOnly ? "∞" : limitOf(t, MAX_TH, MAX_PRESTIGE)}`, B[t].prestige ? "" : B[t].th ? "blue" : "green")).join("") + btn("tower", "all", "🏯 ALL towers", "red")) +
@@ -1619,6 +1684,7 @@ function renderTop() {
   $("thLv").textContent = th(); for (const k of ["gold", "wood", "stone"]) $(k).textContent = infinite() ? "∞" : Math.floor(S[k]).toLocaleString();
   $("trophies").textContent = S.trophies; $("rankN").textContent = rank();
   $("prestPill").style.display = prest() ? "inline-block" : "none"; $("prestN").textContent = prest();
+  $("rebPill").style.display = rebirths() ? "inline-block" : "none"; $("rebN").textContent = rebirths();
   if (S.revenge) { const rs = Math.max(0, Math.ceil((S.revenge.at - Date.now()) / 1000)); $("revPill").style.display = "inline-block"; $("revIn").textContent = `${Math.floor(rs / 60)}:${String(rs % 60).padStart(2, "0")}`; }
   else $("revPill").style.display = "none";
   if (S.noRaids) $("raidIn").textContent = "off"; else if (S.nextRaidAt) { const sec = Math.max(0, Math.ceil((S.nextRaidAt - Date.now()) / 1000)); $("raidIn").textContent = `${Math.floor(sec / 60)}:${String(sec % 60).padStart(2, "0")}`; } $("armyN").textContent = infTroops() ? "∞" : armyUsed(); $("armyCap").textContent = armyCap();
@@ -1692,6 +1758,7 @@ function renderInfo() {
   const sec = (title, body) => `<div class="card" style="text-align:left;margin-bottom:10px"><div class="n" style="font-size:1.05rem">${title}</div><div style="font-size:.9rem;line-height:1.6">${body}</div></div>`;
   $("infoBody").innerHTML =
     sec(`🏰 Town Hall level ${I.th}${I.th >= MAX_TH ? " (top level!)" : ""} · 🎖️ Rank ${rank()}`, `${I.land} buildings on your island · land radius ${landRadius(I.th).toFixed(1)} tiles<br>` + (rank() > I.th ? `You can upgrade your Town Hall to level ${rank()}.` : rank() >= MAX_TH ? "Top rank!" : `To upgrade your Town Hall, 🎖️ Rank Up: destroy a Town Hall ${I.th + 1} base.`)) +
+    (rebirths() ? sec(`🔁 Rebirth ${rebirths()}`, `💪 +${Math.round(REBIRTH_BUFF * 100 * rebirths())}% troop health & damage and resources a minute (on top of 🌟 Prestige)`) : "") +
     (prest() ? sec(`🌟 Prestige ${prest()}`, `💪 +${Math.round(PRESTIGE_BUFF * 100 * prest())}% troop health & damage and resources a minute<br>` + PRESTIGE.slice(0, prest()).map((P) => `${P.emoji} ${P.name}: ${B[P.tower].emoji} ${B[P.tower].name} · ${MOB[P.mob].emoji} ${MOB[P.mob].name} · 🗺️ ${P.map}`).join("<br>")) : "") +
     sec("💰 Resources", ["gold", "wood", "stone"].map((k) => `${R[k]} <b>${I.res[k].toLocaleString()}</b> / ${I.cap.toLocaleString()} &nbsp;·&nbsp; +${I.make[k]}/min`).join("<br>")
       + `<br><span style="opacity:.8">📦 Storage ${I.cap.toLocaleString()} = ${maxedStorages() ? "(" : ""}1,000 base` + Object.keys(STORE_PER_LVL).map((t) => { const v = S.buildings.filter((b) => b.type === t).reduce((a, b) => a + storeOf(b), 0); return v ? ` + ${B[t].emoji} ${v.toLocaleString()}` : ""; }).join("") + (maxedStorages() ? `) × ${storeBoost().toFixed(2).replace(/\.?0+$/, "")} (${maxedStorages()} maxed-out Storage${maxedStorages() > 1 ? "s" : ""}: ×1.5 each)` : ` · max out a Storage (level ${MAX_TH}) for ×1.5!`) + `</span>`) +
@@ -1839,7 +1906,35 @@ function renderPrestige() {
     }).join("")
     + (why ? `<div class="sub" style="font-size:1rem;font-weight:900">${why}</div>` : `<div class="sub" style="font-size:1rem">Beat the <b>Prestige ${n} Trial</b> on the ${PRESTIGE[n - 1].emoji} ${PRESTIGE[n - 1].map} map with ⭐⭐ (its Town Hall and half the base).</div><div class="row"><button class="red" id="prestGo">⚔️ Fight the Prestige ${n} Trial</button></div>`);
   const go = $("prestGo"); if (go) go.onclick = () => { const e = startPrestige(); if (e) toast(e); };
+  // 🔁 Rebirth (two taps — it starts your island again)
+  const rb = rebirthBlock();
+  $("prestBody").innerHTML += `<div class="card" style="text-align:left;margin-top:12px;border:2px solid #fd79a8"><div class="n">🔁 Rebirth — you have ${rebirths()} (+${Math.round(REBIRTH_BUFF * 100 * rebirths())}% now)</div>
+    <div style="font-size:.82rem;line-height:1.55">Your island starts again from Town Hall 1 — but every rebirth gives <b>+${Math.round(REBIRTH_BUFF * 100)}% troop health, damage and resources</b> for good, and a head start.<br>
+    You keep: 🏆 trophies, 🌟 Prestige, 🐾 pets, 🗿 golems, codes and owner/admin powers. You lose: your buildings, resources and army.</div>
+    ${rb ? `<div class="sub" style="font-weight:900">${rb}</div>` : `<div class="row"><button class="red" id="rebGo">🔁 Rebirth…</button></div>`}</div>`;
+  const go2 = $("prestGo"); if (go2) go2.onclick = () => { const e = startPrestige(); if (e) toast(e); };   // (re-attached: the += above rebuilt the panel)
+  const rg = $("rebGo");
+  if (rg) rg.onclick = () => {
+    if (rg.dataset.sure !== "1") { rg.dataset.sure = "1"; rg.textContent = "⚠️ Sure? Your island starts again — tap to REBIRTH"; return; }
+    toast(doRebirth()); hidePanels(); renderTop(); refreshPanelButtons();
+  };
 }
+let boardBy = "trophies";
+function renderBoard() {
+  const rows = leaderboard(boardBy), me = rows.findIndex((r) => r.kind === "you");
+  const acc = account();
+  $("boardSub").textContent = (acc.token && hasServer() ? "👤 Arcade players on this computer are here too." : "Log in to an arcade account (on this computer) to be on the arcade leaderboard.") + ` You are #${me + 1}.`;
+  const icon = { you: "⭐", player: "👤", friend: "🌐", bot: "" };
+  $("boardBody").innerHTML = rows.slice(0, 30).map((r, i) => `<div class="card" style="display:flex;justify-content:space-between;align-items:center;text-align:left;margin-bottom:6px;${r.kind === "you" ? "border:2px solid #feca57" : ""}">
+      <span><b>${i === 0 ? "🥇" : i === 1 ? "🥈" : i === 2 ? "🥉" : "#" + (i + 1)}</b> ${icon[r.kind]} ${r.name.replace(/[<>&]/g, "")}${r.kind === "you" ? " (you)" : ""}</span>
+      <span><b>🏆 ${r.trophies.toLocaleString()}</b> · 🔁 ${r.rebirths}</span></div>`).join("")
+    + (me >= 30 ? `<div class="card" style="text-align:left;border:2px solid #feca57">#${me + 1} ⭐ ${rows[me].name} — 🏆 ${rows[me].trophies.toLocaleString()} · 🔁 ${rows[me].rebirths}</div>` : "");
+  $("boardT").className = "small" + (boardBy === "trophies" ? " green" : ""); $("boardR").className = "small" + (boardBy === "rebirths" ? " green" : "");
+}
+$("btnBoard").onclick = () => { hideInfo(); submitScore(true); renderBoard(); openPanel("boardPanel"); loadBoard().then(() => { if ($("boardPanel").style.display === "block") renderBoard(); }); };
+$("boardT").onclick = () => { boardBy = "trophies"; renderBoard(); };
+$("boardR").onclick = () => { boardBy = "rebirths"; renderBoard(); };
+setInterval(() => submitScore(false), 30000);
 $("btnPrest").onclick = () => { hideInfo(); renderPrestige(); openPanel("prestPanel"); };
 $("codeBtn").onclick = () => { toast(redeemCode($("codeIn").value)); $("codeIn").value = ""; renderTop(); };
 $("codeIn").addEventListener("keydown", (e) => { e.stopPropagation(); if (e.key === "Enter") $("codeBtn").onclick(); });

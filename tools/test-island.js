@@ -1046,6 +1046,35 @@ check(q(`battle.blds.filter(function(b){ return B[b.type].def && b.hp < b.maxHp;
 check(q(`battle.homeBlds.filter(function(b){ return B[b.type].def && b.hp < b.maxHp; }).length`) > 0, '🐺 their animals come over and attack YOUR towers');
 q(`if (!battle.over) endBattle(true); battle = null; hidePanels();`);
 
+// ---- 🔁 rebirths ----
+reset({ trophies: 777, army: { warrior: 3 } });
+check(/Town Hall to level 10/.test(q('doRebirth()')) && q('rebirths()') === 0, 'rebirth needs Town Hall 10 and rank 10');
+q(`S.owner = true; panelAction('maxbase', '', true); S.pets = ['wolf']; S.prestige = 3; S.trophies = 777; S.codes = ['ISLAND'];`);
+const p0 = q('prodPerMin(1)');
+check(/REBIRTH 1/.test(q('doRebirth()')) && q('rebirths()') === 1, '🔁 rebirth at Town Hall 10 + rank 10');
+check(q('th()') === 1 && q('rank()') === 1 && q('S.buildings.length') === 4, 'your island starts again (Town Hall 1)');
+check(q('S.trophies') === 777 && q('prest()') === 3 && q('S.pets.length') === 1 && q('S.owner') === true && q('S.codes.length') === 1, 'you keep trophies, Prestige, pets, codes and owner powers');
+check(q('prodPerMin(1)') === Math.round(18 * 1.45 * 1.25) && p0 === Math.round(18 * 1.45), '+25% resources a rebirth (stacks with Prestige)', q('prodPerMin(1)'));
+q(`S.army = { warrior: 1 }; startBattle(genIsland(2)); deploy('warrior', 0, 0);`);
+check(Math.abs(q('battle.troops[0].maxHp') - 70 * 1.45 * 1.25) < 0.01, '+25% troop health a rebirth');
+q(`endBattle(true); battle = null; hidePanels();`);
+check(/REBIRTH 2/.test(q(`panelAction('rebirth', '', true)`)) && /Owner only/.test(q(`panelAction('rebirth', '', false)`)), 'the owner can rebirth any time (admins cannot)');
+check(/set to 5/.test(q(`panelAction('setrebirths', '5', true)`)) && q('rebirths()') === 5, 'owner: set rebirths');
+q(`renderTop(); renderPrestige(); renderInfo();`);
+check(String(q(`document.getElementById('rebN').textContent`)) === '5' && /Rebirth/.test(q(`document.getElementById('prestBody').innerHTML`)), 'the top bar and the 🌟 panel show rebirths');
+// ---- 🏆 leaderboard ----
+q(`S.trophies = 900; S.rebirths = 5; boardPlayers = [{ name: 'Daniel2', trophies: 5000, rebirths: 1 }, { name: 'Sis', trophies: 100, rebirths: 9 }]; meetPlayer({ name: "Bob's island", trophies: 2000, rebirths: 3 });`);
+const byT = JSON.parse(q(`JSON.stringify(leaderboard('trophies').map(function(r){ return [r.name, r.kind]; }))`));
+check(byT[0][0] === '🤖 The Island Emperor' && byT.some((r) => r[0] === 'Daniel2' && r[1] === 'player') && byT.some((r) => r[0] === 'Bob' && r[1] === 'friend') && byT.some((r) => r[1] === 'you'), '🏆 trophies: you, arcade players, online friends and 🤖 rivals', JSON.stringify(byT.slice(0, 4)));
+const t = JSON.parse(q(`JSON.stringify(leaderboard('trophies').map(function(r){ return r.trophies; }))`));
+check(t.every((v, i) => i === 0 || t[i - 1] >= v), '…best first');
+const byR = JSON.parse(q(`JSON.stringify(leaderboard('rebirths').map(function(r){ return [r.name, r.rebirths]; }))`));
+check(byR.every((v, i) => i === 0 || byR[i - 1][1] >= v[1]) && byR.findIndex((r) => r[0] === 'Sis') < byR.findIndex((r) => r[0] === 'Daniel2'), '🔁 rebirths: most rebirths first');
+check(q('myIslandSnapshot().trophies') === 900 && q('myIslandSnapshot().rebirths') === 5, 'online friends see your trophies and rebirths');
+q(`renderBoard();`);
+check(/You are #/.test(q(`document.getElementById('boardSub').textContent`)) && /\(you\)/.test(q(`document.getElementById('boardBody').innerHTML`)), 'the 🏆 Leaders panel');
+q(`boardPlayers = []; S.met = {};`);
+
 // ---- ⛩️ owner panel: Summoning Gate controls ----
 reset({ army: {} }); q(`S.owner = true;`);
 check(/you have 1/.test(q(`panelAction('gateplace', '', true)`)) && /you have 2/.test(q(`panelAction('gateplace', '', true)`)) && q(`countOf('gate')`) === 2, '⛩️ Place as many Gates as you like');

@@ -206,6 +206,7 @@ const result = q(`(function(){
       var r = panelAction(pick(acts), String(rint(1, 10)), true); if (typeof r !== 'string') errors.push('ownerfight returned ' + r);
       var n = 0; while (battle && !battle.over && n++ < BATTLE_FRAMES + 50) { if (Math.random() < 0.05) panelAction(pick(['gatenow', 'abil', 'win']), '', true); if (battle && Math.random() < 0.1 && !battle.opts.defense) deploy(pick(Object.keys(T)), 0, 0); if (battle && battle.opts.defense && Math.random() < 0.05) deployDefender(pick(Object.keys(T)), CENTER, CENTER); battleStep(); if (battle) (battle.mobs || []).concat(battle.homeMobs || [], battle.troops, battle.foes || []).forEach(function(m){ if (!isFinite(m.hp) || !isFinite(m.x) || !isFinite(m.y)) errors.push('NaN ' + m.kind); }); }
       battle = null; hidePanels(); },
+    rebirth: function(){ if (Math.random() < 0.5) { S.buildings.find(function(b){ return b.type === 'townhall'; }).lvl = MAX_TH; S.rank = MAX_TH; } var r = doRebirth(); if (typeof r !== 'string') errors.push('rebirth returned ' + r); renderPrestige(); renderBoard(); },
     reload: function(){ save(); load(); },
     ui: function(){ renderTop(); renderBuild(); renderArmy(); renderRaids(); renderInfo(); showInfo(pick(S.buildings)); hideInfo(); hidePanels(); frame(performance.now()); },
   };

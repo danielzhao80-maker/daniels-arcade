@@ -925,8 +925,10 @@ check(q(`document.getElementById('btnAdmin').style.display`) === 'inline-block',
 q(`panelAction('res', 'wood', true); refreshPanelButtons();`);
 check(q(`document.getElementById('btnOwner').style.display`) === 'none' && q('S.ownerUsed') !== true, 'a refused owner action does not count');
 // an owner from before (owner powers on) keeps the button
-q(`localStorage.setItem(SAVE_KEY, JSON.stringify(Object.assign(freshSave(), { owner: true, infinite: true }))); load(); refreshPanelButtons();`);
-check(q(`document.getElementById('btnOwner').style.display`) === 'inline-block', 'an owner who already used owner powers keeps the button');
+q(`localStorage.setItem(SAVE_KEY, JSON.stringify(Object.assign(freshSave(), { owner: true, infinite: true }))); load(); ownerVisit = false; refreshPanelButtons();`);
+check(q(`document.getElementById('btnOwner').style.display`) === 'none' && q('isOwner() && infinite()'), 'reload: the 👑 button is gone (owner powers stay on)');
+q(`panelAction('res', 'gold', true);`);
+check(q(`document.getElementById('btnOwner').style.display`) === 'inline-block', '…use the Owner Panel again (type the code) and it comes back for this visit');
 q(`localStorage.setItem(SAVE_KEY, JSON.stringify(Object.assign(freshSave(), { owner: true }))); load(); refreshPanelButtons();`);
 check(q(`document.getElementById('btnOwner').style.display`) === 'none', '…one who never used anything does not');
 

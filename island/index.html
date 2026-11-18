@@ -1328,6 +1328,7 @@ function fitOnLand() {
 }
 function panelAction(act, arg, owner) {
   if (owner ? !isOwner() : !isAdmin()) return "🔒 Not allowed.";
+  if (owner && !ownerVisit) { ownerVisit = true; try { refreshPanelButtons(); } catch (e) {} }   // 👆 used THIS visit: the 👑 button shows (until the page reloads)
   if (owner ? !S.ownerUsed : !S.adminUsed) { if (owner) S.ownerUsed = true; else S.adminUsed = true; save(); try { refreshPanelButtons(); } catch (e) {} }   // 👆 used it: its button stays on screen
   const cap = capOf();
   if (act === "res") {   // arg: resource
@@ -1560,7 +1561,10 @@ function renderAdmin(owner) {
 }
 // The 👑 / 🛠️ button only shows once you've USED that panel (pressed something in it) — just knowing the code
 // isn't enough. No button? Type the code in the 🎁 box to open the panel.
-function refreshPanelButtons() { $("btnAdmin").style.display = isAdmin() && !isOwner() && S.adminUsed ? "inline-block" : "none"; $("btnOwner").style.display = isOwner() && S.ownerUsed ? "inline-block" : "none"; }
+// 👑 The Owner button is stricter: it only shows during the VISIT where the owner code was typed and the panel
+// used — reload the game and it's gone again (so nobody else using this computer sees it). Owner powers stay on.
+let ownerVisit = false;
+function refreshPanelButtons() { $("btnAdmin").style.display = isAdmin() && !isOwner() && S.adminUsed ? "inline-block" : "none"; $("btnOwner").style.display = isOwner() && S.ownerUsed && ownerVisit ? "inline-block" : "none"; }
 function openAdmin(owner) { hideInfo(); $("admMsg").textContent = ""; renderAdmin(owner); openPanel("adminPanel"); }
 function hostOnline() {
   if (!hasArmy()) return onlineMsg("Train some troops first (🛡️ Army) — you need an army to fight!");

@@ -239,7 +239,7 @@ check(bar.hurtAfter > 0, '…after that the defences hit your troops again');
 const ag = JSON.parse(q(`(function(){ var defs = battle.blds.filter(function(b){ return B[b.type].def && b.hp > 0; }); defs.forEach(function(b){ b.hp = b.maxHp; b.frozenUntil = 0; });
   var strongest = defs.slice().sort(function(a, b){ return (B[b.type].def.dmg * (1 + 0.45 * (b.lvl - 1))) - (B[a.type].def.dmg * (1 + 0.45 * (a.lvl - 1))); })[0];
   var thb = battle.blds.find(function(b){ return b.type === 'townhall'; }); thb.hp = thb.maxHp;
-  battle.troops.forEach(function(t){ t.hp = 0; }); battle.army = { warrior: 1 };
+  battle.troops.forEach(function(t){ t.hp = 0; }); battle.army = { warrior: 1 }; battle.homeMobs = []; battle.waves = []; battle.foes = [];
   castAbility('agent', 0.5, CENTER); var shotAt = 0;
   for (var i = 0; i < 3000 && battle.agents[0].phase !== 'done'; i++) { var n0 = battle.shots.length; battleStep(); }
   return JSON.stringify({ phase: battle.agents[0].phase, defHp: strongest.hp / strongest.maxHp, thHp: Math.round(thb.hp / thb.maxHp * 100) / 100, frozen: strongest.frozenUntil > 0 }); })()`));
@@ -1032,6 +1032,14 @@ check(q('battle.bridge.home.full') === true && q('battle.homeBlds.length') === q
 q(`battle.homeBlds.forEach(function(b){ if (b.type !== 'wall') b.hp = 0; }); S.gold = 500; endBattle(true);`);
 check(q('S.gold') >= 500 && !/wrecked/.test(String(q('NET.mine && NET.mine.pct'))), '🌐 online: nothing is taken from you here');
 q(`battle = null; hidePanels(); netReset();`);
+
+// ---- 🐺 animals attack the other island's towers ----
+reset({ army: { warrior: 1 } });
+q(`S.buildings.push({ type: 'barracks', lvl: 5, x: 12, y: 12 }, { type: 'archer', lvl: 2, x: 8, y: 8 }); startBattle(genIsland(8)); battle.waves = []; battle.troops = [];`);
+q(`for (var i = 0; i < 3000 && !battle.over; i++) battleStep();`);
+check(q(`battle.blds.filter(function(b){ return B[b.type].def && b.hp < b.maxHp; }).length`) > 0, '🐺 your animals cross over and attack the enemy towers');
+check(q(`battle.homeBlds.filter(function(b){ return B[b.type].def && b.hp < b.maxHp; }).length`) > 0, '🐺 their animals come over and attack YOUR towers');
+q(`if (!battle.over) endBattle(true); battle = null; hidePanels();`);
 
 // ---- ⛩️ owner panel: Summoning Gate controls ----
 reset({ army: {} }); q(`S.owner = true;`);

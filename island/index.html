@@ -738,6 +738,10 @@ function mobStep(bt, mobs, troops, ctr, noSteal, hostile, enemyBlds) {
     for (const tr of troops) if (tr.hp > 0) { const d = Math.hypot(tr.x - m.x, tr.y - m.y); if (d < bd) { bd = d; tg = tr; } }
     for (const o of hostile) if (o.hp > 0 && (m.pet || o.pet)) { const d = Math.hypot(o.x - m.x, o.y - m.y); if (d < bd && (m.pet || d < M.sight)) { bd = d; tg = o; } }   // 🐾
     if (m.pet) for (const b of enemyBlds) if (b.hp > 0 && b.type !== "wall") { const d = Math.hypot(b.x - m.x, b.y - m.y); if (d < bd) { bd = d; tg = b; } }   // 🐾 …and the other island
+    if (!tg && !m.pet) {   // 🐺 nothing to fight near: go and attack the other island's TOWERS
+      bd = Infinity;
+      for (const b of enemyBlds) if (b.hp > 0 && B[b.type].def) { const d = Math.hypot(b.x - m.x, b.y - m.y); if (d < bd) { bd = d; tg = b; } }
+    }
     if (!tg) {   // nothing near: walk back home
       if (Math.hypot(m.homeX - m.x, m.homeY - m.y) > 0.1) walkTo(bt, m, m.homeX, m.homeY, M.speed / 60);
       continue;

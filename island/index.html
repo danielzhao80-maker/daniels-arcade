@@ -15,6 +15,9 @@
   /* the top bar and the code bar stack in one column, so a wrapped top bar never covers the code bar */
   #topwrap { position: fixed; top: 10px; left: 0; right: 0; display: flex; flex-direction: column; align-items: center; gap: 6px; z-index: 5; pointer-events: none; }
   #topwrap .bar { position: static; transform: none; pointer-events: auto; }
+  #top { max-width: calc(100vw - 130px); gap: 6px; }   /* keep clear of the ⚡ bar and Nullp; wrap to a 2nd row when needed */
+  #top .pill { padding: 5px 11px; font-size: .88rem; }
+  #top button.small { padding: 5px 10px; font-size: .8rem; }
   #bottom { bottom: 14px; }
   .pill { background: rgba(10, 30, 50, .78); border: 2px solid rgba(255,255,255,.25); border-radius: 30px; padding: 6px 14px; font-weight: 900; font-size: .95rem; white-space: nowrap; }
   .pill b { font-family: "Fredoka One", cursive; font-weight: 400; }
@@ -60,7 +63,8 @@
   <span class="pill">🏆 <b id="trophies">0</b></span>
   <span class="pill">🎖️ <b id="rankN">1</b></span>
   <span class="pill" id="prestPill" style="display:none" title="Prestige">🌟 <b id="prestN">0</b></span>
- <span class="pill" id="evPill" style="display:none" title="Event currency"></span>
+ <span class="pill" id="titlePill" style="display:none" title="Your title"></span>
+  <span class="pill" id="evPill" style="display:none" title="Event currency"></span>
   <span class="pill" id="rebPill" style="display:none" title="Rebirths">🔁 <b id="rebN">0</b></span>
   <span class="pill" title="Raiders arrive in…">🏴‍☠️ <b id="raidIn">10:00</b></span>
   <span class="pill" id="revPill" style="display:none" title="An island you raided is coming for revenge">😠 <b id="revIn">0:00</b></span>
@@ -68,6 +72,7 @@
   <button id="btnInfo" class="blue small">📊 My Island</button>
  <button id="btnEvent" class="small" style="display:none"></button>
   <button id="btnTree" class="small" style="background:linear-gradient(180deg,#7bed9f,#2ed573);box-shadow:0 4px 0 #1e7a45;color:#073b1f">🌳 Tree</button>
+  <button id="btnTitles" class="small" style="background:linear-gradient(180deg,#a29bfe,#6c5ce7);box-shadow:0 4px 0 #3c2f99">🏅 Titles</button>
   <button id="btnBoard" class="small" style="background:linear-gradient(180deg,#ffd32a,#e1a400);box-shadow:0 4px 0 #8a6d00;color:#3d2c00">🏆 Leaders</button>
   <button id="btnAdmin" class="small" style="display:none;background:linear-gradient(180deg,#ff7675,#c0392b);box-shadow:0 4px 0 #7b1d14">🛠️ Admin</button>
   <button id="btnOwner" class="small" style="display:none;background:linear-gradient(180deg,#f9ca24,#b8860b);box-shadow:0 4px 0 #6b4f00">👑 Owner</button>
@@ -112,6 +117,7 @@
 <div class="panel" id="adminPanel"><button class="close" data-close>✕</button><h2 id="admTitle"></h2><div class="sub" id="admSub"></div><div id="admBody"></div><div class="sub" id="admMsg" style="font-weight:900;font-size:1rem;margin-top:10px"></div></div>
 <div class="panel" id="eventPanel"><button class="close" data-close>✕</button><h2 id="evTitle"></h2><div class="sub" id="evSub"></div><div id="evBody"></div></div>
 <div class="panel" id="treePanel"><button class="close" data-close>✕</button><h2>🌳 Growth Tree</h2><div class="sub" id="treeSub"></div><div id="treeBody"></div></div>
+<div class="panel" id="titlesPanel"><button class="close" data-close>✕</button><h2>🏅 Titles</h2><div class="sub" id="titlesSub"></div><div class="grid" id="titlesGrid"></div></div>
 <div class="panel" id="boardPanel"><button class="close" data-close>✕</button><h2>🏆 Leaderboard</h2>
   <div class="row"><button class="small" id="boardT">🏆 Most trophies</button><button class="small" id="boardR">🔁 Most rebirths</button></div>
   <div class="sub" id="boardSub"></div><div id="boardBody"></div></div>
@@ -512,7 +518,49 @@ function load() {
   if (away > 60 && (got.gold + got.wood + got.stone) > 0) setTimeout(() => toast(`🌙 While you were away: 🪙 ${got.gold} · 🪵 ${got.wood} · 🪨 ${got.stone}`), 600);
   S.last = Date.now();
 }
-function save() { S.last = Date.now(); try { localStorage.setItem(SAVE_KEY, JSON.stringify(S)); } catch (e) {} }
+// ---- 🏅 TITLES: 20 of them — 15 you earn by playing, and 5 SECRET ones (shown as ❓ until you find them).
+// Wear one: it shows in the top bar, on the leaderboard and to friends online.
+const TITLES = [
+  { id: "islander",  name: "🌴 Islander",          how: "Have 10 buildings",            got: () => S.buildings.length >= 10 },
+  { id: "planner",   name: "🏰 Town Planner",      how: "Town Hall 5",                  got: () => th() >= 5 },
+  { id: "builder",   name: "🏯 Master Builder",    how: `Town Hall ${MAX_TH}`,           got: () => th() >= MAX_TH },
+  { id: "raider",    name: "⚔️ Raider",            how: "Win 10 raids",                 got: () => (S.wins || 0) >= 10 },
+  { id: "captain",   name: "🏴‍☠️ Pirate Captain",  how: "Win 50 raids",                 got: () => (S.wins || 0) >= 50 },
+  { id: "defender",  name: "🛡️ Defender",          how: "Beat 10 raids on your island", got: () => (S.raidsWon || 0) >= 10 },
+  { id: "hunter",    name: "🏆 Trophy Hunter",     how: "500 trophies",                 got: () => (S.trophies || 0) >= 500 },
+  { id: "trophyking",name: "👑 Trophy King",       how: "2,000 trophies",               got: () => (S.trophies || 0) >= 2000 },
+  { id: "toprank",   name: "🎖️ Top Rank",          how: `Rank ${MAX_TH}`,                got: () => rank() >= MAX_TH },
+  { id: "prestige1", name: "🌟 Prestigious",       how: "Prestige once",                got: () => prest() >= 1 },
+  { id: "legend",    name: "💎 Prestige Legend",   how: `Prestige ${MAX_PRESTIGE}`,      got: () => prest() >= MAX_PRESTIGE },
+  { id: "reborn",    name: "🔁 Reborn",            how: "Rebirth once",                 got: () => rebirths() >= 1 },
+  { id: "fresh",     name: "♻️ Fresh Start",       how: "Reset once",                   got: () => (S.resets || 0) >= 1 },
+  { id: "petlover",  name: "🐾 Pet Lover",         how: "Have 8 pets",                  got: () => (S.pets || []).length >= 8 },
+  { id: "trader",    name: "🤝 Big Trader",        how: "Make 25 trades",               got: () => (S.trades || 0) >= 25 },
+  // 🤫 secret — found by doing something unusual (see unlockTitle calls)
+  { id: "nightowl",  name: "🌙 Night Owl",         secret: true, how: "Play Island Clash between midnight and 4 am" },
+  { id: "crab",      name: "🦀 Crab Whisperer",    secret: true, how: "Tap the beach of your island 10 times" },
+  { id: "scaredy",   name: "🐢 Scaredy Cat",       secret: true, how: "Give up a battle in the first 3 seconds without sending a single troop" },
+  { id: "onetroop",  name: "🎯 One-Troop Wonder",  secret: true, how: "Win ⭐⭐⭐ having sent just ONE troop" },
+  { id: "islandking",name: "🏝️ Island King",       secret: true, how: "Type the secret code ISLANDKING" },
+];
+const hasTitle = (id) => (S.titles || []).includes(id);
+const titleName = (id) => (TITLES.find((t) => t.id === id) || {}).name || "";
+const wornTitle = () => (S.title && hasTitle(S.title) ? titleName(S.title) : "");
+function unlockTitle(id, quiet) {
+  if (!TITLES.some((t) => t.id === id) || hasTitle(id)) return false;
+  S.titles = (S.titles || []).concat(id);
+  const t = TITLES.find((q) => q.id === id);
+  if (!quiet) setTimeout(() => { try { toast(`🏅 NEW TITLE: ${t.name}${t.secret ? " — a SECRET one!" : ""}`); } catch (e) {} }, 400);
+  return true;
+}
+let titleCheckAt = 0;
+function checkTitles() {   // the earned ones (cheap — at most once a second)
+  if (Date.now() - titleCheckAt < 1000 || !S || !S.buildings) return;
+  titleCheckAt = Date.now();
+  for (const t of TITLES) if (t.got && !hasTitle(t.id)) { try { if (t.got()) unlockTitle(t.id); } catch (e) {} }
+  const h = new Date().getHours(); if (h >= 0 && h < 4) unlockTitle("nightowl");   // 🌙
+}
+function save() { try { checkTitles(); } catch (e) {} S.last = Date.now(); try { localStorage.setItem(SAVE_KEY, JSON.stringify(S)); } catch (e) {} }
 // 🔄 Two tabs (or the arcade + a direct tab) open at once: when another tab saves the island, this one takes
 // that version instead of saving its own older copy over it. (The browser only tells the OTHER tabs.)
 function adoptSavedIsland(json) {
@@ -637,7 +685,7 @@ const hasServer = () => location.protocol !== "file:" && !/\.github\.io$/.test(l
 let boardPlayers = [], boardAt = 0, lastScore = "";
 function submitScore(now) {   // send your numbers to the arcade server (only when logged in to an arcade account)
   const acc = account(); if (!acc.token || !hasServer()) return;
-  const body = { game: "island", trophies: S.trophies || 0, rebirths: rebirths(), prestige: prest(), th: th() }, key = JSON.stringify(body);
+  const body = { game: "island", trophies: S.trophies || 0, rebirths: rebirths(), prestige: prest(), th: th(), title: wornTitle() }, key = JSON.stringify(body);
   if (key === lastScore && !now) return; lastScore = key;
   try { fetch("/api/arcade/score", { method: "POST", headers: { "Content-Type": "application/json", "x-arcade-token": acc.token }, body: key }).catch(() => {}); } catch (e) {}
 }
@@ -648,16 +696,16 @@ async function loadBoard() {
 }
 function leaderboard(by) {   // by: "trophies" | "rebirths" — the rows, best first
   const me = account().name || "You", rows = new Map();
-  const put = (name, trophies, rebirths, kind) => { const k = name.toLowerCase(), old = rows.get(k); if (!old || kind === "you" || (old.kind !== "you" && trophies > old.trophies)) rows.set(k, { name, trophies, rebirths, kind }); };
-  for (const p of boardPlayers) put(p.name, p.trophies || 0, p.rebirths || 0, "player");
-  for (const [n, m] of Object.entries(S.met || {})) put(n, m.trophies || 0, m.rebirths || 0, "friend");
-  put(me, S.trophies || 0, rebirths(), "you");
+  const put = (name, trophies, rebirths, kind, title) => { const k = name.toLowerCase(), old = rows.get(k); if (!old || kind === "you" || (old.kind !== "you" && trophies > old.trophies)) rows.set(k, { name, trophies, rebirths, kind, title: String(title || "").slice(0, 40) }); };
+  for (const p of boardPlayers) put(p.name, p.trophies || 0, p.rebirths || 0, "player", p.title);
+  for (const [n, m] of Object.entries(S.met || {})) put(n, m.trophies || 0, m.rebirths || 0, "friend", m.title);
+  put(me, S.trophies || 0, rebirths(), "you", wornTitle());
   return [...rows.values()].sort((a, b) => (b[by] - a[by]) || (b.trophies - a.trophies));
 }
 function meetPlayer(isl) {   // 🌐 someone you fought online joins your leaderboard
   if (!isl || typeof isl.name !== "string") return;
   const name = isl.name.replace(/'s island$/, "").slice(0, 24); if (!name || name === "Friend") return;
-  S.met = S.met || {}; S.met[name] = { trophies: Math.max(0, Math.floor(+isl.trophies || 0)), rebirths: Math.max(0, Math.floor(+isl.rebirths || 0)), at: Date.now() };
+  S.met = S.met || {}; S.met[name] = { trophies: Math.max(0, Math.floor(+isl.trophies || 0)), rebirths: Math.max(0, Math.floor(+isl.rebirths || 0)), title: typeof isl.title === "string" ? isl.title.slice(0, 40) : "", at: Date.now() };
   save();
 }
 function startPrestige() { const why = prestigeBlock(); if (why) return why; return startBattle(prestigeIsland(prest() + 1), { prestige: prest() + 1 }); }
@@ -792,7 +840,7 @@ function genIsland(lvl, seed, p) {   // p: a 🌟 Prestige island (its map, towe
 // Your island as someone else will see it (online).
 function myIslandSnapshot() {
   const name = (() => { try { return (JSON.parse(localStorage.getItem("daniels-arcade-account") || "null") || {}).name || ""; } catch (e) { return ""; } })() || "Friend";
-  return { name: name + "'s island", trophies: S.trophies || 0, rebirths: rebirths(), th: th(), prestige: prest(), theme: myTheme(), golems: (S.golems || []).slice(), pets: myPets(), buildings: S.buildings.map((b) => ({ type: b.type, lvl: b.lvl, x: b.x, y: b.y, perks: (b.perks || []).slice() })),
+  return { name: name + "'s island", title: wornTitle(), trophies: S.trophies || 0, rebirths: rebirths(), th: th(), prestige: prest(), theme: myTheme(), golems: (S.golems || []).slice(), pets: myPets(), buildings: S.buildings.map((b) => ({ type: b.type, lvl: b.lvl, x: b.x, y: b.y, perks: (b.perks || []).slice() })),
            loot: { gold: Math.floor(S.gold * 0.1), wood: Math.floor(S.wood * 0.1), stone: Math.floor(S.stone * 0.1) } };
 }
 
@@ -1331,6 +1379,11 @@ function endBattle(forced) {
   // troops you never deployed go home
   if (!infTroops()) for (const [k, n] of Object.entries(bt.army)) if (n > 0) S.army[k] = (S.army[k] || 0) + n;
   const pct = destroyedPct(bt), stars = starsOf(bt);
+  if (!bt.opts.online) {   // 🤫 secret titles
+    const mine = bt.troops.filter((t) => !t.summoned);
+    if (forced && bt.frame < 360 && mine.length === 0 && !bt.agents.length) unlockTitle("scaredy");   // 🐢
+    if (stars === 3 && mine.length === 1 && !bt.troops.some((t) => t.summoned) && !bt.agents.length) unlockTitle("onetroop");   // 🎯
+  }
   const loot = {};
   for (const [k, v] of Object.entries(bt.island.loot || {})) loot[k] = Math.floor(v * pct / 100 * (bt.opts.online ? 1 : 1 + 0.1 * gLv("loot")));   // (💰 Loot Hunter)
   const cap = capOf();
@@ -1555,6 +1608,7 @@ function redeemCode(raw) {
   const code = String(raw || "").trim().toUpperCase().replace(/\s+/g, "");
   if (!code) return "Type a code first.";
   if (codeHash(code) === OWNER_HASH) { S.owner = true; save(); refreshPanelButtons(); openAdmin(true); return "👑 OWNER PANEL unlocked — no limits!"; }
+  if (code === "ISLANDKING") { const n = unlockTitle("islandking", true); save(); return n ? "🏝️ A secret title! You are now the ISLAND KING — wear it in 🏅 Titles." : "🏝️ You're already the Island King!"; }   // 🤫
   if (codeHash(code) === ADMIN_HASH) { S.admin = true; save(); refreshPanelButtons(); openAdmin(false); return "🛠️ Admin Panel unlocked!"; }
   const c = CODES[code]; if (!c) return "❌ That code doesn't exist.";
   if (c.event && (!eventNow() || eventNow().id !== c.event)) return `${EVENTS[c.event].emoji} That's a ${EVENTS[c.event].name} code — come back for ${EVENTS[c.event].name}!`;
@@ -1721,6 +1775,8 @@ function panelAction(act, arg, owner) {
   if (act === "evcur") { const ev = EVENTS[arg]; if (!ev) return "?"; S[ev.cur] = evCur(ev) + 100; save(); return `${ev.curEmoji} +100 ${ev.curName} (you have ${S[ev.cur]})`; }
   if (act === "evall") { S.eventTowers = [...new Set([...(S.eventTowers || []), "pumpkin", "xmastree"])]; save(); return "🎃 🎄 Both event towers unlocked — build them in 🏗️ Build"; }
   if (act === "evboss") { hidePanels(); return startEventBoss() || "⚔️ Boss fight!"; }
+  if (act === "alltitles") { S.titles = TITLES.map((t) => t.id); save(); return `🏅 All ${TITLES.length} titles (the 5 secret ones too)`; }
+  if (act === "notitles") { S.titles = []; S.title = null; save(); return "🏅 Titles cleared"; }
   if (act === "rebirth") { hidePanels(); return doRebirth(true); }
   if (act === "growreset") { hidePanels(); return doReset(true); }
   if (act === "gpoints") { S.growthPts = (S.growthPts || 0) + RESET_POINTS; S.resets = Math.max(1, S.resets || 0); save(); return `🌳 +${RESET_POINTS} Growth Points (you have ${S.growthPts})`; }
@@ -1830,6 +1886,7 @@ function renderAdmin(owner) {
       sec("🏴‍☠️ Raids & 😠 revenge", btn("raidnow", "", "🏴‍☠️ Raid now", "red") + btn("revengenow", "", "😠 Revenge now", "red") + btn("noraids", "", S.noRaids ? "🏴‍☠️ Raids: OFF" : "🏴‍☠️ Raids: on", S.noRaids ? "" : "green")) +
       sec(`🎃 🎄 Events — now: ${eventNow() ? eventNow().emoji + " " + eventNow().name : "none"} · 🍬 ${S.candy || 0} · 🎁 ${S.presents || 0}`, btn("event", "auto", "📅 By the date") + btn("event", "halloween", "🎃 Halloween ON", "red") + btn("event", "christmas", "🎄 Christmas ON", "green") + btn("event", "off", "Events off") +
         btn("evcur", "halloween", "🍬 +100") + btn("evcur", "christmas", "🎁 +100") + btn("evall", "", "🎃🎄 Event towers") + btn("evboss", "", "⚔️ Event boss now", "red")) +
+      sec(`🏅 Titles — ${(S.titles || []).length}/${TITLES.length}`, btn("alltitles", "", "🏅 All titles", "green") + btn("notitles", "", "Clear titles") + `<span style="font-size:.75rem;opacity:.75">🤫 Secret: ${TITLES.filter((t) => t.secret).map((t) => `${t.name} — ${t.how}`).join(" · ")}</span>`) +
       sec(`🌳 Growth Tree — ${S.growthPts || 0} points · ${S.resets || 0} resets`, btn("gpoints", "", `🌳 +${RESET_POINTS} points`, "green") + btn("gmax", "", "🌳 Max the whole tree", "green") + btn("greset", "", "Clear the tree (points back)") + btn("growreset", "", "♻️ Reset now (island + Prestige start again)", "red")) +
       sec(`🔁 Rebirth — you have ${rebirths()} (+${Math.round(REBIRTH_BUFF * 100 * rebirths())}%)`, btn("rebirth", "", "🔁 Rebirth now (island starts again)", "red") + `<span style="font-size:.75rem;opacity:.75">Owner: no Town Hall 10 needed. Set a number with "Set 🔁 Rebirths" above.</span>`) +
       sec(`🌟 Prestige — you are ${prest()}/${MAX_PRESTIGE}`, btn("pnext", "", "🌟 +1 Prestige", "green") + btn("pmax", "", `🌟 Max (${MAX_PRESTIGE})`, "green") + btn("ptrial", "", "⚔️ Fight the next trial", "red") +
@@ -1912,6 +1969,7 @@ function renderTop() {
   $("prestPill").style.display = prest() ? "inline-block" : "none"; $("prestN").textContent = prest();
   $("rebPill").style.display = rebirths() ? "inline-block" : "none"; $("rebN").textContent = rebirths();
   renderEventBtn();
+  const wt = wornTitle(); $("titlePill").style.display = wt ? "inline-block" : "none"; $("titlePill").textContent = wt;
   if (S.revenge) { const rs = Math.max(0, Math.ceil((S.revenge.at - Date.now()) / 1000)); $("revPill").style.display = "inline-block"; $("revIn").textContent = `${Math.floor(rs / 60)}:${String(rs % 60).padStart(2, "0")}`; }
   else $("revPill").style.display = "none";
   if (S.noRaids) $("raidIn").textContent = "off"; else if (S.nextRaidAt) { const sec = Math.max(0, Math.ceil((S.nextRaidAt - Date.now()) / 1000)); $("raidIn").textContent = `${Math.floor(sec / 60)}:${String(sec % 60).padStart(2, "0")}`; } $("armyN").textContent = infTroops() ? "∞" : armyUsed(); $("armyCap").textContent = armyCap();
@@ -2154,7 +2212,7 @@ function renderBoard() {
   $("boardSub").textContent = (acc.token && hasServer() ? "👤 Arcade players on this computer are here too." : "Log in to an arcade account (on this computer) to be on the arcade leaderboard.") + ` You are #${me + 1}.`;
   const icon = { you: "⭐", player: "👤", friend: "🌐" };
   $("boardBody").innerHTML = rows.slice(0, 30).map((r, i) => `<div class="card" style="display:flex;justify-content:space-between;align-items:center;text-align:left;margin-bottom:6px;${r.kind === "you" ? "border:2px solid #feca57" : ""}">
-      <span><b>${i === 0 ? "🥇" : i === 1 ? "🥈" : i === 2 ? "🥉" : "#" + (i + 1)}</b> ${icon[r.kind]} ${r.name.replace(/[<>&]/g, "")}${r.kind === "you" ? " (you)" : ""}</span>
+      <span><b>${i === 0 ? "🥇" : i === 1 ? "🥈" : i === 2 ? "🥉" : "#" + (i + 1)}</b> ${icon[r.kind]} ${r.name.replace(/[<>&]/g, "")}${r.kind === "you" ? " (you)" : ""}${r.title ? ` <span style="font-size:.75rem;opacity:.85">· ${r.title.replace(/[<>&]/g, "")}</span>` : ""}</span>
       <span><b>🏆 ${r.trophies.toLocaleString()}</b> · 🔁 ${r.rebirths}</span></div>`).join("")
     + (me >= 30 ? `<div class="card" style="text-align:left;border:2px solid #feca57">#${me + 1} ⭐ ${rows[me].name} — 🏆 ${rows[me].trophies.toLocaleString()} · 🔁 ${rows[me].rebirths}</div>` : "");
   $("boardT").className = "small" + (boardBy === "trophies" ? " green" : ""); $("boardR").className = "small" + (boardBy === "rebirths" ? " green" : "");
@@ -2217,6 +2275,18 @@ function renderEvent() {
 }
 $("btnEvent").onclick = () => { hideInfo(); renderEvent(); openPanel("eventPanel"); };
 $("btnTree").onclick = () => { hideInfo(); renderTree(); openPanel("treePanel"); };
+function renderTitles() {
+  const have = (S.titles || []).length, secrets = TITLES.filter((t) => t.secret), found = secrets.filter((t) => hasTitle(t.id)).length;
+  $("titlesSub").textContent = `You have ${have}/${TITLES.length} titles · 🤫 ${found}/${secrets.length} secret ones found. Wear one and everyone sees it.`;
+  $("titlesGrid").innerHTML = TITLES.map((t) => {
+    const own = hasTitle(t.id), worn = S.title === t.id, hidden = t.secret && !own;
+    return `<div class="card" style="${worn ? "border:2px solid #feca57" : own ? "border:2px solid #55efc4" : "opacity:.6"}">
+      <div class="n">${hidden ? "❓ ???" : t.name}</div><div class="d">${hidden ? "🤫 A secret title — find the secret way to get it!" : t.how}</div>
+      ${own ? `<button class="small ${worn ? "" : "green"}" data-wear="${t.id}">${worn ? "Take off" : "Wear"}</button>` : `<div class="c">🔒</div>`}</div>`;
+  }).join("");
+  $("titlesGrid").querySelectorAll("[data-wear]").forEach((b) => (b.onclick = () => { S.title = S.title === b.dataset.wear ? null : b.dataset.wear; save(); submitScore(true); renderTitles(); renderTop(); }));
+}
+$("btnTitles").onclick = () => { hideInfo(); checkTitles(); renderTitles(); openPanel("titlesPanel"); };
 $("btnBoard").onclick = () => { hideInfo(); submitScore(true); renderBoard(); openPanel("boardPanel"); loadBoard().then(() => { if ($("boardPanel").style.display === "block") renderBoard(); }); };
 $("boardT").onclick = () => { boardBy = "trophies"; renderBoard(); };
 $("boardR").onclick = () => { boardBy = "rebirths"; renderBoard(); };
@@ -2510,6 +2580,8 @@ cv.addEventListener("click", (e) => {
     if (err) toast(err); else { toast(`${B[placing].emoji} ${B[placing].name} built!`); placing = null; renderTop(); }
     return;
   }
+  { const d = Math.hypot(fx - CENTER, fy - CENTER), R0 = landRadius(th());   // 🤫 the beach…
+    if (d > R0 && d < R0 + 1.2) { S.crabTaps = (S.crabTaps || 0) + 1; if (S.crabTaps >= 10 && unlockTitle("crab")) save(); else if (S.crabTaps === 5) toast("🦀 …something moved in the sand."); return; } }
   const pet = defenderAt(fx, fy, performance.now() / 1000);
   if (pet) { hideInfo(); const M = MOB[pet.kind]; toast(`${M.emoji} ${M.name} — ${M.desc}${pet.pet ? " (your pet 🐾)" : M.golem && pet.kind !== "golem" || (S.golems || []).includes(pet.kind) ? " (your golem)" : " (from your Barracks)"}`); return; }
   const b = S.buildings.find((q) => q.x === x && q.y === y);

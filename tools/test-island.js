@@ -34,7 +34,7 @@ function mkCanvas(id) {
   const el = { id, width: 900, height: 550, style: {}, dataset: {}, nodeType: 1,
     getContext: () => el.__ctx || (el.__ctx = mkCtx()),
     getBoundingClientRect: () => ({ left:0, top:0, width:900, height:550, right:900, bottom:550 }),
-    addEventListener: () => {}, removeEventListener: () => {},
+    addEventListener: (t, f) => { (el.__on = el.__on || {})[t] = f; }, removeEventListener: () => {},   // (kept, so tests can really tap the game)
     requestPointerLock: () => {}, appendChild: () => {}, focus: () => {},
     toDataURL: () => 'data:,' };
   return el;
@@ -1181,6 +1181,39 @@ q(`battle = null; hidePanels(); renderEvent(); renderInfo();`);
 check(/Trick or Treat/.test(q(`document.getElementById('evBody').innerHTML`)) && /Pumpkin Smasher/.test(q(`document.getElementById('infoBody').innerHTML`)), 'the event panel and 📊 My Island show it');
 check(q(`(function(){ S.owner = true; var g = 0; S.buildings.push({ type: 'gate', lvl: 1, x: 12, y: 12 }); S.army = { warrior: 1 }; startBattle(genIsland(2)); battle.waves = []; battleStep(); var ev = battle.troops.filter(function(t){ return T[t.kind].event; }).length; endBattle(true); battle = null; hidePanels(); return ev; })()`) === 0, '⛩️ the Summoning Gate summons normal troops only');
 q(`localStorage.removeItem('island_clash_event_force'); S.revenge = null;`);
+
+// ---- 🏅 titles (20, 5 secret) ----
+reset({ army: { warrior: 3 } });
+check(q('TITLES.length') === 20 && q('TITLES.filter(function(t){ return t.secret; }).length') === 5, '20 titles, 5 of them secret');
+q(`S.titles = []; S.trophies = 600; titleCheckAt = 0; save();`);
+check(q(`hasTitle('hunter')`) && !q(`hasTitle('trophyking')`), '🏆 titles are earned by playing (500 trophies → Trophy Hunter)');
+q(`renderTitles();`);
+check(/❓ \?\?\?/.test(q(`document.getElementById('titlesGrid').innerHTML`)) && !/Crab Whisperer/.test(q(`document.getElementById('titlesGrid').innerHTML`)), 'secret titles stay hidden (❓ ???) until you find them');
+// secret 1: the code
+check(/ISLAND KING/.test(q(`redeemCode('islandking')`)) && q(`hasTitle('islandking')`), '🤫 secret: the code ISLANDKING');
+// secret 2: tap the beach 10 times
+q(`hidePanels(); battle = null; placing = null; moving = null; S.crabTaps = 0; (function(){ var cvs = document.getElementById('game'), R0 = landRadius(th()); for (var i = 0; i < 10; i++) { setView(th()); var a = i * 0.6, sc = toScreen(CENTER + Math.cos(a) * (R0 + 0.5), CENTER + Math.sin(a) * (R0 + 0.5)); cvs.__on.click({ clientX: sc[0], clientY: sc[1], shiftKey: false }); } })();`);
+check(q(`hasTitle('crab')`), '🤫 secret: tap your beach 10 times');
+// secret 3: give up straight away
+q(`S.army = { warrior: 3 }; startBattle(genIsland(2)); battle.waves = []; battleStep(); endBattle(true); battle = null; hidePanels();`);
+check(q(`hasTitle('scaredy')`), '🤫 secret: give up in the first 3 seconds without sending a troop');
+// secret 4: 3 stars with one troop
+q(`S.army = { warrior: 3 }; startBattle(genIsland(2)); battle.waves = []; deploy('warrior', 0, 0); battle.blds.forEach(function(b){ if (b.type !== 'wall') b.hp = 0; }); endBattle(); battle = null; hidePanels(); S.revenge = null;`);
+check(q(`hasTitle('onetroop')`), '🤫 secret: win ⭐⭐⭐ with just one troop');
+q(`S.army = { warrior: 5 }; startBattle(genIsland(2)); battle.waves = []; deploy('warrior', 0, 0); deploy('warrior', 0, 0); battle.blds.forEach(function(b){ if (b.type !== 'wall') b.hp = 0; }); var hadOT = hasTitle('onetroop'); S.titles = S.titles.filter(function(t){ return t !== 'onetroop'; }); endBattle(); window.__ot2 = hasTitle('onetroop'); battle = null; hidePanels(); S.revenge = null;`);
+check(q('__ot2') === false, '…not with two troops');
+// secret 5: night owl
+q(`window.__RD = Date; Date = function(a){ return a === undefined ? new window.__RD(2026, 5, 1, 2, 30) : new window.__RD(a); }; Date.now = window.__RD.now; titleCheckAt = 0; checkTitles(); Date = window.__RD;`);
+check(q(`hasTitle('nightowl')`), '🤫 secret: play between midnight and 4 am');
+// wear it
+q(`S.title = 'islandking'; renderTop();`);
+check(q('wornTitle()') === '🏝️ Island King' && /Island King/.test(String(q(`document.getElementById('titlePill').textContent`))) && q('myIslandSnapshot().title') === '🏝️ Island King', 'wear a title: the top bar, and friends online see it');
+check(q(`leaderboard('trophies').find(function(r){ return r.kind === 'you'; }).title`) === '🏝️ Island King', '…and the leaderboard shows it');
+q(`meetPlayer({ name: "Zed's island", trophies: 10, rebirths: 0, title: '⚔️ Raider' });`);
+check(q(`leaderboard('trophies').find(function(r){ return r.name === 'Zed'; }).title`) === '⚔️ Raider', "…and other players' titles");
+q(`S.owner = true;`);
+check(/All 20/.test(q(`panelAction('alltitles', '', true)`)) && q('S.titles.length') === 20 && q(`panelAction('alltitles', '', false)`) === '👑 Owner only.', 'owner: all titles');
+q(`S.met = {}; S.title = null;`);
 
 // ---- ⛩️ owner panel: Summoning Gate controls ----
 reset({ army: {} }); q(`S.owner = true;`);

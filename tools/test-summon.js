@@ -139,13 +139,14 @@ const run = (n, max) => q(`(function(){ var i = 0; while (battle && !battle.over
 
 // ---- start ----
 reset();
-check(q('Object.keys(PETS).length') === 1024 && q('Object.keys(S.pets).length') === 4 && q('S.deck.length') === 4 && q('S.coins') === 250, 'a new player: 1024 pets to find (24 + 500 + 500 more), 4 to start with, 🪙 250');
+check(q('Object.keys(PETS).length') === 1037 && q('Object.keys(S.pets).length') === 4 && q('S.deck.length') === 4 && q('S.coins') === 250, 'a new player: 1037 pets to find (24 + 13 top-rarity + 1000 elemental), 4 to start with, 🪙 250');
+check(JSON.stringify(q('RAR_ORDER')) === JSON.stringify(['common', 'uncommon', 'rare', 'epic', 'legendary', 'mythic', 'divine', 'celestial', 'secret']), '9 rarities: Common, Uncommon, Rare, Epic, Legendary, Mythic, ✨ Divine, 🌌 Celestial, 🤫 Secret');
 check(q('CREATURES.length') === 50 && q(`new Set(CREATURES.map(function(c){ return c[1]; }).concat(ANIMALS.map(function(a){ return a[1]; }))).size`) === 100, 'the 50 new creatures all look different (100 different animals in all)');
 check(q(`CREATURES.every(function(c){ return c[4] && Object.keys(c[4]).length && c[5]; })`), 'every new creature has its own signature power');
 check(q("PETS['shadow-vampire'].lifesteal") === 0.6 && q("PETS['fire-robot'].boom.dmg") > 300 && /NINE LIVES/.test(q("PETS['ice-blackcat'].desc")), '…e.g. 🧛 Blood Bite, 🤖 Self-Destruct, 🐈‍⬛ Nine Lives');
-check(q('ANIMALS.length') === 50 && q('Object.keys(ELEMENTS).length') === 10 && q("PETS['fire-cat'].name") === 'Fire Cat' && q("PETS['light-tiger'].rarity") === 'mythic' && q("PETS['fire-cat'].rarity") === 'common', '50 animals × 10 elements ("Fire Cat"); a ✨ Light Tiger is Mythic, a Fire Cat Common');
+check(q('ANIMALS.length') === 50 && q('Object.keys(ELEMENTS).length') === 10 && q("PETS['fire-cat'].name") === 'Fire Cat' && q("PETS['light-tiger'].rarity") === 'mythic' && q("PETS['fire-cat'].rarity") === 'uncommon' && q("PETS['nature-cat'].rarity") === 'common', '50 animals × 10 elements ("Fire Cat"); a ✨ Light Tiger is Mythic, a Fire Cat Uncommon, a Nature Cat Common');
 const rc = JSON.parse(q(`JSON.stringify(RAR_ORDER.map(function(r){ return Object.values(PETS).filter(function(p){ return p.rarity === r; }).length; }))`));
-check(rc[0] > rc[1] && rc[1] > rc[2] && rc[2] > rc[3] && rc[3] > rc[4] && rc[4] >= 10, 'the rarer, the fewer: ' + rc.join(' / '));
+check(rc[3] > rc[4] && rc[4] > rc[5] && rc[5] > rc[6] && rc[6] > rc[7] && rc[7] > rc[8] && rc[8] === 3, 'from Epic up: the rarer, the fewer (only 3 Secret pets): ' + rc.join(' / '));
 check(q(`Object.values(PETS).every(function(p){ return p.element && p.role && p.hp > 0 && p.dmg > 0 && p.cost >= 2 && p.cost <= 10; })`), 'every pet has an element, a role and sensible stats');
 check(q(`PETS['light-tiger'].hp`) > q(`PETS['fire-cat'].hp`) * 2, 'rarer pets are stronger');
 check(['common', 'rare', 'epic', 'legendary', 'mythic'].every((r) => q(`Object.values(PETS).filter(function(p){ return p.rarity === '${r}'; }).length`) > 0), 'pets of every rarity (Common → Mythic)');
@@ -158,7 +159,8 @@ reset({ coins: 100 });
 const h1 = JSON.parse(q(`JSON.stringify(hatch('basic', false, 0.99, 0))`));   // r1 0.99 → the last bucket (mythic-ish)
 check(!h1.error && q('S.coins') === 0 && q('S.hatched') === 1, '🥚 hatch an egg for 🪙 100');
 check(/You need/.test(q(`hatch('basic').error`)), 'not enough coins: no egg');
-check(q(`rollRarity(EGGS.basic.odds, 0)`) === 'common' && q(`rollRarity(EGGS.basic.odds, 0.999)`) === 'mythic' && q(`rollRarity(EGGS.golden.odds, 0)`) === 'rare', 'rarity odds (an egg can even be Mythic; golden eggs are never Common)');
+check(q(`rollRarity(EGGS.basic.odds, 0)`) === 'common' && q(`rollRarity(EGGS.basic.odds, 0.9999)`) === 'divine' && q(`rollRarity(EGGS.golden.odds, 0)`) === 'uncommon' && q(`rollRarity(EGGS.celestial.odds, 0.9999)`) === 'secret', 'rarity odds (even a plain egg can be ✨ Divine; 🌠 Celestial Eggs can be 🤫 Secret)');
+check(q(`Object.values(EGGS).every(function(e){ var t = 0; for (var k in e.odds) t += e.odds[k]; return Math.abs(t - 100) < 1e-6; })`), 'every egg\'s odds add up to 100%');
 reset({ coins: 1000 });
 const dup = JSON.parse(q(`JSON.stringify(hatch('basic', false, 0.01, 0))`));   // a common — mouse is pool[0]
 check(dup.id === 'mouse' && dup.fresh === false && dup.shards === 10 && q('S.pets.mouse.shards') === 10, 'a pet you already have → 10 shards instead');
@@ -263,7 +265,7 @@ q('battle = null;');
 // enemy worlds use the new pets too
 check(q(`WORLDS.every(function(w){ return w.pool.some(function(id){ return PETS[id].gen; }); })`), 'every world also sends new elemental pets');
 // collection filters
-reset(); q(`S.pets['fire-cat'] = { lvl: 1, shards: 0 }; petFilter.rarity = 'common'; petFilter.element = 'fire'; petFilter.owned = false; petFilter.text = ''; window.__f1 = filteredPets().length; petFilter.owned = true; window.__f2 = filteredPets(); petFilter.rarity = ''; petFilter.element = ''; petFilter.owned = false; petFilter.text = 'fire c'; window.__f3 = filteredPets(); petFilter.text = '';`);
+reset(); q(`S.pets['fire-cat'] = { lvl: 1, shards: 0 }; petFilter.rarity = 'uncommon'; petFilter.element = 'fire'; petFilter.owned = false; petFilter.text = ''; window.__f1 = filteredPets().length; petFilter.owned = true; window.__f2 = filteredPets(); petFilter.rarity = ''; petFilter.element = ''; petFilter.owned = false; petFilter.text = 'fire c'; window.__f3 = filteredPets(); petFilter.text = '';`);
 check(q('__f1') > 5 && JSON.stringify(q('__f2')) === JSON.stringify(['fox', 'fire-cat']) === false && q('__f2').includes('fire-cat') && q('__f3').length === 1, '🔎 filter by rarity, element, mine only, and search');
 q(`renderPets(); showPet('fire-cat');`);
 check(/Lv 3: 🔥 Burn/.test(q(`document.getElementById('petInfo').innerHTML`)) && /🔒/.test(q(`document.getElementById('petInfo').innerHTML`)), 'a pet shows its abilities (🔒 until unlocked)');
@@ -313,7 +315,7 @@ if (process.env.OWNER_CODE) {   // the real code is only checked when given: OWN
 check(/10,000/.test(q(`ownerAction('coins')`)) && q('S.coins') === 10250 && q('ownerVisit') === true, '🪙 +10,000 coins (and the 👑 button shows for this visit)');
 q(`ownerAction('infcoins'); S.coins = 0;`);
 check(!q(`hatch('cosmic').error`) && q('S.coins') === 0, '♾️ infinite coins: eggs are free');
-check(/1024/.test(q(`ownerAction('allpets')`)) && q('Object.keys(S.pets).length') === 1024, '🐾 every pet (all 1024)');
+check(/1037/.test(q(`ownerAction('allpets')`)) && q('Object.keys(S.pets).length') === 1037, '🐾 every pet (all 1037)');
 q(`ownerAction('maxpets'); ownerAction('bestdeck');`);
 check(q(`Object.values(S.pets).every(function(p){ return p.lvl === MAX_LVL; })`) && q('S.deck.length') === 6, '⭐ max level for every pet, 🃏 best deck');
 check(/every stage/.test(q(`ownerAction('stars')`)) && q('S.stage') === 30 && q('totalStars()') === 90, '⭐⭐⭐ every stage');

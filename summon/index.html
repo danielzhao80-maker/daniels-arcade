@@ -55,7 +55,7 @@
   #topHud.on { display: flex; }
   #toast { position: fixed; top: 60px; left: 50%; transform: translateX(-50%); background: rgba(0,0,0,.85); padding: 10px 18px; border-radius: 14px; font-weight: 900; z-index: 50; display: none; max-width: 90vw; text-align: center; }
   input { font-family: "Fredoka One", cursive; font-size: 1rem; padding: 8px 12px; border-radius: 14px; border: 2px solid #fff; background: rgba(255,255,255,.12); color: #fff; width: 170px; text-transform: uppercase; }
-  .rar-common { border-color: #b2bec3; } .rar-rare { border-color: #48dbfb; } .rar-epic { border-color: #a55eea; } .rar-legendary { border-color: #feca57; } .rar-mythic { border-color: #ff6b6b; box-shadow: 0 0 14px #ff6b6b; }
+  .rar-common { border-color: #b2bec3; } .rar-rare { border-color: #48dbfb; } .rar-epic { border-color: #a55eea; } .rar-legendary { border-color: #feca57; } .rar-uncommon { border-color: #55efc4; } .rar-divine { border-color: #fff3b0; box-shadow: 0 0 16px #fff3b0; } .rar-celestial { border-color: #74b9ff; box-shadow: 0 0 18px #74b9ff, inset 0 0 12px #6c5ce7; } .rar-secret { border-color: #fd79a8; box-shadow: 0 0 20px #fd79a8, 0 0 34px #a29bfe; background: linear-gradient(135deg, rgba(253,121,168,.25), rgba(108,92,231,.3)) !important; } .rar-mythic { border-color: #ff6b6b; box-shadow: 0 0 14px #ff6b6b; }
   #result { background: rgba(10,5,25,.92); justify-content: center; }
   #eggShow { font-size: 5rem; margin: 10px; transition: transform .3s; }
 </style>
@@ -154,12 +154,16 @@ const FPS = 60, BATTLE_TIME = 180 * FPS, MAX_ENERGY = 10, ENERGY_EVERY = 66, MAX
 // Powers: fly (ground pets only do half damage to it), splash (radius), heal (heals allies near, a hit), shield (takes less damage),
 // freeze (frames), poison (damage a second), charge (first hit ×), lifesteal, boom (explodes when it dies),
 // aura (+% damage to allies near), summon (a minion every N frames), revive (comes back once).
-const RARITY = {
+const RARITY = {   // (in order, rarest last)
   common:    { name: "Common",    color: "#b2bec3", shards: 10 },
+  uncommon:  { name: "Uncommon",  color: "#55efc4", shards: 10 },
   rare:      { name: "Rare",      color: "#48dbfb", shards: 10 },
   epic:      { name: "Epic",      color: "#a55eea", shards: 10 },
   legendary: { name: "Legendary", color: "#feca57", shards: 10 },
   mythic:    { name: "Mythic",    color: "#ff6b6b", shards: 10 },
+  divine:    { name: "Divine",    color: "#fff3b0", shards: 10 },
+  celestial: { name: "Celestial", color: "#74b9ff", shards: 10 },
+  secret:    { name: "Secret",    color: "#fd79a8", shards: 10 },
 };
 const PETS = {
   mouse:    { name: "Mouse",        emoji: "🐭", rarity: "common",    cost: 2,  hp: 80,   dmg: 10, range: 26,  speed: 1.6, rate: 34, desc: "Fast and cheap." },
@@ -185,6 +189,20 @@ const PETS = {
   trex:     { name: "T-Rex",        emoji: "🦖", rarity: "legendary", cost: 8,  hp: 1600, dmg: 55, range: 30,  speed: 0.9, rate: 55, splash: 40, desc: "Huge CHOMP that hits everything in front." },
   whale:    { name: "Whale",        emoji: "🐳", rarity: "legendary", cost: 7,  hp: 2200, dmg: 20, range: 30,  speed: 0.6, rate: 50, shield: 0.4, heal: 20, desc: "A giant tank that HEALS its friends." },
   phoenix:  { name: "Phoenix",      emoji: "🐦‍🔥", rarity: "mythic",    cost: 9,  hp: 1000, dmg: 50, range: 160, speed: 1.2, rate: 44, fly: true, revive: true, desc: "FLIES, burns from range — and comes back to life ONCE." },
+  // ✨ DIVINE · 🌌 CELESTIAL · 🤫 SECRET — the rarest pets of all
+  sunspirit:  { name: "Sun Spirit",      emoji: "☀️", rarity: "divine", cost: 9,  hp: 2600, dmg: 70, range: 160, speed: 0.9, rate: 44, fly: true, splash: 70, desc: "Shines down from the sky: its fire splashes whole groups." },
+  moonspirit: { name: "Moon Spirit",     emoji: "🌙", rarity: "divine", cost: 9,  hp: 2400, dmg: 55, range: 150, speed: 0.9, rate: 40, fly: true, freeze: 50, splash: 50, desc: "Moonbeams FREEZE whole groups." },
+  rainbow:    { name: "Rainbow Serpent", emoji: "🌈", rarity: "divine", cost: 9,  hp: 3000, dmg: 60, range: 30,  speed: 1.2, rate: 40, heal: 60, lifesteal: 0.3, desc: "Heals all its friends and itself with every bite." },
+  angel:      { name: "Guardian Angel",  emoji: "😇", rarity: "divine", cost: 8,  hp: 2000, dmg: 35, range: 140, speed: 1.0, rate: 44, fly: true, heal: 90, revive: true, desc: "A huge healer that comes back to life once." },
+  crystal:    { name: "Crystal Golem",   emoji: "💎", rarity: "divine", cost: 9,  hp: 6000, dmg: 50, range: 32,  speed: 0.6, rate: 55, shield: 0.6, desc: "Almost unbreakable: blocks 60% of all damage." },
+  volcanot:   { name: "Volcano Titan",   emoji: "🌋", rarity: "divine", cost: 10, hp: 4200, dmg: 90, range: 40,  speed: 0.6, rate: 55, splash: 90, boom: { dmg: 800, r: 140 }, desc: "Smashes groups — and ERUPTS when it's beaten." },
+  starsprite: { name: "Star Sprite",     emoji: "⭐", rarity: "celestial", cost: 8, hp: 3000, dmg: 80, range: 170, speed: 1.6, rate: 30, fly: true, splash: 50, aura: 0.3, desc: "Fast star blasts, and +30% damage to every pet near it." },
+  comet:      { name: "Comet Beast",     emoji: "☄️", rarity: "celestial", cost: 10, hp: 4000, dmg: 140, range: 34, speed: 2.4, rate: 45, charge: 5, splash: 80, desc: "Crashes in at full speed: a 5× first hit on a whole group." },
+  planeteater:{ name: "Planet Eater",    emoji: "🪐", rarity: "celestial", cost: 10, hp: 9000, dmg: 100, range: 50, speed: 0.5, rate: 60, splash: 100, lifesteal: 0.4, desc: "A giant that swallows groups and heals from it." },
+  galaxywhale:{ name: "Galaxy Whale",    emoji: "🌌", rarity: "celestial", cost: 10, hp: 10000, dmg: 50, range: 40, speed: 0.6, rate: 50, shield: 0.4, heal: 120, summon: { id: "inkling", every: 240 }, desc: "Heals everything near it and calls little helpers." },
+  watcher:    { name: "The Watcher",     emoji: "👁️", rarity: "secret", cost: 10, hp: 9000, dmg: 160, range: 220, speed: 0.8, rate: 40, fly: true, splash: 90, freeze: 60, desc: "🤫 Sees everything: freezing blasts from very far away." },
+  voidmaw:    { name: "Void Maw",        emoji: "🕳️", rarity: "secret", cost: 10, hp: 14000, dmg: 180, range: 60, speed: 0.6, rate: 55, splash: 140, lifesteal: 0.5, revive: true, desc: "🤫 A hole that eats whole armies — and comes back once." },
+  arcadeking: { name: "Arcade King",     emoji: "👑", rarity: "secret", cost: 10, hp: 12000, dmg: 150, range: 120, speed: 1.0, rate: 36, splash: 80, aura: 0.5, heal: 100, summon: { id: "pup", every: 180 }, desc: "🤫 Rules the arcade: +50% damage to friends, heals them, and calls pups." },
   kraken:   { name: "Cosmic Kraken", emoji: "🦑", rarity: "mythic",   cost: 10, hp: 2500, dmg: 60, range: 140, speed: 0.7, rate: 52, splash: 80, summon: { id: "inkling", every: 300 }, desc: "Smashes groups and calls 🐙 inklings every 5 s." },
 };
 // summoned helpers and the bosses (never in eggs)
@@ -288,32 +306,36 @@ const CREATURES = [
   ["Cockroach", "🪳", "tank", 3, { revive: true, shield: 0.3 }, "UNSTOPPABLE: tough, and comes back once."],
   ["Coral", "🪸", "healer", 3, { heal: 30, shield: 0.3 }, "REEF: tough, and heals its friends."],
 ];
-const RAR_ORDER = ["common", "rare", "epic", "legendary", "mythic"];
-const RAR_MUL = { common: 1, rare: 1.35, epic: 1.8, legendary: 2.6, mythic: 3.6 };
+const RAR_ORDER = Object.keys(RARITY);   // common … secret
+const RAR_MUL = { common: 1, uncommon: 1.15, rare: 1.35, epic: 1.8, legendary: 2.6, mythic: 3.6, divine: 4.8, celestial: 6.2, secret: 8 };
+const RAR_RANK = { common: 0, uncommon: 0, rare: 1, epic: 2, legendary: 3, mythic: 4, divine: 5, celestial: 6, secret: 7 };   // (energy cost bumps, world pools)
+const GEN_RARITY = ["common", "uncommon", "rare", "epic", "legendary", "mythic"];   // score 0–5 → the 1000 element pets
 for (const [aname, emoji, role, tier] of ANIMALS) for (const [ek, el] of Object.entries(ELEMENTS)) {
   // rarity: the animal's tier + the element's rank (Nature/Water/Wind/Earth 0, Fire/Ice/Storm/Toxic 1, Light/Shadow 2)
-  const score = tier + (el.up || 0), R0 = ROLES[role], rarity = RAR_ORDER[Math.max(0, Math.min(4, score - 1))], m = RAR_MUL[rarity], mu = el.mul;
+  const score = tier + (el.up || 0), R0 = ROLES[role], rarity = GEN_RARITY[Math.min(5, score)], m = RAR_MUL[rarity], mu = el.mul;
   PETS[`${ek}-${aname.toLowerCase().replace(/ /g, "")}`] = {
     name: `${el.name} ${aname}`, emoji, element: ek, role, rarity, gen: true,
-    cost: Math.min(10, R0.cost + RAR_ORDER.indexOf(rarity)), hp: Math.round(R0.hp * m * (mu.hp || 1)), dmg: Math.round(R0.dmg * m * (mu.dmg || 1)),
+    cost: Math.min(10, R0.cost + RAR_RANK[rarity]), hp: Math.round(R0.hp * m * (mu.hp || 1)), dmg: Math.round(R0.dmg * m * (mu.dmg || 1)),
     range: R0.range, speed: +(R0.speed * (mu.speed || 1)).toFixed(2), rate: Math.round(R0.rate * (mu.rate || 1)), fly: R0.fly, shield: R0.shield, heal: R0.heal ? Math.round(R0.heal * m) : undefined,
     desc: `${el.emoji} ${el.name} ${R0.name.toLowerCase()}.`,
   };
 }
 for (const [cname, emoji, role, tier, sig, sigText] of CREATURES) for (const [ek, el] of Object.entries(ELEMENTS)) {
-  const score = tier + (el.up || 0), R0 = ROLES[role], rarity = RAR_ORDER[Math.max(0, Math.min(4, score - 1))], m = RAR_MUL[rarity], mu = el.mul;
+  const score = tier + (el.up || 0), R0 = ROLES[role], rarity = GEN_RARITY[Math.min(5, score)], m = RAR_MUL[rarity], mu = el.mul;
   const sg = Object.assign({}, sig);
   if (sg.poison) sg.poison = Math.round(sg.poison * m); if (sg.heal) sg.heal = Math.round(sg.heal * m); if (sg.boom) sg.boom = { dmg: Math.round(sg.boom.dmg * m), r: sg.boom.r };
   PETS[`${ek}-${cname.toLowerCase().replace(/ /g, "")}`] = Object.assign({
     name: `${el.name} ${cname}`, emoji, element: ek, role, rarity, gen: true, wave: 2,
-    cost: Math.min(10, R0.cost + RAR_ORDER.indexOf(rarity)), hp: Math.round(R0.hp * m * (mu.hp || 1)), dmg: Math.round(R0.dmg * m * (mu.dmg || 1)),
+    cost: Math.min(10, R0.cost + RAR_RANK[rarity]), hp: Math.round(R0.hp * m * (mu.hp || 1)), dmg: Math.round(R0.dmg * m * (mu.dmg || 1)),
     range: R0.range, speed: +(R0.speed * (mu.speed || 1)).toFixed(2), rate: Math.round(R0.rate * (mu.rate || 1)), fly: R0.fly, shield: R0.shield, heal: R0.heal ? Math.round(R0.heal * m) : undefined,
     desc: `${el.emoji} ${el.name} ${R0.name.toLowerCase()}. ✨ ${sigText}`,
   }, sg);
 }
 // the original 24 get an element and a role too (for their abilities)
 const ORIG_ELEMENT = { mouse: "wind", bunny: "nature", bee: "toxic", frog: "water", snail: "earth", bird: "wind", fox: "fire", owl: "shadow", snake: "toxic", turtle: "earth", bat: "shadow", penguin: "ice",
-  wolf: "storm", unicorn: "light", scorpion: "toxic", octopus: "water", eagle: "storm", puffer: "water", dragon: "fire", lion: "light", trex: "earth", whale: "water", phoenix: "fire", kraken: "shadow" };
+  wolf: "storm", unicorn: "light", scorpion: "toxic", octopus: "water", eagle: "storm", puffer: "water", dragon: "fire", lion: "light", trex: "earth", whale: "water", phoenix: "fire", kraken: "shadow",
+  sunspirit: "fire", moonspirit: "ice", rainbow: "light", angel: "light", crystal: "earth", volcanot: "fire", starsprite: "light", comet: "storm", planeteater: "shadow", galaxywhale: "water",
+  watcher: "shadow", voidmaw: "shadow", arcadeking: "light" };
 for (const [id, el] of Object.entries(ORIG_ELEMENT)) {
   const d = PETS[id]; d.element = el;
   d.role = d.heal ? "healer" : d.shield ? "tank" : d.fly && d.range < 60 ? "flyer" : d.range >= 60 ? "shooter" : d.speed >= 1.7 ? "runner" : "fighter";
@@ -340,7 +362,7 @@ const ABILITIES = {
   thunder: { emoji: "🌩️", name: "Thunder Call",    desc: "ULTIMATE: lightning hits the strongest enemy every 5 s.", ult: true },
   titan:   { emoji: "👑", name: "Titan",           desc: "ULTIMATE: Giant Form AND Double Strike!", ult: true },
 };
-const ULTIMATE = { common: "giant", rare: "double", epic: "revive", legendary: "thunder", mythic: "titan" };
+const ULTIMATE = { common: "giant", uncommon: "giant", rare: "double", epic: "revive", legendary: "thunder", mythic: "titan", divine: "titan", celestial: "titan", secret: "titan" };
 const ABILITY_LEVELS = [3, 6, 10];
 function abilitiesOf(id) {   // → [[unlock level, ability id], …]
   const d = PETS[id]; if (!d || !d.element) return [];
@@ -362,7 +384,7 @@ const STAGES = 30;
 // each world also sends some of the new pets from its own elements (rarer ones in later worlds)
 const WORLD_ELEMENTS = [["nature", "wind"], ["fire", "earth"], ["ice", "water"], ["fire", "storm", "toxic"], ["shadow", "light"]];
 WORLDS.forEach((w, i) => {
-  const extra = Object.keys(PETS).filter((id) => PETS[id].gen && WORLD_ELEMENTS[i].includes(PETS[id].element) && RAR_ORDER.indexOf(PETS[id].rarity) <= i && RAR_ORDER.indexOf(PETS[id].rarity) >= Math.max(0, i - 1));
+  const extra = Object.keys(PETS).filter((id) => PETS[id].gen && WORLD_ELEMENTS[i].includes(PETS[id].element) && RAR_RANK[PETS[id].rarity] <= i && RAR_RANK[PETS[id].rarity] >= Math.max(0, i - 1));
   for (let k = 0; k < 6 && extra.length; k++) w.pool.push(extra[(k * 7 + i * 3) % extra.length]);
 });
 function stageInfo(n) {   // stage 1–30: its world, the enemy's level and deck, its base, and whether it's a boss
@@ -373,10 +395,11 @@ function stageInfo(n) {   // stage 1–30: its world, the enemy's level and deck
 }
 
 // ---- eggs ----------------------------------------------------------------------------------------------------
-const EGGS = {
-  basic:  { name: "Egg",         emoji: "🥚", cost: 100, odds: { common: 62, rare: 27, epic: 8.5, legendary: 2.2, mythic: 0.3 } },
-  golden: { name: "Golden Egg",  emoji: "🌟", cost: 450, odds: { common: 0, rare: 52, epic: 33, legendary: 13, mythic: 2 } },
-  cosmic: { name: "Cosmic Egg",  emoji: "🔮", cost: 1500, odds: { common: 0, rare: 0, epic: 40, legendary: 48, mythic: 12 } },
+const EGGS = {   // odds in %, they add up to 100
+  basic:     { name: "Egg",            emoji: "🥚", cost: 100,  odds: { common: 40, uncommon: 26, rare: 23, epic: 8.5, legendary: 2.2, mythic: 0.27, divine: 0.03 } },
+  golden:    { name: "Golden Egg",     emoji: "🌟", cost: 450,  odds: { uncommon: 10, rare: 44, epic: 31, legendary: 12.5, mythic: 2.2, divine: 0.27, celestial: 0.03 } },
+  cosmic:    { name: "Cosmic Egg",     emoji: "🔮", cost: 1500, odds: { epic: 40, legendary: 45, mythic: 12, divine: 2.5, celestial: 0.45, secret: 0.05 } },
+  celestial: { name: "Celestial Egg",  emoji: "🌠", cost: 5000, odds: { mythic: 55, divine: 33, celestial: 10, secret: 2 } },
 };
 const shardsFor = (lvl) => 10 * lvl;       // shards to go from lvl → lvl+1
 const coinsFor = (lvl) => 60 * lvl;        // and coins
@@ -401,7 +424,7 @@ function earnTitle(id, msg) { try { window.ArcadeShop && ArcadeShop.earnTitle &&
 // ---- hatching, levelling, deck ---------------------------------------------------------------------------------
 function rollRarity(odds, r) {
   r = (r === undefined ? Math.random() : r) * 100;
-  for (const k of Object.keys(RARITY)) { if (r < odds[k]) return k; r -= odds[k]; }
+  for (const k of Object.keys(RARITY)) { const o = odds[k] || 0; if (r < o) return k; r -= o; }
   return "rare";
 }
 function hatch(kind, free, r1, r2) {   // → { id, fresh, shards } or { error }
@@ -416,7 +439,7 @@ function hatch(kind, free, r1, r2) {   // → { id, fresh, shards } or { error }
   else { const sh = RARITY[rar].shards; S.pets[id].shards += sh; out = { id, fresh: false, shards: sh }; }
   save();
   if (S.hatched >= 10) earnTitle("sb-summoner", "🐣 SUMMONER! 10 eggs hatched — title unlocked!");
-  if (rar === "mythic") earnTitle("sb-mythic", "🌈 MYTHIC FINDER! You hatched a Mythic pet — a secret title!");
+  if (RAR_RANK[rar] >= RAR_RANK.mythic) earnTitle("sb-mythic", "🌈 MYTHIC FINDER! You hatched a Mythic pet — a secret title!");
   return out;
 }
 function levelUp(id) {
@@ -748,7 +771,7 @@ function showPet(id) {
 }
 function renderEggs() {
   $("eggGrid").innerHTML = Object.entries(EGGS).map(([k, e]) => `<div class="card"><div class="e">${e.emoji}</div><div class="n">${e.name}</div>
-    <div class="d">${Object.entries(e.odds).filter(([, v]) => v > 0).map(([r, v]) => `${RARITY[r].name} ${v}%`).join(" · ")}</div>
+    <div class="d">${Object.entries(e.odds).filter(([, v]) => v > 0).map(([r, v]) => `<span style="color:${RARITY[r].color}">${RARITY[r].name} ${v}%</span>`).join(" · ")}</div>
     <button class="small orange" data-egg="${k}" ${canSpend(e.cost) ? "" : "disabled"}>🪙 ${infCoins() ? "FREE" : e.cost}</button>${S.freeEggs[k] > 0 ? ` <button class="small green" data-free="${k}">Free ×${S.freeEggs[k]}</button>` : ""}</div>`).join("");
   const go = (k, free) => {
     const r = hatch(k, free); if (r.error) return toast(r.error);

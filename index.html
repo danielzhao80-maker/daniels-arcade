@@ -599,6 +599,13 @@
       tags: ["Strategy", "Multiplayer"],
       art: "linear-gradient(135deg, #0b4f6c, #1fa2a8)", glow: "#5ef0e0",
     },
+    {
+      slug: "summon-battlers", local: "summon/", pages: "daniels-arcade/summon/", file: "arcade/summon/index.html",
+      title: "Summon Battlers", emoji: "🐾", noQuest: true,
+      desc: "Hatch pets from eggs, build a deck of 6 and summon them into battle — 30 stages, 5 worlds and big bosses.",
+      tags: ["Strategy", "Collecting"],
+      art: "linear-gradient(135deg, #3c2f99, #a55eea)", glow: "#d6a2ff",
+    },
   ];
 
   // ---------------------------------------------------------------- shop + save (arcade-shop.js)
@@ -1443,7 +1450,7 @@
   // whenever it changes. Logging in loads the account's snapshot; logging out clears it here.
   const ACC_KEY = "daniels-arcade-account"; // { name, token } — never part of the snapshot
   // Monster Attack! keeps its season pass under monster_attack_ (the rest under monster_city_).
-  const SYNC_PREFIXES = ["daniels-arcade-v1", "daniels-arcade-skins", "monster_city_", "monster_attack_", "project-revive-", "buckshot_", "fps_arena_save", "island_clash_"];
+  const SYNC_PREFIXES = ["daniels-arcade-v1", "daniels-arcade-skins", "monster_city_", "monster_attack_", "project-revive-", "buckshot_", "fps_arena_save", "island_clash_", "summon_battlers_"];
   const synced = (k) => SYNC_PREFIXES.some((p) => k.startsWith(p));
   const getAcc = () => { try { return JSON.parse(localStorage.getItem(ACC_KEY) || "null"); } catch { return null; } };
   const setAcc = (a) => { try { a ? localStorage.setItem(ACC_KEY, JSON.stringify(a)) : localStorage.removeItem(ACC_KEY); } catch {} };

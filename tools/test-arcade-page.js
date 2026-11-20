@@ -32,7 +32,7 @@ const INF = 999999999;
 const DAY = 86400000;
 const T0 = Date.UTC(2026, 9, 17, 10, 0, 0); // Sat 17 Oct 2026, 10:00
 const DEFAULT_OWNED = ["galaxy", "smile", "rookie", "gun-none", "ab-none", "bg-none"];
-const SLUGS = ["monster-city", "rebuild", "shooting-game", "Pocket-Dice", "english-program", "island-clash"];
+const SLUGS = ["monster-city", "rebuild", "shooting-game", "Pocket-Dice", "english-program", "island-clash", "summon-battlers"];
 const HOOK = "window.__hook = { DISCORD, GAMES, get save() { return save; }, " +
   "get discordStatus() { return discordStatus; }, set discordStatus(v) { discordStatus = v; } };";
 
@@ -169,18 +169,18 @@ sect("1. boot, grid, filters, play route");
 let r = boot({ seed: { [KEY]: withDefaults({ coins: 5, owned: [...DEFAULT_OWNED, "gun-ruby"], equipped: { gun: "gun-ruby" } }) } });
 ok("no load errors: " + r.errs.join(" | "), r.errs.length === 0);
 ok("ArcadeShop + hook loaded", !!r.S && !!r.H);
-ok("6 game cards", r.$$("#grid .card").length === 6);
-ok("game count text", r.id("gameCount").textContent === "6 games");
+ok("7 game cards", r.$$("#grid .card").length === 7);
+ok("game count text", r.id("gameCount").textContent === "7 games");
 ok("wallet shows 5", r.$("[data-coins]").textContent === "5");
 ok("filters: All + every tag", JSON.stringify(r.$$("#filters button").map((b) => b.textContent)) ===
-  JSON.stringify(["All", "Action", "Shooter", "Strategy", "Spelling", "Story", "3D", "Multiplayer", "Board", "Learning"]));
+  JSON.stringify(["All", "Action", "Shooter", "Strategy", "Spelling", "Story", "3D", "Multiplayer", "Board", "Learning", "Collecting"]));
 r.$$("#filters button").find((b) => b.textContent === "Multiplayer").click();
 ok("Multiplayer filter -> Buckshot + Track Run + Island Clash", JSON.stringify(r.$$("#grid .card h2").map((h) => h.textContent)) === JSON.stringify(["Buckshot Roulette", "Track Run", "Island Clash"]));
 ok("filter button on + count", r.$("#filters .on").textContent === "Multiplayer" && r.id("gameCount").textContent === "3 games");
 r.$$("#filters button").find((b) => b.textContent === "Learning").click();
 ok("Learning filter -> 1 game (singular)", r.id("gameCount").textContent === "1 game");
 r.$$("#filters button")[0].click();
-ok("All -> 6 cards", r.$$("#grid .card").length === 6);
+ok("All -> 7 cards", r.$$("#grid .card").length === 7);
 ok("card links go to #play/<slug>", JSON.stringify(r.$$("#grid .card").map((a) => a.getAttribute("href"))) === JSON.stringify(SLUGS.map((s) => "#play/" + s)));
 ok("skins shared at boot", JSON.parse(r.w.localStorage.getItem(SKINS_KEY)).gun.id === "gun-ruby");
 ok("not playing at boot", !r.d.body.classList.contains("playing"));
@@ -825,10 +825,10 @@ ok("m60 can't be claimed early", !(r.save().milestones || []).includes("m60"));
 {
   const ra = boot({ seed: { [KEY]: { coins: 0, owned: ["galaxy", "smile", "rookie", "achilles"] } } });
   const rows = ra.$$("#achievements .ms");
-  ok("🏆 Achievements box: 16 challenge titles (5 + the 11 game titles), 🦶 Achilles Heel first", rows.length === 16 && /Achilles Heel/.test(rows[0].textContent));
+  ok("🏆 Achievements box: 19 challenge titles (5 + the 14 game titles), 🦶 Achilles Heel first", rows.length === 19 && /Achilles Heel/.test(rows[0].textContent));
   ok("🤫 the secret game titles say Secret (not how)", rows.some((x) => /Pause Chicken/.test(x.textContent) && /Secret/.test(x.textContent)) && !rows.some((x) => /paused 10 times/i.test(x.textContent)));
   ok("🦶 Achilles Heel shows ✓ when you have it; the others 🔒 with how to get them",
-     /✓/.test(rows[0].textContent) && rows.slice(1).every((x) => /🔒/.test(x.textContent)) && /Buckshot/.test(rows[1].textContent) && /1 \/ 16 done/.test(ra.id("achievements").textContent));
+     /✓/.test(rows[0].textContent) && rows.slice(1).every((x) => /🔒/.test(x.textContent)) && /Buckshot/.test(rows[1].textContent) && /1 \/ 19 done/.test(ra.id("achievements").textContent));
   const t = ra.S.SHOP.Titles.find((i) => i.id === "achilles");
   ok("🦶 Achilles Heel is a secret title that says how to get it", t && t.secret && /ONE single hit while you are at full health/.test(ra.S.howToGet(t)));
   const gb = ra.id("godBtn");
@@ -885,7 +885,7 @@ ok("no errors: " + r.errs.join(" | "), r.errs.length === 0);
 sect("8. bug reports");
 r = boot({ seed: { [KEY]: {} } });
 r.id("bugBtn").click();
-ok("bug form opens, game = arcade at home", r.id("bugVeil").classList.contains("open") && r.id("bugGame").value === "arcade" && r.$$("#bugGame option").length === 7);
+ok("bug form opens, game = arcade at home", r.id("bugVeil").classList.contains("open") && r.id("bugGame").value === "arcade" && r.$$("#bugGame option").length === 8);
 r.id("bugText").value = "  too short ".slice(0, 11);
 r.id("bugText").value = "123456789";
 r.submit(r.id("bugForm"));

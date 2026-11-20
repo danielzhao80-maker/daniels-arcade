@@ -1,0 +1,556 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Summon Battlers</title>
+<link href="https://fonts.googleapis.com/css2?family=Fredoka+One&family=Nunito:wght@700;900&display=swap" rel="stylesheet">
+<script src="../arcade-shop.js"></script>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { height: 100%; overflow: hidden; background: #1b1035; font-family: Nunito, system-ui, sans-serif; color: #fff; user-select: none; }
+  #game { display: block; width: 100vw; height: 100vh; }
+  button { font-family: "Fredoka One", cursive; font-size: 1rem; border: 3px solid #fff; border-radius: 30px; padding: 9px 18px; color: #fff; cursor: pointer;
+           background: linear-gradient(180deg, #a29bfe, #6c5ce7); box-shadow: 0 4px 0 #3c2f99; }
+  button:active { transform: translateY(2px); box-shadow: 0 2px 0 #3c2f99; }
+  button:disabled { opacity: .45; cursor: default; }
+  button.orange { background: linear-gradient(180deg, #ffb142, #e67e22); box-shadow: 0 4px 0 #8a4b0f; }
+  button.green { background: linear-gradient(180deg, #55efc4, #1e9e6a); box-shadow: 0 4px 0 #0f5a3b; }
+  button.red { background: linear-gradient(180deg, #ff6b6b, #c0392b); box-shadow: 0 4px 0 #7b1d14; }
+  button.small { font-size: .82rem; padding: 6px 12px; }
+  .screen { position: fixed; inset: 0; display: none; flex-direction: column; align-items: center; overflow-y: auto; padding: 18px 12px 30px; z-index: 5; }
+  .screen.on { display: flex; }
+  #menu { background: radial-gradient(circle at 50% 10%, #6c3fc7, #1b1035 70%); justify-content: flex-start; }
+  h1 { font-family: "Fredoka One", cursive; font-weight: 400; font-size: clamp(2.2rem, 7vw, 3.6rem); text-shadow: 0 5px 0 #3c2f99, 0 0 30px #a29bfe; margin-top: 4vh; text-align: center; }
+  h2 { font-family: "Fredoka One", cursive; font-weight: 400; font-size: 1.6rem; margin: 6px 0 4px; text-align: center; }
+  .sub { opacity: .85; text-align: center; font-size: .92rem; margin-bottom: 10px; max-width: 640px; }
+  .row { display: flex; gap: 10px; flex-wrap: wrap; justify-content: center; margin: 10px 0; }
+  .pill { background: rgba(0,0,0,.35); border: 2px solid rgba(255,255,255,.25); border-radius: 30px; padding: 6px 14px; font-weight: 900; white-space: nowrap; }
+  .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(118px, 1fr)); gap: 10px; width: min(760px, 96vw); }
+  .card { border-radius: 16px; padding: 10px 8px; text-align: center; background: rgba(255,255,255,.08); border: 3px solid rgba(255,255,255,.18); position: relative; cursor: pointer; }
+  .card .e { font-size: 2.2rem; line-height: 1.1; }
+  .card .n { font-weight: 900; font-size: .92rem; margin-top: 2px; }
+  .card .d { font-size: .72rem; opacity: .85; margin-top: 3px; min-height: 2em; }
+  .card .c { position: absolute; top: 4px; left: 6px; font-family: "Fredoka One", cursive; font-size: .9rem; background: #6c5ce7; border-radius: 10px; padding: 0 6px; }
+  .card .lv { position: absolute; top: 4px; right: 6px; font-size: .75rem; font-weight: 900; opacity: .9; }
+  .card.indeck { box-shadow: 0 0 0 3px #feca57 inset; }
+  .card.locked { opacity: .35; }
+  .bar { width: min(760px, 96vw); height: 10px; background: rgba(0,0,0,.4); border-radius: 6px; overflow: hidden; margin-top: 4px; }
+  .bar > i { display: block; height: 100%; background: #feca57; }
+  .stages { display: grid; grid-template-columns: repeat(6, 1fr); gap: 8px; width: min(760px, 96vw); }
+  .stage { border-radius: 14px; padding: 8px 4px; text-align: center; font-weight: 900; background: rgba(255,255,255,.1); border: 3px solid rgba(255,255,255,.2); cursor: pointer; }
+  .stage.boss { border-color: #ff6b6b; }
+  .stage.lock { opacity: .3; cursor: default; }
+  #hud { position: fixed; left: 0; right: 0; bottom: 0; display: none; flex-direction: column; align-items: center; gap: 6px; padding: 8px; z-index: 4; }
+  #hud.on { display: flex; }
+  #hand { display: flex; gap: 8px; flex-wrap: wrap; justify-content: center; }
+  #hand .card { width: 86px; padding: 6px 4px; background: rgba(20,10,40,.85); }
+  #hand .card.cant { opacity: .45; }
+  #energy { width: min(560px, 92vw); height: 18px; background: rgba(0,0,0,.5); border: 2px solid #fff; border-radius: 12px; overflow: hidden; position: relative; }
+  #energy > i { display: block; height: 100%; background: linear-gradient(90deg, #a29bfe, #ff9ff3); }
+  #energy > b { position: absolute; inset: 0; text-align: center; font-size: .8rem; line-height: 14px; }
+  #topHud { position: fixed; top: 8px; left: 50%; transform: translateX(-50%); display: none; gap: 8px; z-index: 4; flex-wrap: wrap; justify-content: center; }
+  #topHud.on { display: flex; }
+  #toast { position: fixed; top: 60px; left: 50%; transform: translateX(-50%); background: rgba(0,0,0,.85); padding: 10px 18px; border-radius: 14px; font-weight: 900; z-index: 50; display: none; max-width: 90vw; text-align: center; }
+  input { font-family: "Fredoka One", cursive; font-size: 1rem; padding: 8px 12px; border-radius: 14px; border: 2px solid #fff; background: rgba(255,255,255,.12); color: #fff; width: 170px; text-transform: uppercase; }
+  .rar-common { border-color: #b2bec3; } .rar-rare { border-color: #48dbfb; } .rar-epic { border-color: #a55eea; } .rar-legendary { border-color: #feca57; } .rar-mythic { border-color: #ff6b6b; box-shadow: 0 0 14px #ff6b6b; }
+  #result { background: rgba(10,5,25,.92); justify-content: center; }
+  #eggShow { font-size: 5rem; margin: 10px; transition: transform .3s; }
+</style>
+</head>
+<body>
+<canvas id="game"></canvas>
+
+<!-- 🏠 the menu -->
+<div class="screen on" id="menu">
+  <h1>🐾 Summon Battlers</h1>
+  <div class="sub">Summon your pets and battle! Collect pets from eggs, build your deck of 6, and smash the enemy base.</div>
+  <div class="row"><span class="pill">🪙 <b id="coins">0</b></span><span class="pill">🗺️ Stage <b id="stageN">1</b>/30</span><span class="pill">⭐ <b id="starsN">0</b></span><span class="pill">🐾 <b id="petsN">0</b>/24</span></div>
+  <div class="row">
+    <button class="green" id="btnPlay">⚔️ Play</button>
+    <button id="btnPets">🐾 My Pets & Deck</button>
+    <button class="orange" id="btnEggs">🥚 Hatch Eggs</button>
+  </div>
+  <div class="row"><input id="codeIn" maxlength="16" placeholder="🎁 CODE"><button class="small" id="codeBtn">Redeem</button></div>
+  <div class="sub" style="font-size:.8rem;opacity:.7">How to play: tap a pet card to summon it (it costs ⚡ energy, which fills up over time). Your pets walk right and fight. Both bases shoot enemies that get close. Break the enemy base 🏯 before they break yours 🏰!</div>
+</div>
+
+<!-- 🗺️ campaign -->
+<div class="screen" id="map" style="background:linear-gradient(180deg,#2d3561,#1b1035)">
+  <h2>🗺️ Campaign — 5 worlds, 30 stages</h2>
+  <div class="sub">Every 6th stage is a 👹 boss. Win with more base left for more ⭐.</div>
+  <div id="worlds"></div>
+  <div class="row"><button class="small" data-back>⬅ Back</button></div>
+</div>
+
+<!-- 🐾 collection + deck -->
+<div class="screen" id="pets" style="background:linear-gradient(180deg,#2c1450,#1b1035)">
+  <h2>🐾 My Pets & Deck</h2>
+  <div class="sub" id="deckSub"></div>
+  <div class="grid" id="deckRow" style="margin-bottom:12px"></div>
+  <div class="sub">Tap a pet to see it: put it in your deck, or level it up with shards (from duplicate eggs) and coins.</div>
+  <div class="grid" id="petGrid"></div>
+  <div class="row"><button class="small" data-back>⬅ Back</button></div>
+  <div class="card" id="petInfo" style="display:none;position:fixed;left:50%;top:50%;transform:translate(-50%,-50%);width:min(360px,92vw);background:#2c1450;z-index:20;cursor:default"></div>
+</div>
+
+<!-- 🥚 eggs -->
+<div class="screen" id="eggs" style="background:radial-gradient(circle at 50% 30%,#8e44ad,#1b1035 70%)">
+  <h2>🥚 Hatch Eggs</h2>
+  <div class="sub">Hatch an egg to get a pet. Got it already? You get shards to level it up instead.</div>
+  <div id="eggShow">🥚</div>
+  <div class="sub" id="eggMsg" style="font-weight:900;font-size:1.1rem;min-height:1.5em"></div>
+  <div class="grid" id="eggGrid" style="max-width:520px"></div>
+  <div class="row"><button class="small" data-back>⬅ Back</button></div>
+</div>
+
+<!-- 🏁 result -->
+<div class="screen" id="result">
+  <h2 id="resTitle"></h2>
+  <div class="sub" id="resText" style="font-size:1.05rem"></div>
+  <div class="row"><button class="green" id="resNext">➡ Next stage</button><button id="resMap">🗺️ Map</button></div>
+</div>
+
+<!-- ⚔️ battle HUD -->
+<div id="topHud"><span class="pill" id="hudStage"></span><span class="pill">⏱ <b id="hudTime">3:00</b></span><button class="small red" id="btnQuit">🏳️ Give up</button></div>
+<div id="hud"><div id="energy"><i id="energyFill"></i><b id="energyTxt"></b></div><div id="hand"></div></div>
+<div id="toast"></div>
+
+<script>
+"use strict";
+// ========================================================================= 🐾 SUMMON BATTLERS
+// A pet-summoning battle game. Your base 🏰 is on the left, the enemy's 🏯 on the right. ⚡ Energy fills up over
+// time; spend it to summon pets from your deck of 6. Pets walk forward, fight the enemy's pets and hit the base.
+// Collect pets from 🥚 eggs (duplicates give shards to level them up). 30 stages in 5 worlds, a 👹 boss every 6th.
+// Everything is saved in localStorage (summon_battlers_save).
+const SAVE_KEY = "summon_battlers_save";
+const W = 1000, H = 420, BASE_X = [70, 930], LANES = [250, 300, 350];   // the arena (world units)
+const FPS = 60, BATTLE_TIME = 180 * FPS, MAX_ENERGY = 10, ENERGY_EVERY = 66, MAX_LVL = 10, DECK_SIZE = 6;
+
+// ---- pets ------------------------------------------------------------------------------------------------
+// hp / dmg at level 1 (+15% a level). range in world units (≥ 60 = shoots). rate = frames between hits.
+// Powers: fly (ground pets only do half damage to it), splash (radius), heal (heals allies near, a hit), shield (takes less damage),
+// freeze (frames), poison (damage a second), charge (first hit ×), lifesteal, boom (explodes when it dies),
+// aura (+% damage to allies near), summon (a minion every N frames), revive (comes back once).
+const RARITY = {
+  common:    { name: "Common",    color: "#b2bec3", shards: 10 },
+  rare:      { name: "Rare",      color: "#48dbfb", shards: 10 },
+  epic:      { name: "Epic",      color: "#a55eea", shards: 10 },
+  legendary: { name: "Legendary", color: "#feca57", shards: 10 },
+  mythic:    { name: "Mythic",    color: "#ff6b6b", shards: 10 },
+};
+const PETS = {
+  mouse:    { name: "Mouse",        emoji: "🐭", rarity: "common",    cost: 2,  hp: 80,   dmg: 10, range: 26,  speed: 1.6, rate: 34, desc: "Fast and cheap." },
+  bunny:    { name: "Bunny",        emoji: "🐰", rarity: "common",    cost: 2,  hp: 90,   dmg: 9,  range: 26,  speed: 1.8, rate: 26, desc: "Hops in quickly and hits fast." },
+  bee:      { name: "Bee",          emoji: "🐝", rarity: "common",    cost: 2,  hp: 50,   dmg: 8,  range: 26,  speed: 2.0, rate: 30, fly: true, desc: "FLIES — ground pets only do half damage to it." },
+  frog:     { name: "Frog",         emoji: "🐸", rarity: "common",    cost: 3,  hp: 150,  dmg: 14, range: 26,  speed: 1.1, rate: 40, desc: "A solid little fighter." },
+  snail:    { name: "Snail",        emoji: "🐌", rarity: "common",    cost: 3,  hp: 280,  dmg: 6,  range: 26,  speed: 0.5, rate: 50, shield: 0.4, desc: "Slow tank with a SHELL (takes 40% less)." },
+  bird:     { name: "Songbird",     emoji: "🐦", rarity: "common",    cost: 3,  hp: 70,   dmg: 12, range: 120, speed: 1.2, rate: 44, fly: true, desc: "FLIES and pecks from range." },
+  fox:      { name: "Fox",          emoji: "🦊", rarity: "rare",      cost: 4,  hp: 200,  dmg: 22, range: 26,  speed: 1.5, rate: 38, charge: 3, desc: "POUNCE: its first hit does 3×." },
+  owl:      { name: "Owl",          emoji: "🦉", rarity: "rare",      cost: 4,  hp: 120,  dmg: 18, range: 160, speed: 1.0, rate: 46, fly: true, desc: "FLIES and shoots from far away." },
+  snake:    { name: "Snake",        emoji: "🐍", rarity: "rare",      cost: 3,  hp: 130,  dmg: 10, range: 30,  speed: 1.2, rate: 36, poison: 15, desc: "POISON bite that keeps hurting." },
+  turtle:   { name: "Turtle",       emoji: "🐢", rarity: "rare",      cost: 5,  hp: 600,  dmg: 10, range: 26,  speed: 0.6, rate: 50, shield: 0.5, desc: "Big tank: its shell blocks HALF the damage." },
+  bat:      { name: "Bat",          emoji: "🦇", rarity: "rare",      cost: 3,  hp: 90,   dmg: 12, range: 26,  speed: 2.2, rate: 30, fly: true, lifesteal: 0.5, desc: "FLIES and heals itself from its bites." },
+  penguin:  { name: "Penguin",      emoji: "🐧", rarity: "rare",      cost: 4,  hp: 160,  dmg: 12, range: 130, speed: 1.0, rate: 50, freeze: 45, desc: "Snowballs that FREEZE enemies for a moment." },
+  wolf:     { name: "Wolf",         emoji: "🐺", rarity: "epic",      cost: 5,  hp: 300,  dmg: 26, range: 26,  speed: 1.8, rate: 36, summon: { id: "pup", every: 360 }, desc: "PACK LEADER: calls a 🐶 pup every 6 s." },
+  unicorn:  { name: "Unicorn",      emoji: "🦄", rarity: "epic",      cost: 6,  hp: 350,  dmg: 20, range: 26,  speed: 1.4, rate: 40, heal: 25, desc: "Every hit HEALS the pets around it." },
+  scorpion: { name: "Scorpion",     emoji: "🦂", rarity: "epic",      cost: 5,  hp: 280,  dmg: 18, range: 30,  speed: 1.2, rate: 38, poison: 25, desc: "A strong POISON sting." },
+  octopus:  { name: "Octopus",      emoji: "🐙", rarity: "epic",      cost: 6,  hp: 380,  dmg: 16, range: 140, speed: 0.9, rate: 50, splash: 50, desc: "Ink blasts that hit a whole group." },
+  eagle:    { name: "Eagle",        emoji: "🦅", rarity: "epic",      cost: 5,  hp: 220,  dmg: 30, range: 26,  speed: 2.2, rate: 36, fly: true, charge: 2, desc: "FLIES fast and DIVES (2× first hit)." },
+  puffer:   { name: "Pufferfish",   emoji: "🐡", rarity: "epic",      cost: 4,  hp: 150,  dmg: 8,  range: 26,  speed: 1.3, rate: 40, boom: { dmg: 150, r: 80 }, desc: "When it's beaten it EXPLODES on everyone near." },
+  dragon:   { name: "Dragon",       emoji: "🐉", rarity: "legendary", cost: 8,  hp: 900,  dmg: 40, range: 150, speed: 1.0, rate: 50, fly: true, splash: 60, desc: "FLIES and breathes fire on whole groups." },
+  lion:     { name: "Lion King",    emoji: "🦁", rarity: "legendary", cost: 7,  hp: 1100, dmg: 45, range: 28,  speed: 1.3, rate: 42, aura: 0.25, desc: "ROAR: pets near him do +25% damage." },
+  trex:     { name: "T-Rex",        emoji: "🦖", rarity: "legendary", cost: 8,  hp: 1600, dmg: 55, range: 30,  speed: 0.9, rate: 55, splash: 40, desc: "Huge CHOMP that hits everything in front." },
+  whale:    { name: "Whale",        emoji: "🐳", rarity: "legendary", cost: 7,  hp: 2200, dmg: 20, range: 30,  speed: 0.6, rate: 50, shield: 0.4, heal: 20, desc: "A giant tank that HEALS its friends." },
+  phoenix:  { name: "Phoenix",      emoji: "🐦‍🔥", rarity: "mythic",    cost: 9,  hp: 1000, dmg: 50, range: 160, speed: 1.2, rate: 44, fly: true, revive: true, desc: "FLIES, burns from range — and comes back to life ONCE." },
+  kraken:   { name: "Cosmic Kraken", emoji: "🦑", rarity: "mythic",   cost: 10, hp: 2500, dmg: 60, range: 140, speed: 0.7, rate: 52, splash: 80, summon: { id: "inkling", every: 300 }, desc: "Smashes groups and calls 🐙 inklings every 5 s." },
+};
+// summoned helpers and the bosses (never in eggs)
+const EXTRA = {
+  pup:     { name: "Pup",      emoji: "🐶", hp: 80,  dmg: 10, range: 26,  speed: 1.9, rate: 30 },
+  inkling: { name: "Inkling",  emoji: "🐙", hp: 160, dmg: 14, range: 110, speed: 1.0, rate: 44 },
+  ogre:    { name: "Meadow Ogre",    emoji: "👹", boss: true, hp: 1100, dmg: 34, range: 34, speed: 0.55, rate: 60, splash: 30 },
+  sking:   { name: "Scorpion King",  emoji: "🦂", boss: true, hp: 1250, dmg: 32, range: 34, speed: 0.6, rate: 55, poison: 18, splash: 35 },
+  mammoth: { name: "Frost Mammoth",  emoji: "🦣", boss: true, hp: 1700, dmg: 36, range: 36, speed: 0.5, rate: 60, freeze: 14, splash: 35 },
+  magma:   { name: "Magma Golem",    emoji: "🗿", boss: true, hp: 3100, dmg: 55, range: 36, speed: 0.45, rate: 60, splash: 70, boom: { dmg: 400, r: 120 } },
+  voidlord:{ name: "Void Lord",      emoji: "👾", boss: true, hp: 4200, dmg: 62, range: 150, speed: 0.5, rate: 55, fly: true, splash: 80, summon: { id: "inkling", every: 240 } },
+};
+const def = (id) => PETS[id] || EXTRA[id];
+const lvlMul = (lvl) => 1 + 0.15 * (Math.max(1, lvl) - 1);
+
+// ---- worlds and stages -------------------------------------------------------------------------------------
+const WORLDS = [
+  { name: "Meadow",  emoji: "🌼", sky: ["#87ceeb", "#d4f1ff"], ground: "#6ab04c", pool: ["mouse", "bunny", "bee", "frog", "snail", "bird"], boss: "ogre" },
+  { name: "Desert",  emoji: "🏜️", sky: ["#f6c177", "#ffe6b3"], ground: "#e1b866", pool: ["snake", "scorpion", "fox", "bird", "mouse", "puffer"], boss: "sking" },
+  { name: "Ice",     emoji: "❄️", sky: ["#a5d8ff", "#eef6ff"], ground: "#dfe9f3", pool: ["penguin", "turtle", "owl", "wolf", "bunny", "whale"], boss: "mammoth" },
+  { name: "Volcano", emoji: "🌋", sky: ["#5d1f1a", "#c0392b"], ground: "#4a2520", pool: ["dragon", "trex", "bat", "eagle", "scorpion", "fox"], boss: "magma" },
+  { name: "Void",    emoji: "🌌", sky: ["#0c0a2a", "#2d1b69"], ground: "#30336b", pool: ["phoenix", "kraken", "lion", "dragon", "octopus", "unicorn"], boss: "voidlord" },
+];
+const STAGES = 30;
+function stageInfo(n) {   // stage 1–30: its world, the enemy's level and deck, its base, and whether it's a boss
+  const w = Math.floor((n - 1) / 6), wd = WORLDS[w], boss = n % 6 === 0;
+  return { n, world: w, worldDef: wd, boss, bossId: boss ? wd.boss : null, enemyLvl: 1 + Math.floor((n - 1) / 3), deck: wd.pool.slice(),
+           baseHp: Math.round(700 * (1 + 0.12 * (n - 1)) * (boss ? 1 : 1)), coins: 30 + 12 * n + (boss ? 100 : 0),
+           aiSlow: 1.35 - 0.012 * (n - 1) };   // early enemies get ⚡ more slowly
+}
+
+// ---- eggs ----------------------------------------------------------------------------------------------------
+const EGGS = {
+  basic:  { name: "Egg",         emoji: "🥚", cost: 100, odds: { common: 62, rare: 27, epic: 8.5, legendary: 2.2, mythic: 0.3 } },
+  golden: { name: "Golden Egg",  emoji: "🌟", cost: 450, odds: { common: 0, rare: 52, epic: 33, legendary: 13, mythic: 2 } },
+  cosmic: { name: "Cosmic Egg",  emoji: "🔮", cost: 1500, odds: { common: 0, rare: 0, epic: 40, legendary: 48, mythic: 12 } },
+};
+const shardsFor = (lvl) => 10 * lvl;       // shards to go from lvl → lvl+1
+const coinsFor = (lvl) => 60 * lvl;        // and coins
+
+// ---- save ------------------------------------------------------------------------------------------------------
+function freshSave() {
+  return { coins: 250, pets: { mouse: { lvl: 1, shards: 0 }, bunny: { lvl: 1, shards: 0 }, frog: { lvl: 1, shards: 0 }, bird: { lvl: 1, shards: 0 } },
+           deck: ["mouse", "bunny", "frog", "bird"], stage: 1, stars: {}, codes: [], hatched: 0, wins: 0, freeEggs: {} };
+}
+let S;
+function load() {
+  try { S = Object.assign(freshSave(), JSON.parse(localStorage.getItem(SAVE_KEY) || "null") || {}); } catch (e) { S = freshSave(); }
+  S.deck = (S.deck || []).filter((id) => S.pets[id]).slice(0, DECK_SIZE);
+  if (!S.deck.length) S.deck = Object.keys(S.pets).slice(0, DECK_SIZE);
+}
+function save() { try { localStorage.setItem(SAVE_KEY, JSON.stringify(S)); } catch (e) {} }
+const owned = (id) => !!S.pets[id];
+const lvlOf = (id) => (S.pets[id] ? S.pets[id].lvl : 1);
+const totalStars = () => Object.values(S.stars).reduce((a, b) => a + b, 0);
+function earnTitle(id, msg) { try { window.ArcadeShop && ArcadeShop.earnTitle && ArcadeShop.earnTitle(id, msg); } catch (e) {} }
+
+// ---- hatching, levelling, deck ---------------------------------------------------------------------------------
+function rollRarity(odds, r) {
+  r = (r === undefined ? Math.random() : r) * 100;
+  for (const k of Object.keys(RARITY)) { if (r < odds[k]) return k; r -= odds[k]; }
+  return "rare";
+}
+function hatch(kind, free, r1, r2) {   // → { id, fresh, shards } or { error }
+  const egg = EGGS[kind]; if (!egg) return { error: "No such egg." };
+  if (free) { if (!(S.freeEggs[kind] > 0)) return { error: "You have no free egg of that kind." }; S.freeEggs[kind]--; }
+  else { if (S.coins < egg.cost) return { error: `You need 🪙 ${egg.cost}.` }; S.coins -= egg.cost; }
+  const rar = rollRarity(egg.odds, r1), pool = Object.keys(PETS).filter((id) => PETS[id].rarity === rar);
+  const id = pool[Math.floor((r2 === undefined ? Math.random() : r2) * pool.length) % pool.length];
+  S.hatched = (S.hatched || 0) + 1;
+  let out;
+  if (!S.pets[id]) { S.pets[id] = { lvl: 1, shards: 0 }; if (S.deck.length < DECK_SIZE) S.deck.push(id); out = { id, fresh: true, shards: 0 }; }
+  else { const sh = RARITY[rar].shards; S.pets[id].shards += sh; out = { id, fresh: false, shards: sh }; }
+  save();
+  if (S.hatched >= 10) earnTitle("sb-summoner", "🐣 SUMMONER! 10 eggs hatched — title unlocked!");
+  if (rar === "mythic") earnTitle("sb-mythic", "🌈 MYTHIC FINDER! You hatched a Mythic pet — a secret title!");
+  return out;
+}
+function levelUp(id) {
+  const p = S.pets[id]; if (!p) return "You don't have that pet.";
+  if (p.lvl >= MAX_LVL) return "Already max level!";
+  const sh = shardsFor(p.lvl), co = coinsFor(p.lvl);
+  if (p.shards < sh) return `Needs ${sh} shards (you have ${p.shards}) — hatch more eggs.`;
+  if (S.coins < co) return `Needs 🪙 ${co}.`;
+  p.shards -= sh; S.coins -= co; p.lvl++; save();
+  return null;
+}
+function toggleDeck(id) {
+  if (!owned(id)) return "You don't have that pet yet.";
+  const i = S.deck.indexOf(id);
+  if (i >= 0) { if (S.deck.length <= 1) return "Keep at least 1 pet in your deck."; S.deck.splice(i, 1); }
+  else { if (S.deck.length >= DECK_SIZE) return `Your deck is full (${DECK_SIZE}) — take one out first.`; S.deck.push(id); }
+  save(); return null;
+}
+
+// ---- 🎁 codes ----------------------------------------------------------------------------------------------------
+const CODES = { SUMMON: { coins: 300 }, PETPOWER: { coins: 500 }, EGGHUNT: { egg: "basic" }, GOLDEN: { egg: "golden" }, DANIEL: { coins: 1000, egg: "golden" } };
+function redeemCode(raw) {
+  const code = String(raw || "").trim().toUpperCase().replace(/\s+/g, "");
+  if (!code) return "Type a code first.";
+  const c = CODES[code]; if (!c) return "❌ That code doesn't exist.";
+  if (S.codes.includes(code)) return "You already used that code.";
+  S.codes.push(code);
+  const parts = [];
+  if (c.coins) { S.coins += c.coins; parts.push(`🪙 +${c.coins}`); }
+  if (c.egg) { S.freeEggs[c.egg] = (S.freeEggs[c.egg] || 0) + 1; parts.push(`a free ${EGGS[c.egg].emoji} ${EGGS[c.egg].name}`); }
+  save(); return `🎁 ${code}: ${parts.join(" · ")}`;
+}
+
+// ---- ⚔️ the battle ------------------------------------------------------------------------------------------------
+let battle = null;
+function makeUnit(side, id, lvl, x, lane) {
+  const d = def(id), m = lvlMul(lvl) * (d.boss ? 1 : 1);
+  return { side, id, x, y: LANES[lane], lane, hp: d.hp * m, maxHp: d.hp * m, dmg: d.dmg * m, cd: 10, charged: false, poison: 0, frozen: 0,
+           summonCd: d.summon ? d.summon.every : 0, revived: false, lvl };
+}
+function startStage(n, rnd) {
+  const st = stageInfo(n); if (n > S.stage) return "That stage is locked — beat the one before it.";
+  rnd = rnd || Math.random;
+  battle = { st, rnd, frame: 0, units: [], shots: [], fx: [], texts: [], over: false, energy: [5, 5], tick: [0, 0],
+             base: [Math.round(1000 * (1 + 0.08 * (totalStars() / 10))), st.baseHp], baseMax: [0, st.baseHp], aiWait: 120, bossOut: false };
+  battle.baseMax[0] = battle.base[0];
+  showBattle(); return null;
+}
+function summon(side, id) {   // side 0 = you, 1 = the enemy. Returns true if it came out.
+  const bt = battle; if (!bt || bt.over) return false;
+  const d = def(id); if (!d || (side === 0 && !S.deck.includes(id))) return false;
+  if (bt.energy[side] < d.cost) return false;
+  bt.energy[side] -= d.cost;
+  const lane = Math.floor(bt.rnd() * LANES.length), x = side === 0 ? BASE_X[0] + 40 : BASE_X[1] - 40;
+  bt.units.push(makeUnit(side, id, side === 0 ? lvlOf(id) : bt.st.enemyLvl, x, lane));
+  return true;
+}
+function auraBoost(bt, u) {   // 🦁 +25% from a friendly Lion King near
+  for (const o of bt.units) if (o !== u && o.hp > 0 && o.side === u.side && def(o.id).aura && Math.abs(o.x - u.x) < 160) return 1 + def(o.id).aura;
+  return 1;
+}
+function hurt(bt, t, dmg, from) {
+  const d = def(t.id); if (d.shield) dmg *= 1 - d.shield;
+  t.hp -= dmg;
+  if (t.hp <= 0) {
+    if (d.revive && !t.revived) { t.revived = true; t.hp = t.maxHp; bt.texts.push({ x: t.x, y: t.y - 30, t: 60, text: "🔥 REBORN!" }); return; }   // 🐦‍🔥
+    if (d.boom) for (const o of bt.units) if (o.hp > 0 && o.side !== t.side && Math.abs(o.x - t.x) < d.boom.r) { o.hp -= d.boom.dmg * lvlMul(t.lvl); }   // 🐡 💥
+    if (d.boom) bt.fx.push({ x: t.x, y: t.y, t: 30, r: d.boom.r });
+    bt.fx.push({ x: t.x, y: t.y, t: 18, r: 20 });
+  }
+}
+function step() {
+  const bt = battle; if (!bt || bt.over) return;
+  bt.frame++;
+  const dbl = bt.frame > BATTLE_TIME - 60 * FPS ? 2 : 1;   // ⚡×2 in the last minute
+  if (dbl === 2 && !bt.dblSaid) { bt.dblSaid = true; bt.texts.push({ x: 500, y: 120, t: 150, text: "⚡ DOUBLE ENERGY — last minute!" }); }
+  for (const s of [0, 1]) if ((bt.tick[s] += dbl) >= ENERGY_EVERY * (s ? bt.st.aiSlow : 1)) { bt.tick[s] = 0; bt.energy[s] = Math.min(MAX_ENERGY, bt.energy[s] + 1); }
+  // 🤖 the enemy: the boss comes out first on a boss stage, then it summons what it can afford (with a little wait)
+  if (bt.st.boss && !bt.bossOut && bt.frame > 90) { bt.bossOut = true; bt.units.push(makeUnit(1, bt.st.bossId, 1 + Math.floor(bt.st.n / 12), BASE_X[1] - 50, 1)); bt.texts.push({ x: 800, y: 200, t: 120, text: `👹 ${def(bt.st.bossId).name} appears!` }); }
+  if (--bt.aiWait <= 0) {
+    const can = bt.st.deck.filter((id) => def(id).cost <= bt.energy[1]);
+    if (can.length && (bt.energy[1] >= 6 || bt.rnd() < 0.3)) { summon(1, can[Math.floor(bt.rnd() * can.length)]); bt.aiWait = 90 + Math.floor(bt.rnd() * 100); }
+    else bt.aiWait = 20;
+  }
+  for (const u of bt.units) {
+    if (u.hp <= 0) continue;
+    const d = def(u.id), dir = u.side === 0 ? 1 : -1;
+    if (u.poison > 0) { u.poison--; u.hp -= (u.poisonDps || 0) / FPS; if (u.hp <= 0) { hurt(bt, u, 0); continue; } }
+    if (u.frozen > 0) { u.frozen--; continue; }
+    if (d.summon && --u.summonCd <= 0) { u.summonCd = d.summon.every; const m = makeUnit(u.side, d.summon.id, u.lvl, u.x - dir * 10, u.lane); bt.units.push(m); }
+    // the nearest enemy ahead that this pet can reach (ground pets can't hit flyers unless they shoot)
+    let tg = null, bd = 1e9;
+    for (const o of bt.units) {
+      if (o.hp <= 0 || o.side === u.side) continue;
+      const dx = (o.x - u.x) * dir; if (dx < -30) continue;
+      const dist = Math.abs(o.x - u.x); if (dist < bd) { bd = dist; tg = o; }
+    }
+    const baseX = BASE_X[1 - u.side], baseDist = Math.abs(baseX - u.x);
+    const reach = d.range + 8;
+    if (tg && bd <= reach) attack(bt, u, d, tg);
+    else if (baseDist <= reach + 30) attack(bt, u, d, null);
+    else u.x += dir * d.speed;
+  }
+  baseShoot(bt);
+  bt.units = bt.units.filter((u) => u.hp > 0 || u.revived === "x");
+  bt.shots = bt.shots.filter((s) => --s.t > 0); bt.fx = bt.fx.filter((f) => --f.t > 0); bt.texts = bt.texts.filter((t) => --t.t > 0);
+  if (bt.base[0] <= 0 || bt.base[1] <= 0 || bt.frame >= BATTLE_TIME) endBattle();
+}
+function attack(bt, u, d, tg) {   // tg null = the enemy base
+  if (--u.cd > 0) return;
+  u.cd = d.rate;
+  let dmg = u.dmg * auraBoost(bt, u);
+  if (d.charge && !u.charged) { dmg *= d.charge; u.charged = true; bt.texts.push({ x: u.x, y: u.y - 30, t: 40, text: "POUNCE!" }); }
+  const tx = tg ? tg.x : BASE_X[1 - u.side], ty = tg ? tg.y : 300;
+  if (d.range >= 60 || d.splash) bt.shots.push({ x: u.x, y: u.y, tx, ty, t: 10, col: d.splash ? "#ff9f43" : "#feca57" });
+  if (!tg) { bt.base[1 - u.side] = Math.max(0, bt.base[1 - u.side] - dmg); }
+  else {
+    const hits = d.splash ? bt.units.filter((o) => o.hp > 0 && o.side !== u.side && Math.abs(o.x - tg.x) <= d.splash) : [tg];
+    for (const o of hits) {
+      hurt(bt, o, def(o.id).fly && d.range < 60 && !d.fly ? dmg * 0.5 : dmg, u);   // 🕊️ ground pets only do half damage to flyers
+      if (d.poison) { o.poison = 180; o.poisonDps = d.poison * lvlMul(u.lvl); }
+      if (d.freeze) o.frozen = d.freeze;
+    }
+    if (d.lifesteal) u.hp = Math.min(u.maxHp, u.hp + dmg * d.lifesteal);
+  }
+  if (d.heal) for (const o of bt.units) if (o.hp > 0 && o.side === u.side && Math.abs(o.x - u.x) < 120) o.hp = Math.min(o.maxHp, o.hp + d.heal * lvlMul(u.lvl));
+}
+// 🏰 🏯 Both bases fight back: they shoot the nearest enemy close to them (so a boss can't camp at your gate).
+const BASE_RANGE = 230, BASE_RATE = 40;
+const baseDmg = (bt, side) => (side === 0 ? 26 + 3 * bt.st.n : 12 + 1.5 * bt.st.n);   // (your base hits harder: home advantage)
+function baseShoot(bt) {
+  bt.baseCd = bt.baseCd || [0, 0];
+  for (const side of [0, 1]) {
+    if (--bt.baseCd[side] > 0 || bt.base[side] <= 0) continue;
+    let tg = null, bd = BASE_RANGE;
+    for (const o of bt.units) if (o.hp > 0 && o.side !== side) { const d = Math.abs(o.x - BASE_X[side]); if (d < bd) { bd = d; tg = o; } }
+    if (!tg) continue;
+    bt.baseCd[side] = BASE_RATE; hurt(bt, tg, baseDmg(bt, side));
+    bt.shots.push({ x: BASE_X[side], y: 200, tx: tg.x, ty: tg.y, t: 10, col: side ? "#ff7675" : "#55efc4" });
+  }
+}
+function starsFor(bt) { const left = bt.base[0] / bt.baseMax[0]; return 1 + (left >= 0.5 ? 1 : 0) + (left >= 0.9 ? 1 : 0); }
+function endBattle(giveUp) {
+  const bt = battle; if (!bt || bt.over) return;
+  bt.over = true;
+  const n = bt.st.n;
+  let win = bt.base[1] <= 0 && !giveUp;
+  if (!giveUp && bt.frame >= BATTLE_TIME && bt.base[0] > 0 && bt.base[1] > 0) win = bt.base[0] / bt.baseMax[0] > bt.base[1] / bt.st.baseHp;   // time's up: the healthier base wins
+  let title, text;
+  if (win) {
+    const stars = starsFor(bt), first = !S.stars[n], better = stars > (S.stars[n] || 0);
+    let coins = bt.st.coins + (first ? 50 : 0) + (better && stars === 3 ? 60 : 0);
+    S.coins += coins; S.wins = (S.wins || 0) + 1;
+    if (better) S.stars[n] = stars;
+    if (n === S.stage && S.stage < STAGES) S.stage++;
+    const gift = first && n % 6 === 0 ? "golden" : first && n % 3 === 0 ? "basic" : null;
+    if (gift) S.freeEggs[gift] = (S.freeEggs[gift] || 0) + 1;
+    title = `${"⭐".repeat(stars)} VICTORY!`;
+    text = `You beat stage ${n}${bt.st.boss ? ` and the boss ${def(bt.st.bossId).name}` : ""}! 🪙 +${coins}${gift ? ` · a free ${EGGS[gift].emoji} ${EGGS[gift].name}!` : ""}`;
+    if (n === STAGES) earnTitle("sb-champion", "🏆 SUMMON CHAMPION! You beat all 30 stages — title unlocked!");
+    if (bt.st.boss && bt.units.filter((u) => u.side === 0).length === 0) {}
+  } else {
+    const coins = giveUp ? 0 : 10 + 3 * n; S.coins += coins;
+    title = giveUp ? "🏳️ You gave up" : "💥 Defeat";
+    text = giveUp ? "Try again — level up your pets in 🐾 My Pets!" : `Your base fell. 🪙 +${coins} for trying. Level up your pets and hatch more eggs!`;
+  }
+  save();
+  showResult(title, text, win);
+}
+
+// ---- 🖼️ screens -----------------------------------------------------------------------------------------------------
+const $ = (id) => document.getElementById(id);
+let toastT = 0;
+function toast(t) { const e = $("toast"); e.textContent = t; e.style.display = "block"; clearTimeout(toastT); toastT = setTimeout(() => (e.style.display = "none"), 2600); }
+function show(id) { document.querySelectorAll(".screen").forEach((s) => s.classList.toggle("on", s.id === id)); $("hud").classList.remove("on"); $("topHud").classList.remove("on"); }
+document.querySelectorAll("[data-back]").forEach((b) => (b.onclick = () => { renderMenu(); show("menu"); }));
+function renderMenu() {
+  $("coins").textContent = S.coins.toLocaleString(); $("stageN").textContent = Math.min(S.stage, STAGES); $("starsN").textContent = totalStars(); $("petsN").textContent = Object.keys(S.pets).length;
+}
+function renderMap() {
+  $("worlds").innerHTML = WORLDS.map((w, wi) => `<div style="margin:10px 0"><div class="sub" style="font-weight:900;font-size:1.05rem;margin-bottom:4px">${w.emoji} World ${wi + 1}: ${w.name}</div><div class="stages">` +
+    Array.from({ length: 6 }, (_, i) => { const n = wi * 6 + i + 1, st = stageInfo(n), lock = n > S.stage;
+      return `<div class="stage ${st.boss ? "boss" : ""} ${lock ? "lock" : ""}" data-stage="${n}">${st.boss ? "👹" : n}<br><span style="font-size:.75rem">${lock ? "🔒" : "⭐".repeat(S.stars[n] || 0) || "—"}</span></div>`; }).join("") + `</div></div>`).join("");
+  $("worlds").querySelectorAll("[data-stage]").forEach((b) => (b.onclick = () => { const e = startStage(+b.dataset.stage); if (e) toast(e); }));
+}
+function petCard(id, extra) {
+  const d = PETS[id], p = S.pets[id];
+  return `<div class="card rar-${d.rarity} ${p ? "" : "locked"} ${S.deck.includes(id) ? "indeck" : ""}" data-pet="${id}"><span class="c">⚡${d.cost}</span>${p ? `<span class="lv">Lv ${p.lvl}</span>` : ""}
+    <div class="e">${p ? d.emoji : "❓"}</div><div class="n">${p ? d.name : RARITY[d.rarity].name}</div>${extra || ""}</div>`;
+}
+function renderPets() {
+  $("deckSub").textContent = `Your deck (${S.deck.length}/${DECK_SIZE}) — these are the pets you can summon in battle.`;
+  $("deckRow").innerHTML = S.deck.map((id) => petCard(id)).join("");
+  $("petGrid").innerHTML = Object.keys(PETS).map((id) => petCard(id, owned(id) ? `<div class="bar" style="width:100%"><i style="width:${Math.min(100, 100 * S.pets[id].shards / shardsFor(S.pets[id].lvl))}%"></i></div>` : "")).join("");
+  document.querySelectorAll("#pets [data-pet]").forEach((c) => (c.onclick = () => showPet(c.dataset.pet)));
+}
+function showPet(id) {
+  const d = PETS[id], p = S.pets[id], box = $("petInfo");
+  if (!p) { toast(`❓ A ${RARITY[d.rarity].name} pet — hatch eggs to find it!`); return; }
+  const m = lvlMul(p.lvl), full = p.lvl >= MAX_LVL;
+  box.innerHTML = `<div class="e" style="font-size:3.4rem">${d.emoji}</div><div class="n" style="font-size:1.2rem">${d.name} · Lv ${p.lvl}</div>
+    <div class="d" style="color:${RARITY[d.rarity].color};font-weight:900">${RARITY[d.rarity].name}</div><div class="d">${d.desc}</div>
+    <div class="d">⚡ ${d.cost} · ❤️ ${Math.round(d.hp * m)} · 💥 ${Math.round(d.dmg * m)} · ${d.range >= 60 ? "🏹 shoots" : "⚔️ melee"}${d.fly ? " · 🕊️ flies" : ""}</div>
+    <div class="d">${full ? "⭐ MAX LEVEL" : `Level up: ${p.shards}/${shardsFor(p.lvl)} shards + 🪙 ${coinsFor(p.lvl)}`}</div>
+    <div class="row"><button class="small ${S.deck.includes(id) ? "red" : "green"}" id="piDeck">${S.deck.includes(id) ? "Take out of deck" : "Put in deck"}</button>${full ? "" : `<button class="small orange" id="piUp">⬆️ Level up</button>`}<button class="small" id="piClose">Close</button></div>`;
+  box.style.display = "block";
+  $("piDeck").onclick = () => { const e = toggleDeck(id); if (e) toast(e); renderPets(); showPet(id); };
+  const up = $("piUp"); if (up) up.onclick = () => { const e = levelUp(id); toast(e || `⬆️ ${d.name} is now level ${S.pets[id].lvl}!`); renderPets(); showPet(id); };
+  $("piClose").onclick = () => (box.style.display = "none");
+}
+function renderEggs() {
+  $("eggGrid").innerHTML = Object.entries(EGGS).map(([k, e]) => `<div class="card"><div class="e">${e.emoji}</div><div class="n">${e.name}</div>
+    <div class="d">${Object.entries(e.odds).filter(([, v]) => v > 0).map(([r, v]) => `${RARITY[r].name} ${v}%`).join(" · ")}</div>
+    <button class="small orange" data-egg="${k}" ${S.coins < e.cost ? "disabled" : ""}>🪙 ${e.cost}</button>${S.freeEggs[k] > 0 ? ` <button class="small green" data-free="${k}">Free ×${S.freeEggs[k]}</button>` : ""}</div>`).join("");
+  const go = (k, free) => {
+    const r = hatch(k, free); if (r.error) return toast(r.error);
+    const d = PETS[r.id]; $("eggShow").textContent = "💥"; setTimeout(() => ($("eggShow").textContent = d.emoji), 250);
+    $("eggMsg").innerHTML = `<span style="color:${RARITY[d.rarity].color}">${RARITY[d.rarity].name}!</span> ${r.fresh ? `NEW PET: ${d.emoji} ${d.name}!` : `${d.emoji} ${d.name} again — +${r.shards} shards`}`;
+    renderEggs(); renderMenu();
+  };
+  $("eggGrid").querySelectorAll("[data-egg]").forEach((b) => (b.onclick = () => go(b.dataset.egg, false)));
+  $("eggGrid").querySelectorAll("[data-free]").forEach((b) => (b.onclick = () => go(b.dataset.free, true)));
+}
+function showBattle() {
+  show(null); $("hud").classList.add("on"); $("topHud").classList.add("on");
+  $("hudStage").textContent = `${battle.st.worldDef.emoji} Stage ${battle.st.n}${battle.st.boss ? " 👹 BOSS" : ""}`;
+  $("hand").innerHTML = S.deck.map((id) => `<div class="card rar-${PETS[id].rarity}" data-sum="${id}"><span class="c">⚡${PETS[id].cost}</span><div class="e" style="font-size:1.8rem">${PETS[id].emoji}</div><div class="n" style="font-size:.75rem">${PETS[id].name}</div></div>`).join("");
+  $("hand").querySelectorAll("[data-sum]").forEach((c) => (c.onclick = () => { if (!summon(0, c.dataset.sum)) toast(`Not enough ⚡ (needs ${PETS[c.dataset.sum].cost})`); }));
+}
+function renderHud() {
+  const bt = battle; if (!bt) return;
+  $("energyFill").style.width = `${100 * bt.energy[0] / MAX_ENERGY}%`; $("energyTxt").textContent = `⚡ ${bt.energy[0]} / ${MAX_ENERGY}`;
+  const left = Math.max(0, Math.ceil((BATTLE_TIME - bt.frame) / FPS)); $("hudTime").textContent = `${Math.floor(left / 60)}:${String(left % 60).padStart(2, "0")}${left <= 60 ? " ⚡×2" : ""}`;
+  $("hand").querySelectorAll("[data-sum]").forEach((c) => c.classList.toggle("cant", PETS[c.dataset.sum].cost > bt.energy[0]));
+}
+function showResult(title, text, win) {
+  show("result"); $("resTitle").textContent = title; $("resText").textContent = text;
+  $("resNext").style.display = win && battle.st.n < STAGES ? "inline-block" : "none";
+  $("resNext").textContent = win ? "➡ Next stage" : "🔁 Try again";
+}
+$("resNext").onclick = () => { const n = battle.st.n + 1; battle = null; const e = startStage(n); if (e) toast(e); };
+$("resMap").onclick = () => { battle = null; renderMap(); show("map"); };
+$("btnQuit").onclick = () => endBattle(true);
+$("btnPlay").onclick = () => { renderMap(); show("map"); };
+$("btnPets").onclick = () => { renderPets(); show("pets"); };
+$("btnEggs").onclick = () => { $("eggShow").textContent = "🥚"; $("eggMsg").textContent = ""; renderEggs(); show("eggs"); };
+$("codeBtn").onclick = () => { toast(redeemCode($("codeIn").value)); $("codeIn").value = ""; renderMenu(); };
+$("codeIn").addEventListener("keydown", (e) => { e.stopPropagation(); if (e.key === "Enter") $("codeBtn").onclick(); });
+
+// ---- 🎨 drawing --------------------------------------------------------------------------------------------------------
+const cv = $("game"), ctx = cv.getContext("2d");
+function resize() { cv.width = innerWidth * devicePixelRatio; cv.height = innerHeight * devicePixelRatio; }
+addEventListener("resize", resize);
+let sc = 1, offX = 0, offY = 0;
+const SPR = new Map();
+function stamp(text, x, y, px) {   // emoji drawn once into a little picture, then stamped (fast)
+  px = Math.max(6, Math.round(px)); const key = text + "|" + px; let c = SPR.get(key);
+  if (!c) { if (SPR.size > 400) SPR.clear(); c = document.createElement("canvas"); c.width = c.height = Math.ceil(px * 1.4); const g = c.getContext("2d"); g.font = `${px}px serif`; g.textAlign = "center"; g.textBaseline = "middle"; g.fillText(text, c.width / 2, c.height / 2); SPR.set(key, c); }
+  ctx.drawImage(c, x - c.width / 2, y - c.height / 2);
+}
+function draw() {
+  const bt = battle, cw = innerWidth, ch = innerHeight;
+  ctx.setTransform(devicePixelRatio, 0, 0, devicePixelRatio, 0, 0);
+  if (!bt) { ctx.fillStyle = "#1b1035"; ctx.fillRect(0, 0, cw, ch); return; }
+  const wd = bt.st.worldDef;
+  sc = Math.min(cw / W, (ch - 150) / H); offX = (cw - W * sc) / 2; offY = 50;
+  const g = ctx.createLinearGradient(0, 0, 0, ch); g.addColorStop(0, wd.sky[0]); g.addColorStop(1, wd.sky[1]); ctx.fillStyle = g; ctx.fillRect(0, 0, cw, ch);
+  ctx.save(); ctx.translate(offX, offY); ctx.scale(sc, sc);
+  ctx.fillStyle = wd.ground; ctx.fillRect(-2000, 215, W + 4000, 400);
+  ctx.fillStyle = "rgba(0,0,0,.08)"; for (const y of LANES) ctx.fillRect(0, y + 14, W, 4);
+  // bases
+  const baseDraw = (i, emo) => {
+    const x = BASE_X[i]; stamp(emo, x, 230, 90);
+    const f = bt.base[i] / (i ? bt.st.baseHp : bt.baseMax[0]);
+    ctx.fillStyle = "#2d3436"; ctx.fillRect(x - 55, 150, 110, 10); ctx.fillStyle = i ? "#ff6b6b" : "#55efc4"; ctx.fillRect(x - 55, 150, 110 * Math.max(0, f), 10);
+    ctx.fillStyle = "#fff"; ctx.font = "bold 14px Nunito, sans-serif"; ctx.textAlign = "center"; ctx.fillText(Math.ceil(bt.base[i]).toLocaleString(), x, 145);
+  };
+  baseDraw(0, "🏰"); baseDraw(1, "🏯");
+  for (const s of bt.shots) { ctx.strokeStyle = s.col; ctx.lineWidth = 3; ctx.beginPath(); ctx.moveTo(s.x, s.y - 20); ctx.lineTo(s.tx, s.ty - 20); ctx.stroke(); }
+  for (const u of [...bt.units].sort((a, b) => a.y - b.y)) {
+    if (u.hp <= 0) continue;
+    const d = def(u.id), size = d.boss ? 70 : 38, y = u.y - (d.fly ? 50 : 0);
+    if (d.fly) { ctx.fillStyle = "rgba(0,0,0,.18)"; ctx.beginPath(); ctx.ellipse(u.x, u.y + 12, 14, 5, 0, 0, Math.PI * 2); ctx.fill(); }
+    ctx.save(); ctx.translate(u.x, y); if (u.side === 0) ctx.scale(-1, 1); stamp(d.emoji, 0, 0, size); ctx.restore();
+    ctx.strokeStyle = u.side ? "#ff6b6b" : "#55efc4"; ctx.lineWidth = 2; ctx.beginPath(); ctx.arc(u.x, y + size * 0.45, 6, 0, Math.PI * 2); ctx.stroke();
+    if (u.frozen > 0) { ctx.fillStyle = "rgba(116,185,255,.4)"; ctx.beginPath(); ctx.arc(u.x, y, size * 0.55, 0, Math.PI * 2); ctx.fill(); }
+    if (u.poison > 0) { ctx.fillStyle = "rgba(68,189,50,.35)"; ctx.beginPath(); ctx.arc(u.x, y, size * 0.45, 0, Math.PI * 2); ctx.fill(); }
+    const bw = d.boss ? 90 : 36; ctx.fillStyle = "#2d3436"; ctx.fillRect(u.x - bw / 2, y - size * 0.7, bw, 5); ctx.fillStyle = u.side ? "#ff6b6b" : "#55efc4"; ctx.fillRect(u.x - bw / 2, y - size * 0.7, bw * Math.max(0, u.hp / u.maxHp), 5);
+  }
+  for (const f of bt.fx) { ctx.fillStyle = `rgba(255,140,0,${f.t / 30})`; ctx.beginPath(); ctx.arc(f.x, f.y - 10, f.r * (1.2 - f.t / 30), 0, Math.PI * 2); ctx.fill(); }
+  ctx.font = "bold 18px Nunito, sans-serif"; ctx.textAlign = "center";
+  for (const t of bt.texts) { ctx.globalAlpha = Math.min(1, t.t / 20); ctx.fillStyle = "#fff"; ctx.strokeStyle = "#000"; ctx.lineWidth = 4; ctx.strokeText(t.text, t.x, t.y); ctx.fillText(t.text, t.x, t.y); ctx.globalAlpha = 1; }
+  ctx.restore();
+}
+let last = performance.now(), acc = 0;
+function frame(now) {
+  acc += Math.min(250, now - last); last = now;
+  while (acc >= 1000 / FPS) { acc -= 1000 / FPS; if (battle && !battle.over) step(); }
+  if (battle && !battle.over) renderHud();
+  draw();
+  requestAnimationFrame(frame);
+}
+
+// ---- the arcade: trade play coins for coins here ---------------------------------------------------------------------------
+if (window.ArcadeShop && ArcadeShop.registerCurrency) {
+  ArcadeShop.registerCurrency({ name: "Coins", emoji: "🪙", rate: 100, room: () => 1e9, grant(n) { S.coins += n; save(); renderMenu(); } });
+}
+window.nullpState = () => ({ coins: S.coins, stage: S.stage, pets: Object.keys(S.pets).length, deck: S.deck.join(", "), inBattle: !!battle });
+
+load(); resize(); renderMenu(); save();
+requestAnimationFrame(frame);
+</script>
+<script defer src="../nullp-widget.js" data-game="Summon Battlers"></script>
+</body>
+</html>

@@ -115,6 +115,9 @@
       { id: "le-bookworm", name: "📚 Bookworm", price: 0, secret: true, lockText: "Learn English: 50 right answers" },
       { id: "le-perfect", name: "🔤 Perfect Speller", price: 0, secret: true, lockText: "🤫 Secret (Learn English)" },
       { id: "ic-secrets", name: "🏝️ Island Secret Keeper", price: 0, secret: true, lockText: "🤫 Secret (Island Clash)" },
+      { id: "sb-summoner", name: "🐣 Summoner", price: 0, secret: true, lockText: "Summon Battlers: hatch 10 eggs" },
+      { id: "sb-mythic", name: "🌈 Mythic Finder", price: 0, secret: true, lockText: "🤫 Secret (Summon Battlers)" },
+      { id: "sb-champion", name: "🏆 Summon Champion", price: 0, secret: true, lockText: "Summon Battlers: beat all 30 stages" },
     ],
   };
 
@@ -562,7 +565,7 @@
   // account on this computer, "guest" when logged out) that nothing clears — not the Admin Panel's
   // Take away, not a reset, not a wiped save — and load() always puts it back.
   const ACHIEVEMENT_IDS = ["achilles", "champion", "comeback", "revenge", "dimension",
-    "ma-centurion", "ma-chicken", "rb-rebuilder", "rb-speedrun", "bs-untouchable", "bs-gambler", "tr-champ", "tr-sixes", "le-bookworm", "le-perfect", "ic-secrets"];   // 🏅 (the game titles too)
+    "ma-centurion", "ma-chicken", "rb-rebuilder", "rb-speedrun", "bs-untouchable", "bs-gambler", "tr-champ", "tr-sixes", "le-bookworm", "le-perfect", "ic-secrets", "sb-summoner", "sb-mythic", "sb-champion"];   // 🏅 (the game titles too)
   function achKey() {
     let n = "guest";
     try { n = (JSON.parse(localStorage.getItem("daniels-arcade-account") || "null") || {}).name || "guest"; } catch {}

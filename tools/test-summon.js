@@ -364,6 +364,55 @@ q(`startStage(1); for (var i = 0; i < 30; i++) step(); frame(performance.now());
 check(q(`document.getElementById('game').style.display`) === 'block', '…without 3D graphics (no WebGL here) the battle quietly stays 2D');
 q(`setMode3d(false); battle = null;`);
 
+// ---- ✨ spells ----
+reset({ stage: 1 }); q(`startStage(1, function(){ return 0.5; }); battle.aiWait = 1e9;`);
+check(/Beat stage 1/.test(q(`castSpell('lightning')`)), 'spells unlock by beating stages');
+reset({ stage: 30 }); q(`startStage(5, function(){ return 0.5; }); battle.aiWait = 1e9; battle.units = [makeUnit(1, 'cow' in PETS ? 'cow' : 'snail', 1, 600, 1), makeUnit(1, 'frog', 1, 620, 0), makeUnit(0, 'mouse', 1, 300, 1)]; battle.units[2].hp = 10;`);
+check(q(`castSpell('lightning')`) === null && q(`battle.units.filter(function(u){ return u.side === 1 && u.hp < u.maxHp; }).length`) === 2, '⚡ Lightning hits the strongest enemies');
+check(/Not ready/.test(q(`castSpell('lightning')`)), '…then it has to recharge');
+q(`castSpell('heal');`); check(q('battle.units[2].hp') > 10, '💚 Healing Rain heals your pets');
+q(`battle.units.push(makeUnit(1, 'turtle', 9, 640, 1)); castSpell('freeze');`); check(q(`battle.units.filter(function(u){ return u.side === 1 && u.hp > 0; }).every(function(u){ return u.frozen >= 180; })`), '❄️ Blizzard freezes every enemy');
+const b0 = q('battle.base[1]'); q(`castSpell('meteor');`); check(q('battle.base[1]') < b0, '☄️ Meteor hits every enemy and their base');
+q(`castSpell('rage');`); check(q('battle.units[2].rageUntil') > q('battle.frame'), '😡 Battle Rage powers up your pets');
+q(`for (var i = 0; i < 900; i++) step();`); check(q(`castSpell('lightning')`) === null || q('battle.over'), '…and recharges after a while');
+q(`battle = null; renderMenu(); startStage(5); showBattle();`);
+check(/data-spell="rage"/.test(q(`document.getElementById('spells').innerHTML`)), 'the spell buttons are in the battle');
+q('battle = null;');
+
+// ---- ♾️ survival ----
+reset(); q(`startSurvival(); battle.rnd = function(){ return 0.4; };`);
+check(q('battle.survival') && !isFinite(q('battle.base[1]')), '♾️ survival: their base can\'t be broken');
+q(`for (var i = 0; i < 200; i++) step();`);
+check(q('battle.wave') === 1 && q(`battle.units.filter(function(u){ return u.side === 1; }).length`) === 3, 'wave 1 comes (3 pets)');
+q(`battle.units.forEach(function(u){ if (u.side === 1) u.hp = 0; }); for (var i = 0; i < 200; i++) step();`);
+check(q('battle.wave') === 2, 'beat a wave and the next one comes sooner');
+q(`battle.units = []; battle.wave = 11; survivalWave(battle);`);
+check(q(`battle.units.filter(function(u){ return u.side === 1; }).every(function(u){ return u.lvl === 5; })`) && q(`battle.units.some(function(u){ return u.side === 1 && RAR_RANK[PETS[u.id].rarity] >= 1; })`), 'later waves: more pets, rarer and higher level');
+q(`battle.frame = BATTLE_TIME + 10; step();`);
+check(!q('battle.over'), 'no time limit in survival');
+q(`battle.units.forEach(function(u){ u.hp = 0; }); battle.base[0] = 0; step();`);
+check(/wave/.test(q(`document.getElementById('resTitle').textContent`)) && q('S.bestWave') >= 11 && q('S.coins') > 250, 'your base falls: coins for every wave and a best record');
+q('battle = null;');
+
+// ---- 📅 daily reward + 📜 quests ----
+reset();
+check(/Day 1/.test(q(`claimDailyReward(new Date(2026, 10, 1, 12))`)) && /tomorrow/.test(q(`claimDailyReward(new Date(2026, 10, 1, 20))`)), '📅 a daily reward (once a day)');
+q(`for (var d = 2; d <= 7; d++) claimDailyReward(new Date(2026, 10, d, 12));`);
+check(q('S.streak') === 7 && q('S.freeEggs.golden') === 1, '…day 7 of the streak: a free 🌟 Golden Egg');
+check(/Day 1/.test(q(`claimDailyReward(new Date(2026, 10, 10, 12))`)), 'miss a day and the streak starts again');
+q(`S.quests = null;`);
+const qs = JSON.parse(q('JSON.stringify(dailyQuests())'));
+check(qs.list.length === 3 && new Set(qs.list.map((x) => x.id)).size === 3 && q('JSON.stringify(dailyQuests())') === JSON.stringify(qs), '📜 3 different quests a day (the same all day)');
+q(`S.quests = { day: localDay(), list: [{ id: 'hatch', n: 0, done: false }, { id: 'summon', n: 0, done: false }, { id: 'win', n: 0, done: false }], bonus: false }; S.coins = 10000;`);
+q(`hatch('basic'); hatch('basic');`);
+check(/Not done/.test(q('claimQuest(0)')), 'a quest must be finished first');
+q(`hatch('basic');`);
+check(/\+150/.test(q('claimQuest(0)')) && /Already/.test(q('claimQuest(0)')), 'hatch 3 eggs → claim 🪙 150 (once)');
+q(`startStage(1); for (var i = 0; i < 30; i++) { battle.energy[0] = 10; summon(0, 'mouse'); } battle.base[1] = 0; step(); battle = null; startStage(1); battle.base[1] = 0; step(); battle = null;`);
+check(/\+120/.test(q('claimQuest(1)')) && /ALL 3 DONE/.test(q('claimQuest(2)')), 'summon 30 and win 2 → all 3 done: a bonus 🥚');
+q(`renderDaily(); renderMenu();`);
+check(/Daily reward/.test(q(`document.getElementById('dailyBody').innerHTML`)), 'the 📅 Daily & Quests screen');
+
 // ---- screens + drawing ----
 reset();
 q(`renderMenu(); renderMap(); renderPets(); renderEggs(); showPet('mouse'); startStage(1); for (var i = 0; i < 200; i++) step(); renderHud(); draw();`);

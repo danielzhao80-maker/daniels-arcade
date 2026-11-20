@@ -72,6 +72,8 @@
   <div class="row">
     <button class="green" id="btnPlay">⚔️ Play</button>
     <button class="orange" id="btnOnline">🌐 Online fight</button>
+    <button class="red" id="btnSurvival">♾️ Survival</button>
+    <button class="green" id="btnDaily">📅 Daily & Quests <span id="dailyDot"></span></button>
     <button id="btnPets">🐾 My Pets & Deck</button>
     <button class="orange" id="btnEggs">🥚 Hatch Eggs</button>
   </div>
@@ -111,6 +113,11 @@
 </div>
 
 <!-- 🏁 result -->
+<div class="screen" id="daily" style="background:radial-gradient(circle at 50% 20%,#e17055,#1b1035 70%)">
+  <h2>📅 Daily & Quests</h2>
+  <div id="dailyBody" style="width:min(640px,96vw)"></div>
+  <div class="row"><button class="small" data-back>⬅ Back</button></div>
+</div>
 <div class="screen" id="online" style="background:radial-gradient(circle at 50% 20%,#1e9e6a,#1b1035 70%)">
   <h2>🌐 Online fight</h2>
   <div class="sub">Battle a friend live! You each bring your own deck of 6. One of you makes a battle code, the other joins with it.</div>
@@ -135,7 +142,7 @@
 <!-- ⚔️ battle HUD -->
 <div id="topHud"><span class="pill" id="hudStage"></span><span class="pill">⏱ <b id="hudTime">3:00</b></span><button class="small red" id="btnQuit">🏳️ Give up</button><button class="small" id="btn3dB">🎲 3D</button><button class="small orange" id="btnOwnerB" style="display:none">👑 Owner</button></div>
 <button class="small orange" id="btnOwner" style="display:none;position:fixed;top:10px;left:10px;z-index:6">👑 Owner</button>
-<div id="hud"><div id="energy"><i id="energyFill"></i><b id="energyTxt"></b></div><div id="hand"></div></div>
+<div id="hud"><div id="spells" style="display:flex;gap:6px;flex-wrap:wrap;justify-content:center"></div><div id="energy"><i id="energyFill"></i><b id="energyTxt"></b></div><div id="hand"></div></div>
 <div id="toast"></div>
 
 <script>
@@ -433,7 +440,7 @@ function hatch(kind, free, r1, r2) {   // → { id, fresh, shards } or { error }
   else { if (!canSpend(egg.cost)) return { error: `You need 🪙 ${egg.cost}.` }; spend(egg.cost); }
   const rar = rollRarity(egg.odds, r1), pool = Object.keys(PETS).filter((id) => PETS[id].rarity === rar);
   const id = pool[Math.floor((r2 === undefined ? Math.random() : r2) * pool.length) % pool.length];
-  S.hatched = (S.hatched || 0) + 1;
+  S.hatched = (S.hatched || 0) + 1; questAdd("hatch", 1);
   let out;
   if (!S.pets[id]) { S.pets[id] = { lvl: 1, shards: 0 }; if (S.deck.length < DECK_SIZE) S.deck.push(id); out = { id, fresh: true, shards: 0 }; }
   else { const sh = RARITY[rar].shards; S.pets[id].shards += sh; out = { id, fresh: false, shards: sh }; }
@@ -448,7 +455,7 @@ function levelUp(id) {
   const sh = shardsFor(p.lvl), co = coinsFor(p.lvl);
   if (p.shards < sh) return `Needs ${sh} shards (you have ${p.shards}) — hatch more eggs.`;
   if (!canSpend(co)) return `Needs 🪙 ${co}.`;
-  p.shards -= sh; spend(co); p.lvl++; save();
+  p.shards -= sh; spend(co); p.lvl++; questAdd("level", 1); save();
   return null;
 }
 function toggleDeck(id) {
@@ -527,6 +534,88 @@ function makeUnit(side, id, lvl, x, lane) {
            summonCd: d.summon ? d.summon.every : 0, revived: false, lvl, ab, abCd: 0 };
 }
 const has = (u, a) => !!(u.ab && u.ab.has(a));
+// ---- ✨ SPELLS: unlocked by beating stages; tap one in battle (each has a cooldown). Not in online fights.
+const SPELLS = {
+  lightning: { emoji: "⚡", name: "Lightning",    after: 1,  cd: 900,  desc: "Strikes the 3 strongest enemy pets." },
+  heal:      { emoji: "💚", name: "Healing Rain", after: 6,  cd: 1500, desc: "Heals all your pets by 40%." },
+  freeze:    { emoji: "❄️", name: "Blizzard",     after: 12, cd: 1800, desc: "Freezes every enemy pet for 3 s." },
+  meteor:    { emoji: "☄️", name: "Meteor",       after: 18, cd: 2400, desc: "Hits EVERY enemy pet and their base." },
+  rage:      { emoji: "😡", name: "Battle Rage",  after: 24, cd: 2100, desc: "Your pets do +50% damage for 8 s." },
+};
+const spellOpen = (k) => S.stage > SPELLS[k].after || (S.stars[SPELLS[k].after] || 0) > 0;
+function castSpell(k) {
+  const bt = battle, sp = SPELLS[k]; if (!bt || bt.over || bt.online || !sp) return "No spells here.";
+  if (!spellOpen(k)) return `🔒 Beat stage ${sp.after} to unlock ${sp.name}.`;
+  bt.spellCd = bt.spellCd || {}; if ((bt.spellCd[k] || 0) > 0) return `${sp.emoji} Not ready yet.`;
+  bt.spellCd[k] = sp.cd;
+  const foes = bt.units.filter((u) => u.hp > 0 && u.side === 1), mine = bt.units.filter((u) => u.hp > 0 && u.side === 0), pw = 1 + 0.12 * Math.max(0, S.stage - 1);
+  if (k === "lightning") foes.sort((a, b) => b.hp - a.hp).slice(0, 3).forEach((u) => { hurt(bt, u, 220 * pw); bt.shots.push({ x: u.x, y: 0, tx: u.x, ty: u.y, t: 14, col: "#fff59d" }); });
+  if (k === "heal") mine.forEach((u) => (u.hp = Math.min(u.maxHp, u.hp + u.maxHp * 0.4)));
+  if (k === "freeze") foes.forEach((u) => (u.frozen = Math.max(u.frozen, 180)));
+  if (k === "meteor") { foes.forEach((u) => { hurt(bt, u, 160 * pw); bt.fx.push({ x: u.x, y: u.y, t: 30, r: 40 }); }); if (isFinite(bt.base[1])) bt.base[1] = Math.max(0, bt.base[1] - 150 * pw); }
+  if (k === "rage") mine.forEach((u) => (u.rageUntil = bt.frame + 480));
+  bt.texts.push({ x: 500, y: 140, t: 70, text: `${sp.emoji} ${sp.name.toUpperCase()}!` });
+  questAdd("spell", 1);
+  return null;
+}
+// ---- ♾️ SURVIVAL: endless waves that get stronger; how far can you get? (coins for every wave, and a best record)
+function startSurvival() {
+  const st = { n: 0, survival: true, world: 4, worldDef: { name: "Survival", emoji: "♾️", sky: ["#2d1b69", "#e17055"], ground: "#5d4037" }, boss: false, bossId: null, enemyLvl: 1, deck: [], baseHp: Infinity, coins: 0, aiSlow: 1 };
+  battle = { st, rnd: Math.random, frame: 0, units: [], shots: [], fx: [], texts: [], over: false, energy: [6, 0], tick: [0, 0], base: [1200, Infinity], baseMax: [1200, Infinity],
+             aiWait: 1e9, bossOut: true, survival: true, wave: 0, nextWave: 180 };
+  showBattle(); return null;
+}
+function survivalWave(bt) {   // the next wave: more pets, rarer and higher level each time
+  bt.wave++;
+  const rank = Math.min(7, Math.floor(bt.wave / 4)), lvl = Math.min(MAX_LVL, 1 + Math.floor(bt.wave / 3)), n = Math.min(14, 2 + bt.wave);
+  const pool = Object.keys(PETS).filter((id) => RAR_RANK[PETS[id].rarity] <= rank && RAR_RANK[PETS[id].rarity] >= rank - 2);
+  for (let i = 0; i < n; i++) { const u = makeUnit(1, pool[Math.floor(bt.rnd() * pool.length)], lvl, BASE_X[1] - 40 - i * 14, i % 3); bt.units.push(u); }
+  bt.texts.push({ x: 700, y: 150, t: 100, text: `♾️ WAVE ${bt.wave}!` });
+}
+// ---- 📅 DAILY REWARD (a streak: day 7 = a free 🌟 Golden Egg) and 📜 DAILY QUESTS (3 a day) -----------------------------
+const localDay = (d) => { d = d || new Date(); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`; };
+function claimDailyReward(d) {
+  d = d || new Date(); const today = localDay(d), yest = localDay(new Date(d.getTime() - 864e5));
+  if (S.dailyDay === today) return "📅 Come back tomorrow for the next reward!";
+  S.streak = S.dailyDay === yest ? (S.streak % 7) + 1 : 1; S.dailyDay = today;
+  const coins = 50 + 50 * S.streak; S.coins += coins;
+  let msg = `📅 Day ${S.streak}: 🪙 +${coins}`;
+  if (S.streak === 7) { S.freeEggs.golden = (S.freeEggs.golden || 0) + 1; msg += " and a free 🌟 Golden Egg!"; }
+  save(); return msg;
+}
+const QUESTS = [
+  { id: "win",     text: "Win 2 battles",                goal: 2,  reward: 150 },
+  { id: "hatch",   text: "Hatch 3 eggs",                 goal: 3,  reward: 150 },
+  { id: "summon",  text: "Summon 30 pets",               goal: 30, reward: 120 },
+  { id: "level",   text: "Level up 2 pets",              goal: 2,  reward: 200 },
+  { id: "boss",    text: "Beat a boss stage",            goal: 1,  reward: 250 },
+  { id: "survive", text: "Reach wave 5 in ♾️ Survival",  goal: 5,  reward: 200, best: true },
+  { id: "spell",   text: "Cast 5 spells",                goal: 5,  reward: 120 },
+];
+function dailyQuests(d) {   // today's 3 quests (the same all day)
+  const today = localDay(d);
+  if (!S.quests || S.quests.day !== today) {
+    let h = 0; for (const ch of today) h = (h * 31 + ch.charCodeAt(0)) >>> 0;
+    const pick = []; const ids = QUESTS.map((q) => q.id);
+    while (pick.length < 3) { const id = ids[h % ids.length]; h = (h * 1103515245 + 12345) >>> 0; if (!pick.includes(id)) pick.push(id); }
+    S.quests = { day: today, list: pick.map((id) => ({ id, n: 0, done: false })), bonus: false };
+  }
+  return S.quests;
+}
+function questAdd(id, n, best) {
+  const qs = dailyQuests(); let changed = false;
+  for (const q of qs.list) if (q.id === id && !q.done) { const Q = QUESTS.find((x) => x.id === id); q.n = best ? Math.max(q.n, n) : q.n + n; if (q.n > Q.goal) q.n = Q.goal; changed = true; }
+  if (changed) save();
+}
+function claimQuest(i) {
+  const qs = dailyQuests(), q = qs.list[i]; if (!q) return "No such quest.";
+  const Q = QUESTS.find((x) => x.id === q.id);
+  if (q.done) return "Already claimed."; if (q.n < Q.goal) return `Not done yet (${q.n}/${Q.goal}).`;
+  q.done = true; S.coins += Q.reward; let msg = `📜 ${Q.text}: 🪙 +${Q.reward}`;
+  if (!qs.bonus && qs.list.every((x) => x.done)) { qs.bonus = true; S.freeEggs.basic = (S.freeEggs.basic || 0) + 1; msg += " · ALL 3 DONE: a free 🥚 Egg!"; }
+  save(); return msg;
+}
+const dailyToClaim = () => S.dailyDay !== localDay() || dailyQuests().list.some((q) => !q.done && q.n >= QUESTS.find((x) => x.id === q.id).goal);
 function startStage(n, rnd) {
   const st = stageInfo(n); if (n > S.stage) return "That stage is locked — beat the one before it.";
   rnd = rnd || Math.random;
@@ -544,6 +633,7 @@ function summon(side, id) {   // side 0 = you, 1 = the enemy (or your friend onl
   if (!free && bt.energy[side] < d.cost) return false;
   if (!free) bt.energy[side] -= d.cost;
   const lane = Math.floor(bt.rnd() * LANES.length), x = side === 0 ? BASE_X[0] + 40 : BASE_X[1] - 40;
+  if (side === 0 && !bt.online) questAdd("summon", 1);
   bt.units.push(makeUnit(side, id, side === 0 ? lvlOf(id) : bt.online ? Math.max(1, Math.min(MAX_LVL, (NETS.friendLvls || {})[id] || 1)) : bt.st.enemyLvl, x, lane));
   return true;
 }
@@ -566,9 +656,11 @@ function hurt(bt, t, dmg, from) {
 function step() {
   const bt = battle; if (!bt || bt.over || bt.paused) return;
   bt.frame++;
-  const dbl = bt.frame > BATTLE_TIME - 60 * FPS ? 2 : 1;   // ⚡×2 in the last minute
+  const dbl = bt.frame > BATTLE_TIME - 60 * FPS && !bt.survival ? 2 : 1;   // ⚡×2 in the last minute
   if (dbl === 2 && !bt.dblSaid) { bt.dblSaid = true; bt.texts.push({ x: 500, y: 120, t: 150, text: "⚡ DOUBLE ENERGY — last minute!" }); }
   if (S.infEnergy && !bt.online) bt.energy[0] = MAX_ENERGY;   // 👑 ⚡ infinite energy
+  if (bt.spellCd) for (const k in bt.spellCd) if (bt.spellCd[k] > 0) bt.spellCd[k]--;   // ✨
+  if (bt.survival && (bt.frame >= bt.nextWave || (bt.frame > bt.nextWave - 1020 && !bt.units.some((u) => u.side === 1 && u.hp > 0)))) { survivalWave(bt); bt.nextWave = bt.frame + 1200; }   // ♾️
   for (const s of [0, 1]) if ((bt.tick[s] += dbl) >= ENERGY_EVERY * (s ? bt.st.aiSlow : 1)) { bt.tick[s] = 0; bt.energy[s] = Math.min(MAX_ENERGY, bt.energy[s] + 1); }
   // 🤖 the enemy: the boss comes out first on a boss stage, then it summons what it can afford (with a little wait)
   if (bt.st.boss && !bt.bossOut && bt.frame > 90) { bt.bossOut = true; bt.units.push(makeUnit(1, bt.st.bossId, 1 + Math.floor(bt.st.n / 12), BASE_X[1] - 50, 1)); bt.texts.push({ x: 800, y: 200, t: 120, text: `👹 ${def(bt.st.bossId).name} appears!` }); }
@@ -606,12 +698,12 @@ function step() {
   baseShoot(bt);
   bt.units = bt.units.filter((u) => u.hp > 0 || u.revived === "x");
   bt.shots = bt.shots.filter((s) => --s.t > 0); bt.fx = bt.fx.filter((f) => --f.t > 0); bt.texts = bt.texts.filter((t) => --t.t > 0);
-  if (bt.base[0] <= 0 || bt.base[1] <= 0 || bt.frame >= BATTLE_TIME) endBattle();
+  if (bt.base[0] <= 0 || bt.base[1] <= 0 || (bt.frame >= BATTLE_TIME && !bt.survival)) endBattle();
 }
 function attack(bt, u, d, tg) {   // tg null = the enemy base
   if (--u.cd > 0) return;
   u.cd = Math.round(d.rate * (has(u, "haste") ? 0.8 : 1));
-  let dmg = u.dmg * auraBoost(bt, u);
+  let dmg = u.dmg * auraBoost(bt, u) * (u.rageUntil > bt.frame ? 1.5 : 1);   // 😡
   if (d.charge && !u.charged) { dmg *= d.charge; u.charged = true; bt.texts.push({ x: u.x, y: u.y - 30, t: 40, text: "POUNCE!" }); }
   else if (has(u, "dive") && !u.charged) { dmg *= 2; u.charged = true; bt.texts.push({ x: u.x, y: u.y - 30, t: 40, text: "DIVE!" }); }   // 🦅
   if (has(u, "crit") && bt.rnd() < 0.25) { dmg *= 2; bt.texts.push({ x: u.x, y: u.y - 40, t: 30, text: "CRIT!" }); }   // 🗡️
@@ -660,6 +752,12 @@ function starsFor(bt) { const left = bt.base[0] / bt.baseMax[0]; return 1 + (lef
 function endBattle(giveUp) {
   const bt = battle; if (!bt || bt.over) return;
   if (bt.online) return endOnline(giveUp);
+  if (bt.survival) {   // ♾️ coins for every wave you got through
+    bt.over = true; const w = Math.max(0, bt.wave - (bt.units.some((u) => u.side === 1 && u.hp > 0) ? 1 : 0)), coins = 20 * w, best = w > (S.bestWave || 0);
+    S.coins += coins; if (best) S.bestWave = w; questAdd("survive", w, true); save();
+    showResult(best ? `♾️ NEW BEST: wave ${w}!` : `♾️ You survived ${w} wave${w === 1 ? "" : "s"}`, `🪙 +${coins} · your best: wave ${S.bestWave || 0}`, false);
+    return;
+  }
   bt.over = true;
   const n = bt.st.n;
   let win = bt.base[1] <= 0 && !giveUp;
@@ -668,7 +766,7 @@ function endBattle(giveUp) {
   if (win) {
     const stars = starsFor(bt), first = !S.stars[n], better = stars > (S.stars[n] || 0);
     let coins = bt.st.coins + (first ? 50 : 0) + (better && stars === 3 ? 60 : 0);
-    S.coins += coins; S.wins = (S.wins || 0) + 1;
+    S.coins += coins; S.wins = (S.wins || 0) + 1; questAdd("win", 1); if (bt.st.boss) questAdd("boss", 1);
     if (better) S.stars[n] = stars;
     if (n === S.stage && S.stage < STAGES) S.stage++;
     const gift = first && n % 6 === 0 ? "golden" : first && n % 3 === 0 ? "basic" : null;
@@ -715,8 +813,22 @@ function renderOwner() {
 }
 $("ownBack").onclick = () => { if (ownerFrom === "battle" && battle && !battle.over) { battle.paused = false; showBattle(); } else { renderMenu(); show("menu"); } };
 $("btnOwner").onclick = openOwner; $("btnOwnerB").onclick = openOwner;
+function renderDaily() {
+  const qs = dailyQuests(), claimed = S.dailyDay === localDay();
+  $("dailyBody").innerHTML = `<div class="card" style="text-align:left;margin-bottom:10px;cursor:default"><div class="n">📅 Daily reward — day ${claimed ? S.streak : (S.dailyDay === localDay(new Date(Date.now() - 864e5)) ? (S.streak % 7) + 1 : 1)} of 7</div>
+      <div class="d">Come back every day: 🪙 more each day, and on day 7 a free 🌟 Golden Egg!</div>
+      <div class="row" style="justify-content:flex-start"><button class="green" id="dlyGo" ${claimed ? "disabled" : ""}>${claimed ? "✅ Claimed today" : "🎁 Claim"}</button></div></div>`
+    + qs.list.map((q, i) => { const Q = QUESTS.find((x) => x.id === q.id), ready = q.n >= Q.goal;
+      return `<div class="card" style="text-align:left;margin-bottom:8px;cursor:default"><div class="n">📜 ${Q.text} <span style="opacity:.7">— 🪙 ${Q.reward}</span></div>
+        <div class="bar" style="width:100%"><i style="width:${100 * q.n / Q.goal}%"></i></div><div class="d">${q.n}/${Q.goal}</div>
+        <button class="small ${ready && !q.done ? "green" : ""}" data-claim="${i}" ${q.done || !ready ? "disabled" : ""}>${q.done ? "✅ Done" : ready ? "Claim" : "Not yet"}</button></div>`; }).join("")
+    + `<div class="sub">${qs.bonus ? "✅ All 3 done today — you got the bonus 🥚!" : "Finish all 3 for a bonus 🥚 Egg. New quests every day."}</div>`;
+  $("dlyGo").onclick = () => { toast(claimDailyReward()); renderDaily(); renderMenu(); };
+  $("dailyBody").querySelectorAll("[data-claim]").forEach((b) => (b.onclick = () => { toast(claimQuest(+b.dataset.claim)); renderDaily(); renderMenu(); }));
+}
 function renderMenu() {
   refreshOwnerBtn();
+  $("dailyDot").textContent = dailyToClaim() ? "🔴" : "";
   $("petsMax").textContent = Object.keys(PETS).length; $("coins").textContent = infCoins() ? "∞" : S.coins.toLocaleString(); $("stageN").textContent = Math.min(S.stage, STAGES); $("starsN").textContent = totalStars(); $("petsN").textContent = Object.keys(S.pets).length;
 }
 function renderMap() {
@@ -867,7 +979,7 @@ function endOnline(giveUp) {   // the HOST's battle is over (or someone gave up)
   onlineResult(hostWins, false);
 }
 function onlineResult(iWin, left) {
-  const coins = iWin ? 150 : 40; S.coins += coins;
+  const coins = iWin ? 150 : 40; S.coins += coins; if (iWin) questAdd("win", 1);
   if (iWin) S.onlineWins = (S.onlineWins || 0) + 1; else S.onlineLosses = (S.onlineLosses || 0) + 1;
   save();
   showResult(iWin ? (left ? "🏆 You win — your friend left!" : "🏆 YOU WIN ONLINE!") : "💥 You lost online",
@@ -875,29 +987,34 @@ function onlineResult(iWin, left) {
 }
 function showBattle() {
   show(null); $("hud").classList.add("on"); $("topHud").classList.add("on");
-  $("hudStage").textContent = battle.online ? `🌐 vs ${NETS.friendName || "a friend"}` : `${battle.st.worldDef.emoji} Stage ${battle.st.n}${battle.st.boss ? " 👹 BOSS" : ""}`;
+  $("hudStage").textContent = battle.survival ? "♾️ Survival" : battle.online ? `🌐 vs ${NETS.friendName || "a friend"}` : `${battle.st.worldDef.emoji} Stage ${battle.st.n}${battle.st.boss ? " 👹 BOSS" : ""}`;
   refreshOwnerBtn();
   $("hand").innerHTML = (S.anyPet && !battle.online ? Object.keys(S.pets).sort((a, b) => PETS[b].cost - PETS[a].cost).slice(0, 24) : S.deck).map((id) => `<div class="card rar-${PETS[id].rarity}" data-sum="${id}"><span class="c">⚡${PETS[id].cost}</span><span class="lv">${abilitiesAt(id, lvlOf(id)).map((a) => ABILITIES[a].emoji).join("")}</span><div class="e" style="font-size:1.8rem">${PETS[id].emoji}</div><div class="n" style="font-size:.75rem">${PETS[id].name}</div></div>`).join("");
+  $("spells").innerHTML = battle.online ? "" : Object.entries(SPELLS).filter(([k]) => spellOpen(k)).map(([k, sp]) => `<button class="small" data-spell="${k}" title="${sp.desc}">${sp.emoji} ${sp.name}</button>`).join("");
+  $("spells").querySelectorAll("[data-spell]").forEach((b) => (b.onclick = () => { const e = castSpell(b.dataset.spell); if (e) toast(e); }));
   $("hand").querySelectorAll("[data-sum]").forEach((c) => (c.onclick = () => { if (!summon(0, c.dataset.sum)) toast(`Not enough ⚡ (needs ${PETS[c.dataset.sum].cost})`); }));
 }
 function renderHud() {
   const bt = battle; if (!bt) return;
   const me = bt.guest ? 1 : 0;
   $("energyFill").style.width = `${100 * bt.energy[me] / MAX_ENERGY}%`; $("energyTxt").textContent = `⚡ ${bt.energy[me]} / ${MAX_ENERGY}`;
-  const left = Math.max(0, Math.ceil((BATTLE_TIME - bt.frame) / FPS)); $("hudTime").textContent = `${Math.floor(left / 60)}:${String(left % 60).padStart(2, "0")}${left <= 60 ? " ⚡×2" : ""}`;
+  const left = Math.max(0, Math.ceil((BATTLE_TIME - bt.frame) / FPS)); $("hudTime").textContent = bt.survival ? `wave ${bt.wave} · next in ${Math.max(0, Math.ceil((bt.nextWave - bt.frame) / FPS))}s` : `${Math.floor(left / 60)}:${String(left % 60).padStart(2, "0")}${left <= 60 ? " ⚡×2" : ""}`;
+  $("spells").querySelectorAll("[data-spell]").forEach((b) => { const cd = (bt.spellCd || {})[b.dataset.spell] || 0, sp = SPELLS[b.dataset.spell]; b.disabled = cd > 0; b.textContent = cd > 0 ? `${sp.emoji} ${Math.ceil(cd / FPS)}s` : `${sp.emoji} ${sp.name}`; });
   $("hand").querySelectorAll("[data-sum]").forEach((c) => c.classList.toggle("cant", PETS[c.dataset.sum].cost > bt.energy[me]));
 }
 function showResult(title, text, win) {
   show("result"); $("resTitle").textContent = title; $("resText").textContent = text;
-  $("resNext").style.display = win && battle && !battle.online && battle.st.n < STAGES ? "inline-block" : "none";
+  $("resNext").style.display = win && battle && !battle.online && !battle.survival && battle.st.n < STAGES ? "inline-block" : "none";
   $("resNext").textContent = win ? "➡ Next stage" : "🔁 Try again";
 }
 $("resNext").onclick = () => { const n = battle.st.n + 1; battle = null; const e = startStage(n); if (e) toast(e); };
-$("resMap").onclick = () => { const wasOnline = battle && battle.online; battle = null; if (wasOnline) { netReset(); renderMenu(); show("menu"); } else { renderMap(); show("map"); } };
+$("resMap").onclick = () => { const wasOnline = battle && (battle.online || battle.survival); battle = null; if (wasOnline) { netReset(); renderMenu(); show("menu"); } else { renderMap(); show("map"); } };
 $("btnQuit").onclick = () => endBattle(true);
 $("btnPlay").onclick = () => { renderMap(); show("map"); };
 $("btn3d").onclick = () => setMode3d(!S.mode3d);
 $("btn3dB").onclick = () => setMode3d(!S.mode3d);
+$("btnSurvival").onclick = () => startSurvival();
+$("btnDaily").onclick = () => { renderDaily(); show("daily"); };
 $("btnOnline").onclick = () => { olMsg(""); $("olRecord").textContent = `Your online record: ${S.onlineWins || 0} wins / ${S.onlineLosses || 0} losses · your deck: ${S.deck.map((id) => PETS[id].emoji).join(" ")}`; show("online"); };
 $("olHost").onclick = hostOnline;
 $("olJoin").onclick = () => joinOnline($("olCode").value);
@@ -933,7 +1050,7 @@ function draw() {
   // bases
   const baseDraw = (i, emo) => {
     const x = X(BASE_X[i]); stamp(emo, x, 230, 90);
-    const f = bt.base[i] / (i ? bt.st.baseHp : bt.baseMax[0]);
+    const f = isFinite(bt.base[i]) ? bt.base[i] / (i ? bt.st.baseHp : bt.baseMax[0]) : 1;   // (♾️ survival: their base can't break)
     ctx.fillStyle = "#2d3436"; ctx.fillRect(x - 55, 150, 110, 10); ctx.fillStyle = i !== me ? "#ff6b6b" : "#55efc4"; ctx.fillRect(x - 55, 150, 110 * Math.max(0, f), 10);
     ctx.fillStyle = "#fff"; ctx.font = "bold 14px Nunito, sans-serif"; ctx.textAlign = "center"; ctx.fillText(Math.ceil(bt.base[i]).toLocaleString(), x, 145);
   };
@@ -1002,7 +1119,7 @@ function render3D() {
   for (let i = 0; i < 2; i++) {
     const [bx] = to3(BASE_X[i], 300); R.bases[i].position.set(bx, 0, 0);
     R.bases[i].children[0].material.color.set(i === me ? 0xdfe6e9 : 0x636e72);
-    const f = Math.max(0, bt.base[i] / (i ? bt.st.baseHp : bt.baseMax[0])), [bg, fg] = R.bars[i];
+    const f = isFinite(bt.base[i]) ? Math.max(0, bt.base[i] / (i ? bt.st.baseHp : bt.baseMax[0])) : 1, [bg, fg] = R.bars[i];
     bg.position.set(bx - 5 * camZ, 14.5, 0); bg.scale.set(10, 0.8, 1); fg.position.copy(bg.position); fg.scale.set(10 * f, 0.8, 1); fg.material.color.set(i === me ? 0x55efc4 : 0xff6b6b);   // (bars grow from the screen-left edge)
   }
   // pets: one picture + a health bar each (made when a pet appears, removed when it's gone)
@@ -1060,7 +1177,7 @@ function frame(now) {
 if (window.ArcadeShop && ArcadeShop.registerCurrency) {
   ArcadeShop.registerCurrency({ name: "Coins", emoji: "🪙", rate: 100, room: () => 1e9, grant(n) { S.coins += n; save(); renderMenu(); } });
 }
-window.nullpState = () => ({ coins: S.coins, stage: S.stage, pets: Object.keys(S.pets).length, deck: S.deck.join(", "), inBattle: !!battle });
+window.nullpState = () => ({ bestWave: S.bestWave || 0, coins: S.coins, stage: S.stage, pets: Object.keys(S.pets).length, deck: S.deck.join(", "), inBattle: !!battle });
 
 load(); resize(); renderMenu(); save(); $("btn3d").textContent = `🎲 3D mode: ${S.mode3d ? "ON" : "off"}`;
 requestAnimationFrame(frame);

@@ -448,7 +448,7 @@ reset({ gold: 0, army: { warrior: 18 } });
 const kr = q(`redeemCode('KRAKEN')`);
 check(!q('S.army.giant') && q('S.gold') > 0 && /no army space/.test(kr), 'troops that do not fit come as gold instead', kr);
 check(q(`(function(){ document.getElementById('codeIn').value = 'coconut'; document.getElementById('codeBtn').onclick(); return S.wood; })()`) > 300, 'the code bar at the top redeems it');
-check(q(`Object.keys(CODES).length`) === 20, '20 codes');
+check(q(`NORMAL_CODES().length`) === 20 && q(`Object.keys(CODES).length`) === 24, '20 codes (+ 4 event codes)');
 reset({ gold: 0, wood: 0, stone: 0, army: {} });
 q(`S.buildings.push({ type: 'storage', lvl: 5, x: CENTER + 1, y: CENTER + 1 }, { type: 'barracks', lvl: 5, x: CENTER - 1, y: CENTER + 1 }); redeemCode('TSUNAMI'); redeemCode('ARMADA'); redeemCode('WIZARDS');`);
 check(q('S.gold') === 5000 && q('S.army.warrior') === 15 && q('S.army.archer') === 5 && q('S.army.mage') === 2, 'TSUNAMI (5,000 of each), ARMADA (15 warriors + 5 archers), WIZARDS (2 mages)');
@@ -1082,7 +1082,7 @@ check(q('S.revenge.level') === 7 && q('S.revenge.seed') === 321, 'a revenge reme
 q(`S.revenge.at = 0; frame(performance.now());`);
 check(q('!!battle && battle.opts.defense && battle.bridge.home.full && battle.bridge.home.theirs') && q('battle.otherBlds.length') === q('genIsland(7, 321).buildings.length'), '😠 revenge: their WHOLE island is on the left (the same island you raided)');
 check(q(`battle.otherBlds.every(function(b){ return b.x < battle.bridge.a.x; }) && battle.troops.every(function(t){ return onHome(battle.bridge, t.x, t.y); })`), 'their army starts on their island and comes over the bridge');
-q(`battle.mobs.forEach(function(m){ m.pet = true; }); for (var i = 0; i < 2500 && !battle.over; i++) { battle.troops.forEach(function(t){ t.dmg = 0; }); battleStep(); }`);
+q(`battle.mobs.forEach(function(m){ m.pet = true; }); for (var i = 0; i < 2500 && !battle.over; i++) { battle.troops.forEach(function(t){ t.dmg = 0; t.hp = 1e9; t.x = -300; t.y = -300; t.stage = 2; }); battleStep(); }`);   // (raiders parked far away so the pets go for the island)
 check(q(`battle.otherBlds.some(function(b){ return b.hp < b.maxHp; })`), 'your pets can go over and smash their island');
 q(`battle.otherBlds.filter(function(b){ return b.type !== 'wall'; }).slice(0, 2).forEach(function(b){ b.hp = 0; }); battle.troops.forEach(function(t){ t.hp = 0; }); if (!battle.over) battleStep();`);
 const smashedPct = q('pctOf(battle.otherBlds, battle.otherTotal)');
@@ -1115,6 +1115,40 @@ check(/points back/.test(q(`panelAction('greset', '', true)`)) && q(`gLv('builde
 check(q(`panelAction('gpoints', '', false)`) === '👑 Owner only.', 'admins cannot');
 q(`renderTree(); renderAdmin(true);`);
 check(/Seed of Growth/.test(q(`document.getElementById('treeBody').innerHTML`)) && /Growth Tree —/.test(q(`document.getElementById('admBody').innerHTML`)), 'the 🌳 Tree panel and the owner buttons');
+
+// ---- 🎃 🎄 events ----
+reset({ army: { warrior: 5 } });
+check(q(`eventNow(new Date(2026, 9, 15)) && eventNow(new Date(2026, 9, 15)).id`) === 'halloween' && q(`eventNow(new Date(2026, 11, 20)).id`) === 'christmas' && q(`eventNow(new Date(2027, 0, 5)).id`) === 'christmas' && q(`eventNow(new Date(2026, 6, 1))`) === null, '📅 Halloween 1 Oct – 7 Nov, Christmas 1 Dec – 7 Jan (like Monster Attack!)');
+q(`localStorage.setItem('monster_attack_event_force', 'halloween');`);
+check(q('eventNow().id') === 'halloween', "the arcade's /halloween/ link switches it on here too");
+q(`localStorage.setItem('island_clash_event_force', 'christmas');`);
+check(q('eventNow().id') === 'christmas', "the owner's switch wins over the link");
+q(`localStorage.setItem('island_clash_event_force', 'halloween');`);
+check(q('genIsland(5).theme') === 'spooky' && q(`genIsland(12).pets.length`) > 0, '🎃 event islands (spooky) during Halloween');
+check(/SPOOKY/.test('SPOOKY') && /\+20/.test(q(`redeemCode('SPOOKY')`)) && q('S.candy') === 20 && /Christmas code/.test(q(`redeemCode('JINGLE')`)), 'event codes only work in their event');
+check(q('agentUnlocked()') === false && q('NORMAL_CODES().length') === 20, 'event codes don\'t count for the 🕵️ all-codes secret');
+q(`S.candy = 200; S.gold = 0;`);
+check(/joined/.test(q(`buyEventItem('pet', 'jack')`)) && q('S.candy') === 160 && q(`S.pets.includes('jack')`), '🎃 adopt an event pet with candy');
+check(/isn't in this event/.test(q(`buyEventItem('pet', 'elf')`)), '…only this event\'s pets');
+check(q(`limitOf('pumpkin', 5)`) === 0 && /unlocked/.test(q(`buyEventItem('tower')`)) && q(`limitOf('pumpkin', 5)`) === 2 && q('S.candy') === 60, '🎃 unlock the Pumpkin Cannon (build 2, for good)');
+check(/Event pack/.test(q(`buyEventItem('pack')`)) && q('S.gold') > 0 && q('S.candy') === 40, 'event pack: candy for resources');
+check(/event shop/.test(q(`buyPet('zombie')`)) && !q(`S.pets.includes('zombie')`), "event pets can't be bought with gold (adopt them in the event shop)");
+const ebi = JSON.parse(q(`JSON.stringify((function(){ var i = eventBossIsland(); return { name: i.name, theme: i.theme, pets: i.pets.length, pump: i.buildings.filter(function(b){ return b.type === 'pumpkin'; }).length }; })())`));
+check(ebi.theme === 'spooky' && /Pumpkin King/.test(ebi.name) && ebi.pets > 3 && ebi.pump === 2, '⚔️ the event boss island: spooky, event pets, Pumpkin Cannons', JSON.stringify(ebi));
+q(`S.army = { giant: 10, mage: 10, warrior: 30 }; startEventBoss(); battle.blds.forEach(function(b){ if (b.type !== 'wall') b.hp = 0; }); endBattle();`);
+check(q('S.candy') >= 40 + 40 && /today's boss bonus/.test(q(`document.getElementById('resText').textContent`)) && q('S.revenge') == null, 'beat the boss: a big candy bonus once a day (and no revenge from it)');
+q(`battle = null; hidePanels(); S.army = { warrior: 3 }; startBattle(genIsland(2)); battle.blds.forEach(function(b){ if (b.type !== 'wall') b.hp = 0; }); var c0 = S.candy; endBattle(); window.__dc = S.candy - c0; battle = null; hidePanels(); S.revenge = null;`);
+check(q('__dc') === 9, '🍬 3 candy a ⭐ for winning raids');
+q(`renderEvent(); renderTop();`);
+check(/Halloween event/.test(q(`document.getElementById('evTitle').textContent`)) && String(q(`document.getElementById('btnEvent').style.display`)) === 'inline-block', 'the 🎃 Halloween button and panel');
+// owner + off
+q(`S.owner = true;`);
+check(/Christmas is ON/.test(q(`panelAction('event', 'christmas', true)`)) && q('eventNow().id') === 'christmas' && q('genIsland(5).theme') === 'snowy', '👑 owner: switch Christmas on (snowy islands)');
+check(/\+100/.test(q(`panelAction('evcur', 'christmas', true)`)) && q('S.presents') === 100, 'owner: +100 presents');
+check(/off/.test(q(`panelAction('event', 'off', true)`)) && q('eventNow()') === null && q('genIsland(5).theme') !== 'spooky', 'owner: events off');
+q(`renderTop();`);
+check(q(`document.getElementById('btnEvent').style.display`) === 'none', 'no event: no event button');
+q(`localStorage.removeItem('island_clash_event_force'); localStorage.removeItem('monster_attack_event_force'); S.pets = [];`);
 
 // ---- ⛩️ owner panel: Summoning Gate controls ----
 reset({ army: {} }); q(`S.owner = true;`);

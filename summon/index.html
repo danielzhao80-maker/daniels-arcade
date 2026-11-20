@@ -6,6 +6,8 @@
 <title>Summon Battlers</title>
 <link href="https://fonts.googleapis.com/css2?family=Fredoka+One&family=Nunito:wght@700;900&display=swap" rel="stylesheet">
 <script src="../arcade-shop.js"></script>
+<script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.min.js"></script>
 <style>
   * { box-sizing: border-box; margin: 0; padding: 0; }
   html, body { height: 100%; overflow: hidden; background: #1b1035; font-family: Nunito, system-ui, sans-serif; color: #fff; user-select: none; }
@@ -60,6 +62,7 @@
 </head>
 <body>
 <canvas id="game"></canvas>
+<canvas id="game3d" style="position:fixed;inset:0;width:100vw;height:100vh;display:none"></canvas>
 
 <!-- 🏠 the menu -->
 <div class="screen on" id="menu">
@@ -68,9 +71,11 @@
   <div class="row"><span class="pill">🪙 <b id="coins">0</b></span><span class="pill">🗺️ Stage <b id="stageN">1</b>/30</span><span class="pill">⭐ <b id="starsN">0</b></span><span class="pill">🐾 <b id="petsN">0</b>/<b id="petsMax">1024</b></span></div>
   <div class="row">
     <button class="green" id="btnPlay">⚔️ Play</button>
+    <button class="orange" id="btnOnline">🌐 Online fight</button>
     <button id="btnPets">🐾 My Pets & Deck</button>
     <button class="orange" id="btnEggs">🥚 Hatch Eggs</button>
   </div>
+ <div class="row"><button class="small" id="btn3d">🎲 3D mode: off</button></div>
   <div class="row"><input id="codeIn" maxlength="16" placeholder="🎁 CODE"><button class="small" id="codeBtn">Redeem</button></div>
   <div class="sub" style="font-size:.8rem;opacity:.7">How to play: tap a pet card to summon it (it costs ⚡ energy, which fills up over time). Your pets walk right and fight. Both bases shoot enemies that get close. Break the enemy base 🏯 before they break yours 🏰!</div>
 </div>
@@ -106,6 +111,15 @@
 </div>
 
 <!-- 🏁 result -->
+<div class="screen" id="online" style="background:radial-gradient(circle at 50% 20%,#1e9e6a,#1b1035 70%)">
+  <h2>🌐 Online fight</h2>
+  <div class="sub">Battle a friend live! You each bring your own deck of 6. One of you makes a battle code, the other joins with it.</div>
+  <div class="row"><button class="green" id="olHost">Make a battle code</button></div>
+  <div class="row"><input id="olCode" maxlength="5" placeholder="CODE"><button id="olJoin">Join</button></div>
+  <div class="sub" id="olMsg" style="font-weight:900;font-size:1.05rem;min-height:1.5em"></div>
+  <div class="sub" id="olRecord"></div>
+  <div class="row"><button class="small" id="olBack">⬅ Back</button></div>
+</div>
 <div class="screen" id="owner" style="background:linear-gradient(180deg,#5c4400,#1b1035)">
   <h2>👑 Owner Panel</h2><div class="sub" id="ownSub">♾️ No limits.</div>
   <div id="ownBody" style="width:min(720px,96vw)"></div>
@@ -119,7 +133,7 @@
 </div>
 
 <!-- ⚔️ battle HUD -->
-<div id="topHud"><span class="pill" id="hudStage"></span><span class="pill">⏱ <b id="hudTime">3:00</b></span><button class="small red" id="btnQuit">🏳️ Give up</button><button class="small orange" id="btnOwnerB" style="display:none">👑 Owner</button></div>
+<div id="topHud"><span class="pill" id="hudStage"></span><span class="pill">⏱ <b id="hudTime">3:00</b></span><button class="small red" id="btnQuit">🏳️ Give up</button><button class="small" id="btn3dB">🎲 3D</button><button class="small orange" id="btnOwnerB" style="display:none">👑 Owner</button></div>
 <button class="small orange" id="btnOwner" style="display:none;position:fixed;top:10px;left:10px;z-index:6">👑 Owner</button>
 <div id="hud"><div id="energy"><i id="energyFill"></i><b id="energyTxt"></b></div><div id="hand"></div></div>
 <div id="toast"></div>
@@ -498,14 +512,16 @@ function startStage(n, rnd) {
   battle.baseMax[0] = battle.base[0];
   showBattle(); return null;
 }
-function summon(side, id) {   // side 0 = you, 1 = the enemy. Returns true if it came out.
+function summon(side, id) {   // side 0 = you, 1 = the enemy (or your friend online). Returns true if it came out.
   const bt = battle; if (!bt || bt.over) return false;
-  const d = def(id); if (!d || (side === 0 && !S.deck.includes(id) && !(S.anyPet && S.pets[id]))) return false;   // (👑 any pet you own)
-  const free = side === 0 && S.infEnergy;   // 👑 ⚡ infinite energy: summoning costs nothing
+  if (bt.guest) return guestSummon(id);   // 🌐 the guest only asks the host
+  const d = def(id); if (!d || (side === 0 && !S.deck.includes(id) && !(S.anyPet && S.pets[id] && !bt.online))) return false;   // (👑 any pet you own — not online)
+  if (side === 1 && bt.online && !(NETS.friendDeck || []).includes(id)) return false;   // 🌐 only your friend's deck
+  const free = side === 0 && S.infEnergy && !bt.online;   // 👑 ⚡ infinite energy (not online — that's fair play)
   if (!free && bt.energy[side] < d.cost) return false;
   if (!free) bt.energy[side] -= d.cost;
   const lane = Math.floor(bt.rnd() * LANES.length), x = side === 0 ? BASE_X[0] + 40 : BASE_X[1] - 40;
-  bt.units.push(makeUnit(side, id, side === 0 ? lvlOf(id) : bt.st.enemyLvl, x, lane));
+  bt.units.push(makeUnit(side, id, side === 0 ? lvlOf(id) : bt.online ? Math.max(1, Math.min(MAX_LVL, (NETS.friendLvls || {})[id] || 1)) : bt.st.enemyLvl, x, lane));
   return true;
 }
 function auraBoost(bt, u) {   // 🦁 +25% from a friendly Lion King near
@@ -529,11 +545,11 @@ function step() {
   bt.frame++;
   const dbl = bt.frame > BATTLE_TIME - 60 * FPS ? 2 : 1;   // ⚡×2 in the last minute
   if (dbl === 2 && !bt.dblSaid) { bt.dblSaid = true; bt.texts.push({ x: 500, y: 120, t: 150, text: "⚡ DOUBLE ENERGY — last minute!" }); }
-  if (S.infEnergy) bt.energy[0] = MAX_ENERGY;   // 👑 ⚡ infinite energy
+  if (S.infEnergy && !bt.online) bt.energy[0] = MAX_ENERGY;   // 👑 ⚡ infinite energy
   for (const s of [0, 1]) if ((bt.tick[s] += dbl) >= ENERGY_EVERY * (s ? bt.st.aiSlow : 1)) { bt.tick[s] = 0; bt.energy[s] = Math.min(MAX_ENERGY, bt.energy[s] + 1); }
   // 🤖 the enemy: the boss comes out first on a boss stage, then it summons what it can afford (with a little wait)
   if (bt.st.boss && !bt.bossOut && bt.frame > 90) { bt.bossOut = true; bt.units.push(makeUnit(1, bt.st.bossId, 1 + Math.floor(bt.st.n / 12), BASE_X[1] - 50, 1)); bt.texts.push({ x: 800, y: 200, t: 120, text: `👹 ${def(bt.st.bossId).name} appears!` }); }
-  if (--bt.aiWait <= 0) {
+  if (!bt.online && --bt.aiWait <= 0) {
     const can = bt.st.deck.filter((id) => def(id).cost <= bt.energy[1]);
     if (can.length && (bt.energy[1] >= 6 || bt.rnd() < 0.3)) { summon(1, can[Math.floor(bt.rnd() * can.length)]); bt.aiWait = 90 + Math.floor(bt.rnd() * 100); }
     else bt.aiWait = 20;
@@ -620,6 +636,7 @@ function baseShoot(bt) {
 function starsFor(bt) { const left = bt.base[0] / bt.baseMax[0]; return 1 + (left >= 0.5 ? 1 : 0) + (left >= 0.9 ? 1 : 0); }
 function endBattle(giveUp) {
   const bt = battle; if (!bt || bt.over) return;
+  if (bt.online) return endOnline(giveUp);
   bt.over = true;
   const n = bt.st.n;
   let win = bt.base[1] <= 0 && !giveUp;
@@ -742,28 +759,127 @@ function renderEggs() {
   $("eggGrid").querySelectorAll("[data-egg]").forEach((b) => (b.onclick = () => go(b.dataset.egg, false)));
   $("eggGrid").querySelectorAll("[data-free]").forEach((b) => (b.onclick = () => go(b.dataset.free, true)));
 }
+// ---- 🌐 ONLINE FIGHT (PeerJS). The HOST runs the battle (it's side 0, its friend side 1) and sends what's
+// happening 10 times a second; the GUEST shows it (flipped, so everyone's own base is on the LEFT) and sends the
+// pets it summons. Each player brings their own deck and levels. A friend who leaves loses.
+const NETS = { peer: null, conn: null, role: null, friendDeck: null, friendLvls: null, friendName: "" };
+const PEER_OPTS = { config: { iceServers: [{ urls: "stun:stun.l.google.com:19302" }, { urls: "turn:openrelay.metered.ca:80", username: "openrelayproject", credential: "openrelayproject" }, { urls: "turn:openrelay.metered.ca:443", username: "openrelayproject", credential: "openrelayproject" }] } };
+const olMsg = (t) => { const e = $("olMsg"); if (e) e.textContent = t; };
+function netSend(o) { try { NETS.conn && NETS.conn.open && NETS.conn.send(o); } catch (e) {} }
+function netReset() { try { NETS.conn && NETS.conn.close(); NETS.peer && NETS.peer.destroy(); } catch (e) {} Object.assign(NETS, { peer: null, conn: null, role: null, friendDeck: null, friendLvls: null, friendName: "" }); }
+const myName = () => { try { return (JSON.parse(localStorage.getItem("daniels-arcade-account") || "null") || {}).name || "Friend"; } catch (e) { return "Friend"; } };
+const myHello = () => ({ t: "hello", name: myName(), deck: S.deck.slice(), lvls: Object.fromEntries(S.deck.map((id) => [id, lvlOf(id)])) });
+function onlineStage() {   // a fair arena: the same base for both, no AI, no boss
+  return { n: 0, online: true, world: 0, worldDef: { name: "Arena", emoji: "🌐", sky: ["#2d3561", "#6c5ce7"], ground: "#4b6584" }, boss: false, bossId: null, enemyLvl: 1, deck: [], baseHp: 1500, coins: 0, aiSlow: 1 };
+}
+function startOnline() {   // the HOST starts the battle
+  const st = onlineStage();
+  battle = { st, rnd: Math.random, frame: 0, units: [], shots: [], fx: [], texts: [], over: false, energy: [5, 5], tick: [0, 0], base: [st.baseHp, st.baseHp], baseMax: [st.baseHp, st.baseHp], aiWait: 1e9, bossOut: true, online: true, host: true };
+  showBattle();
+}
+function hostState() {   // what the guest needs to draw the battle
+  const bt = battle;
+  return { t: "state", f: bt.frame, base: bt.base.map(Math.round), energy: bt.energy.slice(), over: bt.over,
+           u: bt.units.filter((u) => u.hp > 0).map((u) => [u.id, u.side, Math.round(u.x), u.y, Math.round(u.hp), Math.round(u.maxHp), u.frozen > 0 ? 1 : 0, u.burn > 0 ? 1 : 0, u.poison > 0 ? 1 : 0]),
+           sh: bt.shots.map((x) => [Math.round(x.x), x.y, Math.round(x.tx), x.ty, x.col]), tx: bt.texts.map((x) => [Math.round(x.x), x.y, x.text, x.t]) };
+}
+function guestApply(m) {   // the GUEST takes the host's picture of the battle
+  if (!battle || !battle.guest) { const st = onlineStage(); battle = { st, rnd: Math.random, frame: 0, units: [], shots: [], fx: [], texts: [], over: false, energy: [5, 5], tick: [0, 0], base: [st.baseHp, st.baseHp], baseMax: [st.baseHp, st.baseHp], online: true, guest: true }; showBattle(); }
+  const bt = battle; bt.frame = m.f; bt.base = m.base; bt.energy = m.energy;
+  bt.units = (m.u || []).map((a) => ({ id: a[0], side: a[1], x: a[2], y: a[3], hp: a[4], maxHp: a[5], frozen: a[6], burn: a[7], poison: a[8] })).filter((u) => def(u.id));
+  bt.shots = (m.sh || []).map((a) => ({ x: a[0], y: a[1], tx: a[2], ty: a[3], col: a[4], t: 5 })); bt.texts = (m.tx || []).map((a) => ({ x: a[0], y: a[1], text: a[2], t: a[3] }));
+}
+function guestSummon(id) {
+  const bt = battle, d = def(id); if (!d || !S.deck.includes(id)) return false;
+  if (bt.energy[1] < d.cost) return false;
+  bt.energy[1] -= d.cost; netSend({ t: "sum", id }); return true;
+}
+function netData(m) {
+  if (!m || typeof m !== "object") return;
+  if (m.t === "hello") {
+    NETS.friendName = String(m.name || "Friend").slice(0, 24);
+    NETS.friendDeck = (Array.isArray(m.deck) ? m.deck : []).filter((id) => PETS[id]).slice(0, DECK_SIZE);
+    NETS.friendLvls = {}; for (const id of NETS.friendDeck) NETS.friendLvls[id] = Math.max(1, Math.min(MAX_LVL, Math.floor(+(m.lvls || {})[id] || 1)));
+    if (NETS.role === "host") { olMsg(`⚔️ ${NETS.friendName} joined — FIGHT!`); setTimeout(startOnline, 600); }
+    else olMsg(`⚔️ Fighting ${NETS.friendName}!`);
+  } else if (m.t === "sum" && NETS.role === "host" && battle && battle.online && !battle.over) summon(1, String(m.id));
+  else if (m.t === "state" && NETS.role === "guest") guestApply(m);
+  else if (m.t === "end" && NETS.role === "guest" && battle && !battle.over) { battle.over = true; onlineResult(m.win === 1, false); }
+  else if (m.t === "quit" && battle && battle.online && !battle.over) { battle.over = true; onlineResult(true, true); }
+}
+function wireNet(conn) {
+  NETS.conn = conn;
+  conn.on("open", () => { olMsg("Connected! Swapping decks…"); netSend(myHello()); });
+  conn.on("data", netData);
+  conn.on("close", () => { if (battle && battle.online && !battle.over) { battle.over = true; onlineResult(true, true); } else olMsg("🌐 Your friend left."); });
+}
+function hostOnline() {
+  if (typeof Peer === "undefined") return olMsg("Online fights need the internet (PeerJS didn't load).");
+  netReset(); NETS.role = "host";
+  const code = Array.from({ length: 5 }, () => "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"[Math.floor(Math.random() * 32)]).join("");
+  NETS.peer = new Peer("summonbattlers-" + code, PEER_OPTS);
+  NETS.peer.on("open", () => olMsg(`Your battle code: ${code} — tell your friend to Join with it.`));
+  NETS.peer.on("connection", (c) => wireNet(c));
+  NETS.peer.on("error", (e) => olMsg("Online error: " + (e && e.type || e)));
+}
+function joinOnline(code) {
+  code = String(code || "").trim().toUpperCase();
+  if (code.length !== 5) return olMsg("Type the 5-letter code your friend sees.");
+  if (typeof Peer === "undefined") return olMsg("Online fights need the internet (PeerJS didn't load).");
+  netReset(); NETS.role = "guest";
+  NETS.peer = new Peer(undefined, PEER_OPTS);
+  NETS.peer.on("open", () => { olMsg("Connecting…"); wireNet(NETS.peer.connect("summonbattlers-" + code, { reliable: true })); });
+  NETS.peer.on("error", (e) => olMsg(e && e.type === "peer-unavailable" ? "No battle with that code." : "Online error: " + (e && e.type || e)));
+}
+function endOnline(giveUp) {   // the HOST's battle is over (or someone gave up)
+  const bt = battle; if (!bt || bt.over) return;
+  bt.over = true;
+  let hostWins;
+  if (giveUp) hostWins = !bt.host ? true : false;
+  else if (bt.base[1] <= 0) hostWins = true;
+  else if (bt.base[0] <= 0) hostWins = false;
+  else hostWins = bt.base[0] >= bt.base[1];   // time's up: the healthier base wins
+  if (bt.guest) { netSend({ t: "quit" }); onlineResult(false, false); return; }   // the guest gave up
+  netSend({ t: "state", ...hostState() }); netSend({ t: "end", win: hostWins ? 0 : 1 });
+  onlineResult(hostWins, false);
+}
+function onlineResult(iWin, left) {
+  const coins = iWin ? 150 : 40; S.coins += coins;
+  if (iWin) S.onlineWins = (S.onlineWins || 0) + 1; else S.onlineLosses = (S.onlineLosses || 0) + 1;
+  save();
+  showResult(iWin ? (left ? "🏆 You win — your friend left!" : "🏆 YOU WIN ONLINE!") : "💥 You lost online",
+    `${iWin ? "You beat" : "You lost to"} ${NETS.friendName || "your friend"}. 🪙 +${coins} · online record ${S.onlineWins || 0} wins / ${S.onlineLosses || 0} losses`, false);
+}
 function showBattle() {
   show(null); $("hud").classList.add("on"); $("topHud").classList.add("on");
-  $("hudStage").textContent = `${battle.st.worldDef.emoji} Stage ${battle.st.n}${battle.st.boss ? " 👹 BOSS" : ""}`;
+  $("hudStage").textContent = battle.online ? `🌐 vs ${NETS.friendName || "a friend"}` : `${battle.st.worldDef.emoji} Stage ${battle.st.n}${battle.st.boss ? " 👹 BOSS" : ""}`;
   refreshOwnerBtn();
-  $("hand").innerHTML = (S.anyPet ? Object.keys(S.pets).sort((a, b) => PETS[b].cost - PETS[a].cost).slice(0, 24) : S.deck).map((id) => `<div class="card rar-${PETS[id].rarity}" data-sum="${id}"><span class="c">⚡${PETS[id].cost}</span><span class="lv">${abilitiesAt(id, lvlOf(id)).map((a) => ABILITIES[a].emoji).join("")}</span><div class="e" style="font-size:1.8rem">${PETS[id].emoji}</div><div class="n" style="font-size:.75rem">${PETS[id].name}</div></div>`).join("");
+  $("hand").innerHTML = (S.anyPet && !battle.online ? Object.keys(S.pets).sort((a, b) => PETS[b].cost - PETS[a].cost).slice(0, 24) : S.deck).map((id) => `<div class="card rar-${PETS[id].rarity}" data-sum="${id}"><span class="c">⚡${PETS[id].cost}</span><span class="lv">${abilitiesAt(id, lvlOf(id)).map((a) => ABILITIES[a].emoji).join("")}</span><div class="e" style="font-size:1.8rem">${PETS[id].emoji}</div><div class="n" style="font-size:.75rem">${PETS[id].name}</div></div>`).join("");
   $("hand").querySelectorAll("[data-sum]").forEach((c) => (c.onclick = () => { if (!summon(0, c.dataset.sum)) toast(`Not enough ⚡ (needs ${PETS[c.dataset.sum].cost})`); }));
 }
 function renderHud() {
   const bt = battle; if (!bt) return;
-  $("energyFill").style.width = `${100 * bt.energy[0] / MAX_ENERGY}%`; $("energyTxt").textContent = `⚡ ${bt.energy[0]} / ${MAX_ENERGY}`;
+  const me = bt.guest ? 1 : 0;
+  $("energyFill").style.width = `${100 * bt.energy[me] / MAX_ENERGY}%`; $("energyTxt").textContent = `⚡ ${bt.energy[me]} / ${MAX_ENERGY}`;
   const left = Math.max(0, Math.ceil((BATTLE_TIME - bt.frame) / FPS)); $("hudTime").textContent = `${Math.floor(left / 60)}:${String(left % 60).padStart(2, "0")}${left <= 60 ? " ⚡×2" : ""}`;
-  $("hand").querySelectorAll("[data-sum]").forEach((c) => c.classList.toggle("cant", PETS[c.dataset.sum].cost > bt.energy[0]));
+  $("hand").querySelectorAll("[data-sum]").forEach((c) => c.classList.toggle("cant", PETS[c.dataset.sum].cost > bt.energy[me]));
 }
 function showResult(title, text, win) {
   show("result"); $("resTitle").textContent = title; $("resText").textContent = text;
-  $("resNext").style.display = win && battle.st.n < STAGES ? "inline-block" : "none";
+  $("resNext").style.display = win && battle && !battle.online && battle.st.n < STAGES ? "inline-block" : "none";
   $("resNext").textContent = win ? "➡ Next stage" : "🔁 Try again";
 }
 $("resNext").onclick = () => { const n = battle.st.n + 1; battle = null; const e = startStage(n); if (e) toast(e); };
-$("resMap").onclick = () => { battle = null; renderMap(); show("map"); };
+$("resMap").onclick = () => { const wasOnline = battle && battle.online; battle = null; if (wasOnline) { netReset(); renderMenu(); show("menu"); } else { renderMap(); show("map"); } };
 $("btnQuit").onclick = () => endBattle(true);
 $("btnPlay").onclick = () => { renderMap(); show("map"); };
+$("btn3d").onclick = () => setMode3d(!S.mode3d);
+$("btn3dB").onclick = () => setMode3d(!S.mode3d);
+$("btnOnline").onclick = () => { olMsg(""); $("olRecord").textContent = `Your online record: ${S.onlineWins || 0} wins / ${S.onlineLosses || 0} losses · your deck: ${S.deck.map((id) => PETS[id].emoji).join(" ")}`; show("online"); };
+$("olHost").onclick = hostOnline;
+$("olJoin").onclick = () => joinOnline($("olCode").value);
+$("olCode").addEventListener("keydown", (e) => e.stopPropagation());
+$("olBack").onclick = () => { netReset(); renderMenu(); show("menu"); };
 $("btnPets").onclick = () => { renderPets(); show("pets"); };
 $("btnEggs").onclick = () => { $("eggShow").textContent = "🥚"; $("eggMsg").textContent = ""; renderEggs(); show("eggs"); };
 $("codeBtn").onclick = () => { toast(redeemCode($("codeIn").value)); $("codeIn").value = ""; renderMenu(); };
@@ -784,6 +900,7 @@ function draw() {
   const bt = battle, cw = innerWidth, ch = innerHeight;
   ctx.setTransform(devicePixelRatio, 0, 0, devicePixelRatio, 0, 0);
   if (!bt) { ctx.fillStyle = "#1b1035"; ctx.fillRect(0, 0, cw, ch); return; }
+  const me = bt.guest ? 1 : 0, X = (x) => (bt.guest ? W - x : x);   // 🌐 the guest sees it flipped: your base is always on the left
   const wd = bt.st.worldDef;
   sc = Math.min(cw / W, (ch - 150) / H); offX = (cw - W * sc) / 2; offY = 50;
   const g = ctx.createLinearGradient(0, 0, 0, ch); g.addColorStop(0, wd.sky[0]); g.addColorStop(1, wd.sky[1]); ctx.fillStyle = g; ctx.fillRect(0, 0, cw, ch);
@@ -792,36 +909,127 @@ function draw() {
   ctx.fillStyle = "rgba(0,0,0,.08)"; for (const y of LANES) ctx.fillRect(0, y + 14, W, 4);
   // bases
   const baseDraw = (i, emo) => {
-    const x = BASE_X[i]; stamp(emo, x, 230, 90);
+    const x = X(BASE_X[i]); stamp(emo, x, 230, 90);
     const f = bt.base[i] / (i ? bt.st.baseHp : bt.baseMax[0]);
-    ctx.fillStyle = "#2d3436"; ctx.fillRect(x - 55, 150, 110, 10); ctx.fillStyle = i ? "#ff6b6b" : "#55efc4"; ctx.fillRect(x - 55, 150, 110 * Math.max(0, f), 10);
+    ctx.fillStyle = "#2d3436"; ctx.fillRect(x - 55, 150, 110, 10); ctx.fillStyle = i !== me ? "#ff6b6b" : "#55efc4"; ctx.fillRect(x - 55, 150, 110 * Math.max(0, f), 10);
     ctx.fillStyle = "#fff"; ctx.font = "bold 14px Nunito, sans-serif"; ctx.textAlign = "center"; ctx.fillText(Math.ceil(bt.base[i]).toLocaleString(), x, 145);
   };
-  baseDraw(0, "🏰"); baseDraw(1, "🏯");
-  for (const s of bt.shots) { ctx.strokeStyle = s.col; ctx.lineWidth = 3; ctx.beginPath(); ctx.moveTo(s.x, s.y - 20); ctx.lineTo(s.tx, s.ty - 20); ctx.stroke(); }
+  baseDraw(me, "🏰"); baseDraw(1 - me, "🏯");
+  for (const s of bt.shots) { ctx.strokeStyle = s.col; ctx.lineWidth = 3; ctx.beginPath(); ctx.moveTo(X(s.x), s.y - 20); ctx.lineTo(X(s.tx), s.ty - 20); ctx.stroke(); }
   for (const u of [...bt.units].sort((a, b) => a.y - b.y)) {
     if (u.hp <= 0) continue;
-    const d = def(u.id), size = d.boss ? 70 : 38, y = u.y - (d.fly ? 50 : 0);
-    if (d.fly) { ctx.fillStyle = "rgba(0,0,0,.18)"; ctx.beginPath(); ctx.ellipse(u.x, u.y + 12, 14, 5, 0, 0, Math.PI * 2); ctx.fill(); }
-    ctx.save(); ctx.translate(u.x, y); if (u.side === 0) ctx.scale(-1, 1); stamp(d.emoji, 0, 0, size); ctx.restore();
-    if (d.element) stamp(ELEMENTS[d.element].emoji, u.x + size * 0.38, y - size * 0.3, 14);   // its element
-    if (u.burn > 0) stamp("🔥", u.x - size * 0.35, y - size * 0.3, 12);
-    ctx.strokeStyle = u.side ? "#ff6b6b" : "#55efc4"; ctx.lineWidth = 2; ctx.beginPath(); ctx.arc(u.x, y + size * 0.45, 6, 0, Math.PI * 2); ctx.stroke();
-    if (u.frozen > 0) { ctx.fillStyle = "rgba(116,185,255,.4)"; ctx.beginPath(); ctx.arc(u.x, y, size * 0.55, 0, Math.PI * 2); ctx.fill(); }
-    if (u.poison > 0) { ctx.fillStyle = "rgba(68,189,50,.35)"; ctx.beginPath(); ctx.arc(u.x, y, size * 0.45, 0, Math.PI * 2); ctx.fill(); }
-    const bw = d.boss ? 90 : 36; ctx.fillStyle = "#2d3436"; ctx.fillRect(u.x - bw / 2, y - size * 0.7, bw, 5); ctx.fillStyle = u.side ? "#ff6b6b" : "#55efc4"; ctx.fillRect(u.x - bw / 2, y - size * 0.7, bw * Math.max(0, u.hp / u.maxHp), 5);
+    const d = def(u.id), size = d.boss ? 70 : 38, y = u.y - (d.fly ? 50 : 0), ux = X(u.x), mine = u.side === me;
+    if (d.fly) { ctx.fillStyle = "rgba(0,0,0,.18)"; ctx.beginPath(); ctx.ellipse(ux, u.y + 12, 14, 5, 0, 0, Math.PI * 2); ctx.fill(); }
+    ctx.save(); ctx.translate(ux, y); if (mine) ctx.scale(-1, 1); stamp(d.emoji, 0, 0, size); ctx.restore();
+    if (d.element) stamp(ELEMENTS[d.element].emoji, ux + size * 0.38, y - size * 0.3, 14);   // its element
+    if (u.burn > 0) stamp("🔥", ux - size * 0.35, y - size * 0.3, 12);
+    ctx.strokeStyle = mine ? "#55efc4" : "#ff6b6b"; ctx.lineWidth = 2; ctx.beginPath(); ctx.arc(ux, y + size * 0.45, 6, 0, Math.PI * 2); ctx.stroke();
+    if (u.frozen > 0) { ctx.fillStyle = "rgba(116,185,255,.4)"; ctx.beginPath(); ctx.arc(ux, y, size * 0.55, 0, Math.PI * 2); ctx.fill(); }
+    if (u.poison > 0) { ctx.fillStyle = "rgba(68,189,50,.35)"; ctx.beginPath(); ctx.arc(ux, y, size * 0.45, 0, Math.PI * 2); ctx.fill(); }
+    const bw = d.boss ? 90 : 36; ctx.fillStyle = "#2d3436"; ctx.fillRect(ux - bw / 2, y - size * 0.7, bw, 5); ctx.fillStyle = mine ? "#55efc4" : "#ff6b6b"; ctx.fillRect(ux - bw / 2, y - size * 0.7, bw * Math.max(0, u.hp / u.maxHp), 5);
   }
-  for (const f of bt.fx) { ctx.fillStyle = `rgba(255,140,0,${f.t / 30})`; ctx.beginPath(); ctx.arc(f.x, f.y - 10, f.r * (1.2 - f.t / 30), 0, Math.PI * 2); ctx.fill(); }
+  for (const f of bt.fx) { ctx.fillStyle = `rgba(255,140,0,${f.t / 30})`; ctx.beginPath(); ctx.arc(X(f.x), f.y - 10, f.r * (1.2 - f.t / 30), 0, Math.PI * 2); ctx.fill(); }
   ctx.font = "bold 18px Nunito, sans-serif"; ctx.textAlign = "center";
-  for (const t of bt.texts) { ctx.globalAlpha = Math.min(1, t.t / 20); ctx.fillStyle = "#fff"; ctx.strokeStyle = "#000"; ctx.lineWidth = 4; ctx.strokeText(t.text, t.x, t.y); ctx.fillText(t.text, t.x, t.y); ctx.globalAlpha = 1; }
+  for (const t of bt.texts) { ctx.globalAlpha = Math.min(1, t.t / 20); ctx.fillStyle = "#fff"; ctx.strokeStyle = "#000"; ctx.lineWidth = 4; ctx.strokeText(t.text, X(t.x), t.y); ctx.fillText(t.text, X(t.x), t.y); ctx.globalAlpha = 1; }
   ctx.restore();
+}
+// ---- 🎲 3D MODE (three.js): the same battle seen from a camera over the field — 3D bases, pets as standing
+// pictures in their lanes (flyers up in the air), health bars, shots and blasts. The guest's camera is turned
+// round so its own base is on the left too. Without three.js (or WebGL) it quietly stays 2D.
+let T3 = null;
+const mode3d = () => !!S.mode3d;
+function init3D() {
+  if (T3) return T3.ok;
+  T3 = { ok: false };
+  try {
+    if (typeof THREE === "undefined") return false;
+    const cv3 = $("game3d"), renderer = new THREE.WebGLRenderer({ canvas: cv3, antialias: true });
+    const scene = new THREE.Scene(), camera = new THREE.PerspectiveCamera(42, 1, 0.1, 500);
+    scene.add(new THREE.HemisphereLight(0xffffff, 0x445566, 1.1)); const sun = new THREE.DirectionalLight(0xffffff, 0.8); sun.position.set(20, 40, 25); scene.add(sun);
+    const ground = new THREE.Mesh(new THREE.BoxGeometry(110, 1, 26), new THREE.MeshLambertMaterial({ color: 0x6ab04c })); ground.position.y = -0.5; scene.add(ground);
+    for (const lz of [-5, 0, 5]) { const st = new THREE.Mesh(new THREE.BoxGeometry(92, 0.05, 2.2), new THREE.MeshLambertMaterial({ color: 0x000000, transparent: true, opacity: 0.08 })); st.position.set(0, 0.03, lz); scene.add(st); }
+    const castle = (color) => { const g = new THREE.Group(), m = new THREE.MeshLambertMaterial({ color });
+      const body = new THREE.Mesh(new THREE.BoxGeometry(7, 7, 12), m); body.position.y = 3.5; g.add(body);
+      for (const z of [-5, 5]) { const tw = new THREE.Mesh(new THREE.CylinderGeometry(1.6, 1.8, 10, 10), m); tw.position.set(0, 5, z); g.add(tw);
+        const roof = new THREE.Mesh(new THREE.ConeGeometry(2.2, 3, 10), new THREE.MeshLambertMaterial({ color: 0xc0392b })); roof.position.set(0, 11.5, z); g.add(roof); }
+      scene.add(g); return g; };
+    const bases = [castle(0xdfe6e9), castle(0x636e72)];
+    T3 = { ok: true, renderer, scene, camera, ground, bases, units: new Map(), tex: new Map(), extra: [], bars: [] };
+    for (let i = 0; i < 2; i++) { const bg = barSprite(0x2d3436), fg = barSprite(0x55efc4); scene.add(bg); scene.add(fg); T3.bars.push([bg, fg]); }
+    return true;
+  } catch (e) { T3 = { ok: false }; return false; }
+}
+function emojiTex(e) {
+  if (T3.tex.has(e)) return T3.tex.get(e);
+  const c = document.createElement("canvas"); c.width = c.height = 128; const g = c.getContext("2d");
+  g.font = "100px serif"; g.textAlign = "center"; g.textBaseline = "middle"; g.fillText(e, 64, 70);
+  const t = new THREE.CanvasTexture(c); T3.tex.set(e, t); return t;
+}
+function barSprite(color) { const sp = new THREE.Sprite(new THREE.SpriteMaterial({ color, depthTest: false })); sp.center.set(0, 0.5); sp.renderOrder = 5; return sp; }
+const to3 = (x, y) => [(x - 500) / 10, (y - 300) / 10];   // world → 3D (lanes at z −5, 0, 5)
+function render3D() {
+  const bt = battle, R = T3, me = bt.guest ? 1 : 0;
+  const w = innerWidth, h = innerHeight;
+  if (R.w !== w || R.h !== h) { R.renderer.setPixelRatio(devicePixelRatio); R.renderer.setSize(w, h, false); R.camera.aspect = w / h; R.camera.updateProjectionMatrix(); R.w = w; R.h = h; }
+  const wd = bt.st.worldDef; R.scene.background = new THREE.Color(wd.sky[0]); R.ground.material.color.set(wd.ground);
+  const camZ = me ? -1 : 1;   // the guest looks from the other side, so its base is on the left
+  const back = Math.max(68, 120 / Math.max(0.6, w / h));   // narrow screens: further back, so both bases fit
+  R.camera.position.set(Math.sin(performance.now() / 9000) * 4, back * 0.55, back * camZ); R.camera.lookAt(0, 2, 0);
+  // bases and their health
+  for (let i = 0; i < 2; i++) {
+    const [bx] = to3(BASE_X[i], 300); R.bases[i].position.set(bx, 0, 0);
+    R.bases[i].children[0].material.color.set(i === me ? 0xdfe6e9 : 0x636e72);
+    const f = Math.max(0, bt.base[i] / (i ? bt.st.baseHp : bt.baseMax[0])), [bg, fg] = R.bars[i];
+    bg.position.set(bx - 5 * camZ, 14.5, 0); bg.scale.set(10, 0.8, 1); fg.position.copy(bg.position); fg.scale.set(10 * f, 0.8, 1); fg.material.color.set(i === me ? 0x55efc4 : 0xff6b6b);   // (bars grow from the screen-left edge)
+  }
+  // pets: one picture + a health bar each (made when a pet appears, removed when it's gone)
+  const seen = new Set();
+  bt.units.forEach((u, i) => {
+    if (u.hp <= 0) return;
+    const key = bt.guest ? `${u.id}|${u.side}|${i}` : u; seen.add(key);
+    let o = R.units.get(key);
+    const d = def(u.id);
+    if (!o) {
+      const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: emojiTex(d.emoji), transparent: true })), bg = barSprite(0x2d3436), fg = barSprite(0x55efc4);
+      const ring = new THREE.Mesh(new THREE.RingGeometry(1.1, 1.4, 20), new THREE.MeshBasicMaterial({ color: 0x55efc4, side: THREE.DoubleSide }));
+      ring.rotation.x = -Math.PI / 2; R.scene.add(sp); R.scene.add(bg); R.scene.add(fg); R.scene.add(ring); o = { sp, bg, fg, ring }; R.units.set(key, o);
+    }
+    const [x, z] = to3(u.x, u.y), size = d.boss ? 8 : 4, hy = d.fly ? 6 : size / 2, mine = u.side === me;
+    o.sp.position.set(x, hy, z); o.sp.scale.set(mine ? -size : size, size, 1);   // (emoji face left: your pets are mirrored to face the enemy)
+    o.ring.position.set(x, 0.06, z); o.ring.material.color.set(mine ? 0x55efc4 : 0xff6b6b);
+    o.sp.material.color.set(u.frozen > 0 ? 0x9ad0ff : u.poison > 0 ? 0xa8e6a1 : u.burn > 0 ? 0xffb38a : 0xffffff);
+    const bw = d.boss ? 8 : 3.4, f = Math.max(0, u.hp / u.maxHp);
+    o.bg.position.set(x - bw / 2 * camZ, hy + size * 0.65, z); o.bg.scale.set(bw, 0.35, 1); o.fg.position.copy(o.bg.position); o.fg.scale.set(bw * f, 0.35, 1);
+    o.fg.material.color.set(mine ? 0x55efc4 : 0xff6b6b);
+  });
+  for (const [k, o] of R.units) if (!seen.has(k)) { for (const m of [o.sp, o.bg, o.fg, o.ring]) R.scene.remove(m); R.units.delete(k); }
+  // shots and blasts (rebuilt each frame — there are only a few)
+  for (const m of R.extra) R.scene.remove(m); R.extra = [];
+  for (const sh of bt.shots) {
+    const [x1, z1] = to3(sh.x, sh.y), [x2, z2] = to3(sh.tx, sh.ty);
+    const geo = new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(x1, 2.5, z1), new THREE.Vector3(x2, 2.5, z2)]);
+    const ln = new THREE.Line(geo, new THREE.LineBasicMaterial({ color: sh.col || "#feca57" })); R.scene.add(ln); R.extra.push(ln);
+  }
+  for (const f of bt.fx || []) {
+    const [x, z] = to3(f.x, f.y), ball = new THREE.Mesh(new THREE.SphereGeometry(Math.max(0.5, f.r / 10 * (1.2 - f.t / 30)), 12, 8), new THREE.MeshBasicMaterial({ color: 0xff8c00, transparent: true, opacity: f.t / 30 }));
+    ball.position.set(x, 1, z); R.scene.add(ball); R.extra.push(ball);
+  }
+  R.renderer.render(R.scene, R.camera);
+}
+function setMode3d(on) {
+  S.mode3d = !!on; save();
+  const ok = S.mode3d && init3D();
+  if (S.mode3d && !ok) toast("🎲 3D needs WebGL — staying in 2D");
+  $("btn3d").textContent = `🎲 3D mode: ${S.mode3d ? "ON" : "off"}`;
 }
 let last = performance.now(), acc = 0;
 function frame(now) {
   acc += Math.min(250, now - last); last = now;
-  while (acc >= 1000 / FPS) { acc -= 1000 / FPS; if (battle && !battle.over) step(); }
+  while (acc >= 1000 / FPS) { acc -= 1000 / FPS; if (battle && !battle.over && !battle.guest) { step(); if (battle && battle.host && battle.frame % 6 === 0) netSend(hostState()); } }
   if (battle && !battle.over) renderHud();
-  draw();
+  const in3d = !!(battle && mode3d() && init3D());
+  $("game3d").style.display = in3d ? "block" : "none"; cv.style.display = in3d ? "none" : "block";
+  if (in3d) { try { render3D(); } catch (e) { S.mode3d = false; toast("🎲 3D stopped — back to 2D"); } } else draw();
   requestAnimationFrame(frame);
 }
 
@@ -831,7 +1039,7 @@ if (window.ArcadeShop && ArcadeShop.registerCurrency) {
 }
 window.nullpState = () => ({ coins: S.coins, stage: S.stage, pets: Object.keys(S.pets).length, deck: S.deck.join(", "), inBattle: !!battle });
 
-load(); resize(); renderMenu(); save();
+load(); resize(); renderMenu(); save(); $("btn3d").textContent = `🎲 3D mode: ${S.mode3d ? "ON" : "off"}`;
 requestAnimationFrame(frame);
 </script>
 <script defer src="../nullp-widget.js" data-game="Summon Battlers"></script>

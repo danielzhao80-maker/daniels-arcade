@@ -327,6 +327,41 @@ check(/Started over/.test(q(`ownerAction('reset')`)) && q('S.owner') === true &&
 q(`load(); ownerVisit = false; refreshOwnerBtn();`);
 check(q(`document.getElementById('btnOwner').style.display`) === 'none', 'reload: the 👑 button is hidden until you use the panel again');
 
+// ---- 🌐 online fight (a pretend connection) ----
+reset(); q(`S.pets['fire-tiger'] = { lvl: 7, shards: 0 }; S.deck = ['mouse', 'fire-tiger']; window.__sent = []; NETS.conn = { open: true, send: function(o){ __sent.push(o); }, close: function(){} }; NETS.role = 'host';`);
+q(`netData({ t: 'hello', name: 'Bob', deck: ['frog', 'light-tiger', 'not-a-pet'], lvls: { frog: 4, 'light-tiger': 99 } });`);
+check(q('NETS.friendName') === 'Bob' && JSON.stringify(q('NETS.friendDeck')) === JSON.stringify(['frog', 'light-tiger']) && q("NETS.friendLvls['light-tiger']") === 10, "the friend's deck and levels arrive (cleaned up: no fake pets, max level 10)");
+q(`startOnline();`);
+check(q('battle.online && battle.host') && q('battle.base[0] === battle.base[1]') && q('battle.aiWait') > 1e8, '🌐 the host starts a fair battle: same bases, no computer enemy');
+q(`netData({ t: 'sum', id: 'frog' }); netData({ t: 'sum', id: 'kraken' });`);
+check(q(`battle.units.filter(function(u){ return u.side === 1; }).length`) === 1 && q(`battle.units.find(function(u){ return u.side === 1; }).lvl`) === 4, "the friend's summons come out on their side, at THEIR level (and only from their deck)");
+q(`S.infEnergy = true; battle.energy[0] = 0;`);
+check(q(`summon(0, 'fire-tiger')`) === false, '👑 owner infinite energy is off in online fights (fair play)');
+q(`S.infEnergy = false; for (var i = 0; i < 6; i++) { step(); if (battle.frame % 6 === 0) netSend(hostState()); }`);
+check(q(`__sent.some(function(m){ return m.t === 'state' && Array.isArray(m.u) && m.u.length >= 1; })`), 'the host sends what is happening');
+q(`battle.base[1] = 0; step();`);
+check(q(`__sent.some(function(m){ return m.t === 'end' && m.win === 0; })`) && /YOU WIN ONLINE/.test(q(`document.getElementById('resTitle').textContent`)) && q('S.onlineWins') === 1, 'break their base: you win online (and the friend is told)');
+// the guest side
+reset(); q(`battle = null; window.__sent = []; NETS.conn = { open: true, send: function(o){ __sent.push(o); }, close: function(){} }; NETS.role = 'guest'; NETS.friendName = 'Host';`);
+q(`netData({ t: 'state', f: 30, base: [1500, 1400], energy: [3, 8], over: false, u: [['frog', 1, 800, 300, 100, 150, 0, 0, 0], ['mouse', 0, 200, 250, 80, 80, 1, 0, 0]], sh: [], tx: [] });`);
+check(q('battle.guest') === true && q('battle.units.length') === 2 && q('battle.energy[1]') === 8, "the guest shows the host's battle");
+check(q(`summon(1, 'mouse')`) === true && q(`__sent.some(function(m){ return m.t === 'sum' && m.id === 'mouse'; })`) && q('battle.energy[1]') === 6, 'the guest summons by asking the host');
+q(`renderHud(); draw();`);
+check(/6 \/ 10/.test(q(`document.getElementById('energyTxt').textContent`)), "the guest's ⚡ bar shows THEIR energy");
+q(`netData({ t: 'end', win: 1 });`);
+check(/YOU WIN ONLINE/.test(q(`document.getElementById('resTitle').textContent`)), 'the guest is told who won');
+reset(); q(`battle = null; NETS.role = 'host'; startOnline(); netData({ t: 'quit' });`);
+check(/friend left/.test(q(`document.getElementById('resTitle').textContent`)), 'a friend who gives up or leaves: you win');
+q(`battle = null; netReset();`);
+
+// ---- 🎲 3D mode ----
+reset();
+q(`window.THREE = undefined; T3 = null; setMode3d(true);`);   // (no three.js in this test sandbox)
+check(q('S.mode3d') === true && /ON/.test(q(`document.getElementById('btn3d').textContent`)), '🎲 3D mode switches on (and is saved)');
+q(`startStage(1); for (var i = 0; i < 30; i++) step(); frame(performance.now());`);
+check(q(`document.getElementById('game').style.display`) === 'block', '…without 3D graphics (no WebGL here) the battle quietly stays 2D');
+q(`setMode3d(false); battle = null;`);
+
 // ---- screens + drawing ----
 reset();
 q(`renderMenu(); renderMap(); renderPets(); renderEggs(); showPet('mouse'); startStage(1); for (var i = 0; i < 200; i++) step(); renderHud(); draw();`);

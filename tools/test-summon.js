@@ -139,7 +139,12 @@ const run = (n, max) => q(`(function(){ var i = 0; while (battle && !battle.over
 
 // ---- start ----
 reset();
-check(q('Object.keys(PETS).length') === 24 && q('Object.keys(S.pets).length') === 4 && q('S.deck.length') === 4 && q('S.coins') === 250, 'a new player: 24 pets to find, 4 to start with (all in the deck), 🪙 250');
+check(q('Object.keys(PETS).length') === 524 && q('Object.keys(S.pets).length') === 4 && q('S.deck.length') === 4 && q('S.coins') === 250, 'a new player: 524 pets to find (24 + 500 new), 4 to start with, 🪙 250');
+check(q('ANIMALS.length') === 50 && q('Object.keys(ELEMENTS).length') === 10 && q("PETS['fire-cat'].name") === 'Fire Cat' && q("PETS['light-tiger'].rarity") === 'mythic' && q("PETS['fire-cat'].rarity") === 'common', '50 animals × 10 elements ("Fire Cat"); a ✨ Light Tiger is Mythic, a Fire Cat Common');
+const rc = JSON.parse(q(`JSON.stringify(RAR_ORDER.map(function(r){ return Object.values(PETS).filter(function(p){ return p.rarity === r; }).length; }))`));
+check(rc[0] > rc[1] && rc[1] > rc[2] && rc[2] > rc[3] && rc[3] > rc[4] && rc[4] >= 10, 'the rarer, the fewer: ' + rc.join(' / '));
+check(q(`Object.values(PETS).every(function(p){ return p.element && p.role && p.hp > 0 && p.dmg > 0 && p.cost >= 2 && p.cost <= 10; })`), 'every pet has an element, a role and sensible stats');
+check(q(`PETS['light-tiger'].hp`) > q(`PETS['fire-cat'].hp`) * 2, 'rarer pets are stronger');
 check(['common', 'rare', 'epic', 'legendary', 'mythic'].every((r) => q(`Object.values(PETS).filter(function(p){ return p.rarity === '${r}'; }).length`) > 0), 'pets of every rarity (Common → Mythic)');
 check(q('STAGES') === 30 && q('stageInfo(6).boss') === true && q('stageInfo(7).boss') === false && q('stageInfo(30).bossId') === 'voidlord' && q('stageInfo(13).worldDef.name') === 'Ice', '30 stages in 5 worlds, a boss every 6th');
 check(q('stageInfo(20).enemyLvl') > q('stageInfo(2).enemyLvl') && q('stageInfo(20).baseHp') > q('stageInfo(2).baseHp'), 'later stages are harder');
@@ -228,6 +233,37 @@ check(q('battle.units[0].hp') < q('battle.units[0].maxHp'), '🏰 your base shoo
 reset(); q(`startStage(1, function(){ return 0.5; }); battle.aiWait = 1e9; battle.units = [makeUnit(1, 'snail', 1, 500, 1)]; battle.units[0].frozen = 1e9; for (var i = 0; i < 45; i++) step();`);
 check(q('battle.units[0].hp') === q('battle.units[0].maxHp'), '…but not ones far away');
 q('battle = null;');
+
+// ---- 🔓 abilities unlock with levels ----
+check(JSON.stringify(JSON.parse(q(`JSON.stringify(abilitiesOf('fire-cat'))`))) === JSON.stringify([[3, 'burn'], [6, 'crit'], [10, 'giant']]), 'a Fire Cat: 🔥 Burn at Lv 3, 🗡️ Critical Hits at Lv 6, 🌟 Giant Form at Lv 10');
+check(q(`abilitiesAt('fire-cat', 2).length`) === 0 && q(`abilitiesAt('fire-cat', 6).length`) === 2 && q(`abilitiesAt('light-tiger', 10).includes('titan')`), '…they unlock as it levels up (Mythic ultimate: 👑 Titan)');
+check(q(`abilitiesOf('dragon').length`) === 3 && q(`abilitiesOf('dragon')[0][1]`) === 'burn', 'the original pets get abilities too (🐉 Dragon: Burn)');
+reset(); q(`startStage(1, function(){ return 0.5; }); battle.aiWait = 1e9;`);
+const ab = (id, lvl, foe, steps, setup) => q(`(function(){ var u = makeUnit(0, '${id}', ${lvl}, 450, 1), e = makeUnit(1, '${foe || 'frog'}', 1, 470, 1); e.frozen = 0; ${setup || ''}; battle.units = [u, e]; u.cd = 1; for (var i = 0; i < ${steps || 1}; i++) step(); return JSON.stringify({ u: { hp: u.hp, max: u.maxHp, dmg: u.dmg }, e: { hp: e.hp, max: e.maxHp, burn: e.burn, poison: e.poison, frozen: e.frozen } }); })()`);
+let r = JSON.parse(ab('fire-cat', 3)); check(r.e.burn > 0, '🔥 Burn sets enemies on fire');
+r = JSON.parse(ab('ice-cat', 3)); check(r.e.frozen > 0, '❄️ Frostbite freezes them');
+r = JSON.parse(ab('toxic-cat', 3)); check(r.e.poison > 0, '☠️ Venom poisons them');
+r = JSON.parse(ab('fire-cat', 1)); check(!(r.e.burn > 0), '…not before Lv 3');
+const giant = JSON.parse(ab('fire-cat', 10)), noGiant = JSON.parse(ab('fire-cat', 9));
+check(Math.abs(giant.u.max / noGiant.u.max - 1.4 * (1 + 0.15 * 9) / (1 + 0.15 * 8)) < 1e-9, '🌟 Giant Form: +40% health at Lv 10');
+q(`var a1 = makeUnit(0, 'earth-cow', 3, 450, 1); battle.units = [a1]; hurt(battle, a1, 100);`);
+check(Math.round(q('battle.units[0].maxHp - battle.units[0].hp')) === Math.round(100 * 0.7 * 0.75), '🪨 Stone Skin: 25% less damage (on top of a tank\'s shell)');
+q(`var rv = makeUnit(0, 'fire-dolphin', 10, 450, 1); battle.units = [rv]; hurt(battle, rv, 1e9);`);
+check(q('battle.units[0].hp') === q('battle.units[0].maxHp') * 0.5, '♻️ Second Life: comes back once with half health');
+q(`var ch = makeUnit(0, 'storm-cat', 3, 450, 1), e1 = makeUnit(1, 'frog', 1, 470, 1), e2 = makeUnit(1, 'frog', 1, 520, 1); battle.units = [ch, e1, e2]; ch.cd = 1; step();`);
+check(q('battle.units[2].hp') < q('battle.units[2].maxHp'), '⚡ Chain Lightning jumps to a 2nd enemy');
+q(`var th = makeUnit(0, 'storm-tiger', 10, 300, 1), far = makeUnit(1, 'snail', 1, 800, 1); far.frozen = 1e9; battle.units = [th, far]; for (var i = 0; i < 301; i++) step();`);
+check(q('battle.units.find(function(u){ return u.side === 1; }).hp') < q('battle.units.find(function(u){ return u.side === 1; }).maxHp'), '🌩️ Thunder Call strikes the strongest enemy from far away');
+q(`var hs = makeUnit(0, 'wind-cat', 3, 300, 1); battle.units = [hs]; var x0 = hs.x; step(); window.__hs = hs.x - x0; var no = makeUnit(0, 'wind-cat', 1, 300, 1); battle.units = [no]; x0 = no.x; step(); window.__nh = no.x - x0;`);
+check(Math.abs(q('__hs') / q('__nh') - 1.3) < 1e-6, '🌪️ Haste: 30% faster');
+q('battle = null;');
+// enemy worlds use the new pets too
+check(q(`WORLDS.every(function(w){ return w.pool.some(function(id){ return PETS[id].gen; }); })`), 'every world also sends new elemental pets');
+// collection filters
+reset(); q(`S.pets['fire-cat'] = { lvl: 1, shards: 0 }; petFilter.rarity = 'common'; petFilter.element = 'fire'; petFilter.owned = false; petFilter.text = ''; window.__f1 = filteredPets().length; petFilter.owned = true; window.__f2 = filteredPets(); petFilter.rarity = ''; petFilter.element = ''; petFilter.owned = false; petFilter.text = 'fire c'; window.__f3 = filteredPets(); petFilter.text = '';`);
+check(q('__f1') > 5 && JSON.stringify(q('__f2')) === JSON.stringify(['fox', 'fire-cat']) === false && q('__f2').includes('fire-cat') && q('__f3').length === 1, '🔎 filter by rarity, element, mine only, and search');
+q(`renderPets(); showPet('fire-cat');`);
+check(/Lv 3: 🔥 Burn/.test(q(`document.getElementById('petInfo').innerHTML`)) && /🔒/.test(q(`document.getElementById('petInfo').innerHTML`)), 'a pet shows its abilities (🔒 until unlocked)');
 
 // ---- bosses ----
 reset({ stage: 6 }); q(`startStage(6, function(){ return 0.5; }); battle.aiWait = 1e9; for (var i = 0; i < 100; i++) step();`);

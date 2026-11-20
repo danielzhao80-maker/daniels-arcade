@@ -65,6 +65,7 @@
   <span class="pill" id="revPill" style="display:none" title="An island you raided is coming for revenge">😠 <b id="revIn">0:00</b></span>
   <span class="pill">⚔️ <b id="armyN">0</b>/<b id="armyCap">0</b></span>
   <button id="btnInfo" class="blue small">📊 My Island</button>
+ <button id="btnTree" class="small" style="background:linear-gradient(180deg,#7bed9f,#2ed573);box-shadow:0 4px 0 #1e7a45;color:#073b1f">🌳 Tree</button>
   <button id="btnBoard" class="small" style="background:linear-gradient(180deg,#ffd32a,#e1a400);box-shadow:0 4px 0 #8a6d00;color:#3d2c00">🏆 Leaders</button>
   <button id="btnAdmin" class="small" style="display:none;background:linear-gradient(180deg,#ff7675,#c0392b);box-shadow:0 4px 0 #7b1d14">🛠️ Admin</button>
   <button id="btnOwner" class="small" style="display:none;background:linear-gradient(180deg,#f9ca24,#b8860b);box-shadow:0 4px 0 #6b4f00">👑 Owner</button>
@@ -107,6 +108,7 @@
 </div>
 <div class="panel" id="infoPanel"><button class="close" data-close>✕</button><h2>📊 My Island</h2><div class="sub">Everything about your island.</div><div id="infoBody"></div></div>
 <div class="panel" id="adminPanel"><button class="close" data-close>✕</button><h2 id="admTitle"></h2><div class="sub" id="admSub"></div><div id="admBody"></div><div class="sub" id="admMsg" style="font-weight:900;font-size:1rem;margin-top:10px"></div></div>
+<div class="panel" id="treePanel"><button class="close" data-close>✕</button><h2>🌳 Growth Tree</h2><div class="sub" id="treeSub"></div><div id="treeBody"></div></div>
 <div class="panel" id="boardPanel"><button class="close" data-close>✕</button><h2>🏆 Leaderboard</h2>
   <div class="row"><button class="small" id="boardT">🏆 Most trophies</button><button class="small" id="boardR">🔁 Most rebirths</button></div>
   <div class="sub" id="boardSub"></div><div id="boardBody"></div></div>
@@ -182,6 +184,34 @@ const prestMul = () => 1 + PRESTIGE_BUFF * prest();
 const REBIRTH_BUFF = 0.25;
 const rebirths = () => (typeof S === "object" && S ? Math.max(0, Math.floor(S.rebirths || 0)) : 0);
 const buffMul = () => prestMul() * (1 + REBIRTH_BUFF * rebirths());
+// 🌳 GROWTH TREE: spend Growth Points (20 for every ♻️ Reset) on lasting upgrades. Each level costs as many points
+// as the level it buys (level 1 = 1 point, level 5 = 5). A branch's upgrades need the one above it.
+const GROWTH = [
+  { id: "seed",    emoji: "🌱", name: "Seed of Growth", max: 1, req: null,     desc: "Starts your tree — everything else grows from it." },
+  { id: "troops",  emoji: "💪", name: "Strong Troops",  max: 5, req: "seed",   desc: "+10% troop health and damage a level." },
+  { id: "towers",  emoji: "🏹", name: "Tower Power",    max: 5, req: "seed",   desc: "+10% damage for YOUR towers a level." },
+  { id: "mines",   emoji: "⛏️", name: "Rich Mines",     max: 5, req: "seed",   desc: "+10% resources a minute a level." },
+  { id: "loot",    emoji: "💰", name: "Loot Hunter",    max: 5, req: "troops", desc: "+10% loot from raiding islands a level." },
+  { id: "spells",  emoji: "✨", name: "Spell Master",   max: 3, req: "troops", desc: "+1 use of every mini ability a level." },
+  { id: "shield",  emoji: "🛡️", name: "Raid Shield",    max: 5, req: "towers", desc: "Raiders and attackers are 8% weaker a level." },
+  { id: "pets",    emoji: "🐾", name: "Pet Pals",       max: 5, req: "towers", desc: "+2 pet limit a level." },
+  { id: "storage", emoji: "📦", name: "Big Storage",    max: 5, req: "mines",  desc: "+10% storage a level." },
+  { id: "builder", emoji: "🔨", name: "Fast Builder",   max: 5, req: "mines",  desc: "Buildings and upgrades cost 5% less a level." },
+];
+const RESET_POINTS = 20;
+const gLv = (id) => (typeof S === "object" && S && S.growth ? Math.max(0, Math.floor(S.growth[id] || 0)) : 0);
+const troopBuff = () => buffMul() * (1 + 0.1 * gLv("troops"));
+const prodBuff = () => buffMul() * (1 + 0.1 * gLv("mines"));
+function growNode(id) {   // spend points on the next level of an upgrade
+  const n = GROWTH.find((g) => g.id === id); if (!n) return "No such upgrade.";
+  if (!(S.resets > 0)) return "🌳 The Growth Tree opens after your first ♻️ Reset.";
+  const lv = gLv(id); if (lv >= n.max) return `${n.emoji} ${n.name} is maxed!`;
+  if (n.req && gLv(n.req) < 1) { const r = GROWTH.find((g) => g.id === n.req); return `Grow ${r.emoji} ${r.name} first.`; }
+  const cost = lv + 1;
+  if ((S.growthPts || 0) < cost) return `You need ${cost} Growth Point${cost > 1 ? "s" : ""} (you have ${S.growthPts || 0}). ♻️ Reset for ${RESET_POINTS} more.`;
+  S.growthPts -= cost; S.growth = Object.assign({}, S.growth, { [id]: lv + 1 }); homeMobsKey = ""; refillInfinite(); save();
+  return `${n.emoji} ${n.name} → level ${lv + 1}!`;
+}
 // ⬆️ Tower upgrades: three one-time upgrades per tower — buy any of them, in any order, on any tower level.
 const PERKS = {
   archer: [ { id: "eagleeye", emoji: "🔭", name: "Eagle Eye",   desc: "+1.5 range" },
@@ -232,11 +262,11 @@ function limitOf(type, th, p) {
   }
   return 0;
 }
-const costOf = (type, lvl) => { const o = {}; for (const [k, v] of Object.entries(B[type].base)) o[k] = Math.round(v * Math.pow(1.8, lvl - 1)); return o; };
+const costOf = (type, lvl) => { const o = {}, cut = 1 - 0.05 * gLv("builder"); for (const [k, v] of Object.entries(B[type].base)) o[k] = Math.round(v * Math.pow(1.8, lvl - 1) * cut); return o; };   // (🔨 Fast Builder)
 const hpOf = (type, lvl) => Math.round(B[type].hp * (1 + 0.5 * (lvl - 1)));
 const landRadius = (th) => Math.min(9.5, 3.6 + th * 0.8);
 const GRID = 21, CENTER = 10;
-const prodPerMin = (lvl) => Math.round(18 * lvl * buffMul());   // 🌟 +15% a Prestige, 🔁 +25% a Rebirth
+const prodPerMin = (lvl) => Math.round(18 * lvl * prodBuff());   // 🌟 +15% a Prestige, 🔁 +25% a Rebirth
 
 // ---- troops ------------------------------------------------------------------------------------
 const T = {
@@ -313,7 +343,7 @@ function myPets() {
 }
 // ♾️ With Infinite pets (or ∞ of ALL pets) on, your pets can't die in your battles.
 const petsImmortal = () => !!(S.infPets || S.allPetsInf);
-const petLimit = () => infPets() ? Infinity : 3 + Math.floor(Math.max(th(), S.bestTh || 0) / 2);   // (🔁 after a rebirth: your best Town Hall still counts)
+const petLimit = () => infPets() ? Infinity : 3 + Math.floor(Math.max(th(), S.bestTh || 0) / 2) + 2 * gLv("pets");   // (🔁 after a rebirth: your best Town Hall still counts)
 function buyPet(k, n) {
   n = Math.max(1, Math.floor(n || 1));
   if (!MOB[k] || MOB[k].golem) return "No such pet.";
@@ -378,7 +408,7 @@ function crossesBarricade(br, ax, ay, bx, by) {
   const d3 = cross(ax, ay, bx, by, br.x1, br.y1), d4 = cross(ax, ay, bx, by, br.x2, br.y2);
   return d1 * d2 < 0 && d3 * d4 < 0;
 }
-const abilityUses = (t) => t >= 6 ? 2 : 1;
+const abilityUses = (t) => (t >= 6 ? 2 : 1) + gLv("spells");   // (✨ Spell Master)
 // 🛒 The arcade shop's ⚡ Abilities for Island Clash: one per mini ability (switched on in the ⚡ bar).
 // Any level unlocks it at any Town Hall; each level = +10% power.
 if (window.ArcadeShop && ArcadeShop.setGame) ArcadeShop.setGame("island");
@@ -438,12 +468,39 @@ function prestigeBlock() {   // why you can't prestige yet (or null)
   if (th() < MAX_TH || rank() < MAX_TH) return `🌟 Get your Town Hall to level ${MAX_TH} and 🎖️ rank ${MAX_TH} first.`;
   return null;
 }
+// ♻️ RESET: when EVERYTHING is maxed (not counting owner/admin extras) your island and Prestige start again,
+// and you get 20 Growth Points for the 🌳 Growth Tree. Rebirths, trophies, pets, golems and the tree are kept.
+function resetMissing() {
+  const miss = [];
+  if (th() < MAX_TH) miss.push(`🏰 Town Hall ${MAX_TH}`);
+  if (rank() < MAX_TH) miss.push(`🎖️ Rank ${MAX_TH}`);
+  if (prest() < MAX_PRESTIGE) miss.push(`🌟 Prestige ${MAX_PRESTIGE}`);
+  for (const t of Object.keys(B)) {
+    if (t === "townhall" || B[t].ownerOnly) continue;
+    const lim = limitOf(t, MAX_TH, MAX_PRESTIGE); if (countOf(t) < lim) miss.push(`${B[t].emoji} ${B[t].name} ${countOf(t)}/${lim}`);
+  }
+  const low = S.buildings.filter((b) => !B[b.type].ownerOnly && b.lvl < MAX_TH).length; if (low) miss.push(`⬆️ ${low} building${low > 1 ? "s" : ""} below level ${MAX_TH}`);
+  const perks = S.buildings.filter((b) => PERKS[b.type] && (b.perks || []).length < PERKS[b.type].length).length; if (perks) miss.push(`⭐ ${perks} tower${perks > 1 ? "s" : ""} missing upgrades`);
+  const gol = Object.keys(GOLEM_COST).filter((k) => !(S.golems || []).includes(k)).length; if (gol) miss.push(`🗿 ${gol} golem${gol > 1 ? "s" : ""}`);
+  return miss;
+}
+function doReset(force) {   // force: the owner skips the "everything maxed" rule
+  if (battle) return "Finish your battle first.";
+  const miss = resetMissing(); if (miss.length && !force) return `♻️ Max out everything first — still missing: ${miss.slice(0, 4).join(", ")}${miss.length > 4 ? ` and ${miss.length - 4} more` : ""}.`;
+  const keep = {}; for (const k of REBIRTH_KEEP) if (S[k] !== undefined) keep[k] = S[k];
+  keep.bestTh = Math.max(keep.bestTh || 0, th());
+  S = Object.assign(freshSave(), keep);
+  S.prestige = 0; S.resets = (keep.resets || 0) + 1; S.growthPts = (keep.growthPts || 0) + RESET_POINTS;
+  S.nextRaidAt = Date.now() + RAID_EVERY; S.revenge = null;
+  refillInfinite(); homeMobsKey = ""; placing = null; moving = null; save(); submitScore(true);
+  return `♻️ RESET ${S.resets}! +${RESET_POINTS} Growth Points (you have ${S.growthPts}) — spend them in the 🌳 Growth Tree. Your island and Prestige start again.`;
+}
 function rebirthBlock() {
   if (battle) return "Finish your battle first.";
   if (th() < MAX_TH || rank() < MAX_TH) return `🔁 Get your Town Hall to level ${MAX_TH} and 🎖️ rank ${MAX_TH} first.`;
   return null;
 }
-const REBIRTH_KEEP = ["prestige", "trophies", "wins", "codes", "codesReset", "owner", "ownerUsed", "admin", "adminUsed", "adminDay", "infinite", "infTroops", "infPets", "allPetsInf",
+const REBIRTH_KEEP = ["resets", "growthPts", "growth", "prestige", "trophies", "wins", "codes", "codesReset", "owner", "ownerUsed", "admin", "adminUsed", "adminDay", "infinite", "infTroops", "infPets", "allPetsInf",
   "pets", "golems", "rebirths", "bestTh", "met", "raidsWon", "raidsLost", "noRaids", "gateN", "gateEvery", "dealShift", "deals", "trades"];
 function doRebirth(force) {   // force: the owner skips the Town Hall 10 / rank 10 rule
   const why = rebirthBlock(); if (why && !(force && !battle)) return why;
@@ -500,7 +557,7 @@ const storeOf = (b) => (STORE_PER_LVL[b.type] || 0) * b.lvl;
 // 📦 A MAXED-OUT Storage (top level) makes your WHOLE storage 50% bigger — and every maxed box stacks (×1.5 each).
 const maxedStorages = () => S.buildings.filter((b) => b.type === "storage" && b.lvl >= MAX_TH).length;
 const storeBoost = () => Math.pow(1.5, maxedStorages());
-function capOf() { return Math.floor((1000 + S.buildings.reduce((a, b) => a + storeOf(b), 0)) * storeBoost()); }
+function capOf() { return Math.floor((1000 + S.buildings.reduce((a, b) => a + storeOf(b), 0)) * storeBoost() * (1 + 0.1 * gLv("storage"))); }   // (📦 Big Storage)
 function armyCap() { return 10 + S.buildings.filter((b) => b.type === "barracks").reduce((a, b) => a + b.lvl * 10, 0); }
 const barracksLvl = () => Math.max(0, ...S.buildings.filter((b) => b.type === "barracks").map((b) => b.lvl));
 const armyUsed = () => Object.entries(S.army).reduce((a, [k, n]) => a + (T[k] ? T[k].house * n : 0), 0);
@@ -643,7 +700,7 @@ function setupDuel(bt) {
   const army = raiderArmy(isl.th), p = isl.prestige || 0, parties = [[], [], []]; let i = 0;
   for (const [k, n] of Object.entries(army)) for (let j = 0; j < n + p; j++) parties[i++ % 3].push(k);
   bt.waves = bt.opts.online ? [] : parties.map((party, w) => ({ at: 300 + w * 1500, party, sent: false }));   // 🌐 online your friend attacks you in THEIR game
-  bt.foeLv = (1 + 0.15 * (isl.th - 1)) * (1 + 0.1 * p);
+  bt.foeLv = (1 + 0.15 * (isl.th - 1)) * (1 + 0.1 * p) * (1 - 0.08 * gLv("shield"));   // (🛡️ Raid Shield)
 }
 // 👑 the owner can change how often (S.gateEvery, seconds) and how many of each troop (S.gateN) it summons
 const GATE_SPEEDS = [10, 5, 2], GATE_AMOUNTS = [5, 10, 20];
@@ -655,7 +712,7 @@ function gateStep(bt) {   // ⛩️ every Summoning Gate on YOUR island
   for (const g of list) {
     if (g.type !== "gate" || g.hp <= 0 || bt.frame < (g.nextSummon || 1)) continue;
     g.nextSummon = bt.frame + gateEvery();
-    const lv = (1 + 0.1 * Math.max(0, barracksLvl() - 1)) * buffMul(), pool = bt.foes ? bt.troops : bt.mobs;
+    const lv = (1 + 0.1 * Math.max(0, barracksLvl() - 1)) * troopBuff(), pool = bt.foes ? bt.troops : bt.mobs;
     if (pool.filter((t) => t.summoned && t.hp > 0).length >= gateMax()) continue;
     for (const k of Object.keys(T)) for (let i = 0; i < gateN(); i++) {
       const t = T[k], x = g.x + (Math.random() - 0.5) * 1.2, y = g.y + (Math.random() - 0.5) * 1.2;
@@ -733,7 +790,7 @@ function deploy(kind, x, y) {
   const bt = battle; if (!bt || bt.over || !(bt.army[kind] > 0)) return false;
   if (bt.bridge && !onHome(bt.bridge, x, y)) [x, y] = homeSpot(bt.bridge);   // 🌉 troops start on YOUR island
   if (!infTroops()) bt.army[kind]--;
-  const t = T[kind], lv = (1 + 0.1 * Math.max(0, barracksLvl() - 1)) * buffMul();   // 🌟 +15% a Prestige, 🔁 +25% a Rebirth
+  const t = T[kind], lv = (1 + 0.1 * Math.max(0, barracksLvl() - 1)) * troopBuff();   // 🌟 +15% a Prestige, 🔁 +25% a Rebirth
   bt.troops.push({ kind, x, y, hp: t.hp * lv, maxHp: t.hp * lv, dmg: t.dmg * lv, cd: 0, target: null, stage: bt.bridge ? 0 : 2 });
   return true;
 }
@@ -943,6 +1000,7 @@ function stepTowers(bt, blds, troops, mobs, ctr, boats, barricades) {
     if (b.frozenUntil > bt.frame) continue;   // ❄️ Freeze
     if (--b.cd > 0) continue;
     const D = towerStats(b);   // ⬆️ with its upgrades
+    if (gLv("towers") && (blds === bt.homeBlds || (bt.opts.defense && blds === bt.blds))) D.dmg *= 1 + 0.1 * gLv("towers");   // 🏹 Tower Power (your towers)
     const inRange = troops.filter((tr) => tr.hp > 0 && Math.hypot(tr.x - b.x, tr.y - b.y) <= D.range).sort((p, q) => Math.hypot(p.x - b.x, p.y - b.y) - Math.hypot(q.x - b.x, q.y - b.y));
     let tg = inRange[0] || null;
     if (!tg) {   // 🚢 nobody in range: shoot a raider boat
@@ -1051,7 +1109,7 @@ function deployDefender(kind, x, y) {
   const bt = battle; if (!bt || bt.over || !bt.opts.defense || !T[kind] || !(infTroops() || S.army[kind] > 0)) return false;
   if (Math.hypot(x - CENTER, y - CENTER) > landRadius(bt.island.th) + 1) return false;   // on your island (or its beach)
   if (!infTroops()) { S.army[kind]--; bt.army[kind] = S.army[kind]; }
-  const d = allyDef(kind), lv = (1 + 0.1 * Math.max(0, barracksLvl() - 1)) * buffMul();
+  const d = allyDef(kind), lv = (1 + 0.1 * Math.max(0, barracksLvl() - 1)) * troopBuff();
   bt.mobs.push({ kind, def: d, ally: true, x, y, homeX: x, homeY: y, hp: d.hp * lv, maxHp: d.hp * lv, dmg: d.dmg * lv, cd: 0, steal: 0 });
   return true;
 }
@@ -1069,7 +1127,7 @@ function startDefense(from) {
   battle.mobs = spawnMobs(battle.blds, isl.golems, isl.prestige, isl.pets);
   if (petsImmortal()) battle.mobs.forEach((m) => { if (m.pet) m.immortal = true; });   // ♾️ your pets can't die
   battle.stolen = { gold: 0, wood: 0, stone: 0 }; battle.texts = [];
-  const lv = 1 + 0.15 * (th() - 1), r0 = landRadius(isl.th) + 1.4;
+  const lv = (1 + 0.15 * (th() - 1)) * (1 - 0.08 * gLv("shield")), r0 = landRadius(isl.th) + 1.4;   // (🛡️ Raid Shield)
   if (from) {   // 😠 revenge: their island joins yours with a bridge and they march across it
     if (from.level) {   // their WHOLE island (rebuilt exactly) on the left, joined to yours by the bridge
       const other = genIsland(from.level, from.seed, from.p), Re = landRadius(other.th), Rm = landRadius(isl.th), HX = CENTER - Rm - 2.6 - Re - 0.4, dx = HX - CENTER;
@@ -1139,7 +1197,7 @@ function endBattle(forced) {
   if (!infTroops()) for (const [k, n] of Object.entries(bt.army)) if (n > 0) S.army[k] = (S.army[k] || 0) + n;
   const pct = destroyedPct(bt), stars = starsOf(bt);
   const loot = {};
-  for (const [k, v] of Object.entries(bt.island.loot || {})) loot[k] = Math.floor(v * pct / 100);
+  for (const [k, v] of Object.entries(bt.island.loot || {})) loot[k] = Math.floor(v * pct / 100 * (bt.opts.online ? 1 : 1 + 0.1 * gLv("loot")));   // (💰 Loot Hunter)
   const cap = capOf();
   for (const k in loot) S[k] = Math.min(cap, S[k] + loot[k]);
   const stolen = bt.stolen || {};   // 🐒 the monkeys' takings come out of your stores
@@ -1509,6 +1567,10 @@ function panelAction(act, arg, owner) {
     return added ? `🏯 ${added} tower${added > 1 ? "s" : ""} placed (level ${th()})` : arg === "all" ? "You already have every tower (or no room left)." : `You already have the most ${B[arg].name}s (or no room left).`;
   }
   if (act === "rebirth") { hidePanels(); return doRebirth(true); }
+  if (act === "growreset") { hidePanels(); return doReset(true); }
+  if (act === "gpoints") { S.growthPts = (S.growthPts || 0) + RESET_POINTS; S.resets = Math.max(1, S.resets || 0); save(); return `🌳 +${RESET_POINTS} Growth Points (you have ${S.growthPts})`; }
+  if (act === "gmax") { S.resets = Math.max(1, S.resets || 0); S.growth = Object.fromEntries(GROWTH.map((g) => [g.id, g.max])); homeMobsKey = ""; refillInfinite(); save(); return "🌳 Every Growth Tree upgrade is maxed!"; }
+  if (act === "greset") { const back = Object.entries(S.growth || {}).reduce((a, [id, l]) => a + (l * (l + 1)) / 2, 0); S.growth = {}; S.growthPts = (S.growthPts || 0) + back; homeMobsKey = ""; save(); return `🌳 Tree cleared — ${back} points back (you have ${S.growthPts})`; }
   if (act === "setrebirths") { S.rebirths = Math.max(0, Math.min(999, Math.floor(+arg) || 0)); homeMobsKey = ""; save(); submitScore(true); return `🔁 Rebirths set to ${S.rebirths}`; }
   if (act === "allon" || act === "alloff") {   // 👑 every infinite switch at once
     const on = act === "allon"; S.infinite = S.infTroops = S.infPets = S.allPetsInf = on; refillInfinite(); homeMobsKey = ""; save();
@@ -1611,6 +1673,7 @@ function renderAdmin(owner) {
     (owner ? sec("🏰 Town Hall · 🎖️ Rank · 🌟 Prestige (0–${MAX_PRESTIGE}) · 🗺️ Raid · 🏆", `<input id="admNum" type="number" min="1" value="${th()}" style="width:90px;text-transform:none">` +
       btn("th", "#", "Set Town Hall") + btn("rank", "#", "Set Rank") + btn("prestige", "#", "Set 🌟 Prestige") + btn("setrebirths", "#", "Set 🔁 Rebirths") + btn("raid", "#", "Set Raid level") + btn("trophies", "#", "Add 🏆")) +
       sec("🏴‍☠️ Raids & 😠 revenge", btn("raidnow", "", "🏴‍☠️ Raid now", "red") + btn("revengenow", "", "😠 Revenge now", "red") + btn("noraids", "", S.noRaids ? "🏴‍☠️ Raids: OFF" : "🏴‍☠️ Raids: on", S.noRaids ? "" : "green")) +
+      sec(`🌳 Growth Tree — ${S.growthPts || 0} points · ${S.resets || 0} resets`, btn("gpoints", "", `🌳 +${RESET_POINTS} points`, "green") + btn("gmax", "", "🌳 Max the whole tree", "green") + btn("greset", "", "Clear the tree (points back)") + btn("growreset", "", "♻️ Reset now (island + Prestige start again)", "red")) +
       sec(`🔁 Rebirth — you have ${rebirths()} (+${Math.round(REBIRTH_BUFF * 100 * rebirths())}%)`, btn("rebirth", "", "🔁 Rebirth now (island starts again)", "red") + `<span style="font-size:.75rem;opacity:.75">Owner: no Town Hall 10 needed. Set a number with "Set 🔁 Rebirths" above.</span>`) +
       sec(`🌟 Prestige — you are ${prest()}/${MAX_PRESTIGE}`, btn("pnext", "", "🌟 +1 Prestige", "green") + btn("pmax", "", `🌟 Max (${MAX_PRESTIGE})`, "green") + btn("ptrial", "", "⚔️ Fight the next trial", "red") +
         PRESTIGE.map((P, i) => btn("pmap", i + 1, `${P.emoji} ${P.map}`, "red")).join("")) +
@@ -1937,6 +2000,29 @@ function renderBoard() {
     + (me >= 30 ? `<div class="card" style="text-align:left;border:2px solid #feca57">#${me + 1} ⭐ ${rows[me].name} — 🏆 ${rows[me].trophies.toLocaleString()} · 🔁 ${rows[me].rebirths}</div>` : "");
   $("boardT").className = "small" + (boardBy === "trophies" ? " green" : ""); $("boardR").className = "small" + (boardBy === "rebirths" ? " green" : "");
 }
+function renderTree() {
+  const pts = S.growthPts || 0, open = S.resets > 0, miss = resetMissing();
+  $("treeSub").innerHTML = `🌳 <b>${pts}</b> Growth Point${pts === 1 ? "" : "s"} · ♻️ ${S.resets || 0} reset${S.resets === 1 ? "" : "s"}. Every ♻️ Reset gives <b>${RESET_POINTS}</b> points.` + (open ? "" : "<br><b>The tree opens after your first ♻️ Reset.</b>");
+  const node = (g) => {
+    const lv = gLv(g.id), locked = !open || (g.req && gLv(g.req) < 1), maxed = lv >= g.max, cost = lv + 1;
+    return `<div class="card" style="text-align:center;${maxed ? "border:2px solid #55efc4" : locked ? "opacity:.55" : ""}"><div class="e">${g.emoji}</div><div class="n">${g.name}</div>
+      <div class="d">${g.desc}</div><div class="c">${"●".repeat(lv)}${"○".repeat(g.max - lv)} ${lv}/${g.max}</div>
+      ${maxed ? "<div class='d'>✅ Maxed</div>" : `<button class="small green" data-grow="${g.id}" ${locked || pts < cost ? "disabled" : ""}>Grow (${cost} pt${cost > 1 ? "s" : ""})</button>`}</div>`;
+  };
+  const col = (ids) => `<div style="display:flex;flex-direction:column;gap:8px">${ids.map((id) => node(GROWTH.find((g) => g.id === id))).join(`<div style="text-align:center;opacity:.6">│</div>`)}</div>`;
+  $("treeBody").innerHTML = `<div style="max-width:220px;margin:0 auto 8px">${node(GROWTH[0])}</div><div style="text-align:center;opacity:.6;margin-bottom:6px">┌───────┼───────┐</div>
+    <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px">${col(["troops", "loot", "spells"])}${col(["towers", "shield", "pets"])}${col(["mines", "storage", "builder"])}</div>
+    <div class="card" style="text-align:left;margin-top:12px;border:2px solid #fd79a8"><div class="n">♻️ Reset — +${RESET_POINTS} Growth Points</div>
+      <div style="font-size:.82rem;line-height:1.55">Max out EVERYTHING (not counting owner/admin extras), then reset: your island <b>and Prestige</b> start again, and you get ${RESET_POINTS} points.<br>You keep: 🔁 rebirths, 🏆 trophies, 🐾 pets, 🗿 golems, codes and this tree.</div>
+      ${miss.length ? `<div class="d" style="margin-top:6px">Still to max: ${miss.slice(0, 8).join(" · ")}${miss.length > 8 ? ` · and ${miss.length - 8} more` : ""}</div>` : `<div class="row"><button class="red" id="resetGo">♻️ Reset…</button></div>`}</div>`;
+  $("treeBody").querySelectorAll("[data-grow]").forEach((b) => (b.onclick = () => { toast(growNode(b.dataset.grow)); renderTop(); renderTree(); }));
+  const rg = $("resetGo");
+  if (rg) rg.onclick = () => {
+    if (rg.dataset.sure !== "1") { rg.dataset.sure = "1"; rg.textContent = "⚠️ Sure? Island AND Prestige start again — tap to RESET"; return; }
+    toast(doReset()); renderTop(); renderTree();
+  };
+}
+$("btnTree").onclick = () => { hideInfo(); renderTree(); openPanel("treePanel"); };
 $("btnBoard").onclick = () => { hideInfo(); submitScore(true); renderBoard(); openPanel("boardPanel"); loadBoard().then(() => { if ($("boardPanel").style.display === "block") renderBoard(); }); };
 $("boardT").onclick = () => { boardBy = "trophies"; renderBoard(); };
 $("boardR").onclick = () => { boardBy = "rebirths"; renderBoard(); };

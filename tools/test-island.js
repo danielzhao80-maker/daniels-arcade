@@ -1089,6 +1089,33 @@ const smashedPct = q('pctOf(battle.otherBlds, battle.otherTotal)');
 check(smashedPct > 0 && /smashed/.test(q(`document.getElementById('resText').textContent`)), 'beat them: bonus loot for what your animals smashed', smashedPct + '% smashed · ' + q(`document.getElementById('resText').textContent`).slice(-90));
 q(`battle = null; hidePanels(); S.revenge = null;`);
 
+// ---- 🌳 growth tree + ♻️ reset ----
+reset({ army: { warrior: 3 } });
+check(/first ♻️ Reset/.test(q(`growNode('seed')`)), 'the tree opens after your first reset');
+check(/Max out everything first/.test(q('doReset()')) && q('S.resets || 0') === 0, 'to reset you have to max out everything');
+q(`S.owner = true; panelAction('maxbase', '', true);`);
+check(q('resetMissing().length') === 0, 'the max base counts as everything maxed (owner/admin extras don\'t count)');
+q(`S.buildings.find(function(b){ return b.type === 'archer'; }).perks = []; `);
+check(q('resetMissing().some(function(m){ return /upgrades/.test(m); })'), 'a missing tower upgrade blocks the reset');
+q(`panelAction('maxkeep', '', true); S.rebirths = 2; S.trophies = 500; S.pets = ['wolf'];`);
+check(/RESET 1/.test(q('doReset()')) && q('S.growthPts') === 20 && q('S.resets') === 1, '♻️ reset: +20 Growth Points');
+check(q('th()') === 1 && q('prest()') === 0 && q('rebirths()') === 2 && q('S.trophies') === 500 && q('S.pets.length') === 1, 'island and Prestige start again; rebirths, trophies and pets are kept');
+check(/first/.test(q(`growNode('troops')`)) && /level 1/.test(q(`growNode('seed')`)) && q('S.growthPts') === 19, '🌱 the Seed first (1 point), then the branches');
+const pp0 = q('prodPerMin(1)');
+check(/level 1/.test(q(`growNode('mines')`)) && /level 2/.test(q(`growNode('mines')`)) && q('S.growthPts') === 16 && q('prodPerMin(1)') === Math.round(18 * 1.5 * 1.2), 'each level costs its number in points; ⛏️ Rich Mines +10% a level', pp0 + ' → ' + q('prodPerMin(1)'));
+check(/first/.test(q(`growNode('loot')`)), 'a branch needs the upgrade above it');
+q(`growNode('troops'); growNode('spells'); growNode('towers'); growNode('pets'); growNode('storage'); growNode('builder');`);
+check(q('abilityUses(1)') === 2 && q('petLimit()') === 3 + 5 + 2 && q(`costOf('goldmine', 1).wood`) === Math.round(60 * 0.95), '✨ +1 ability use, 🐾 +2 pet limit, 🔨 5% cheaper', q('petLimit()'));
+q(`S.army = { warrior: 1 }; startBattle(genIsland(2)); deploy('warrior', 0, 0);`);
+check(Math.abs(q('battle.troops[0].maxHp') - 70 * 1.5 * 1.1) < 0.01, '💪 Strong Troops: +10% troop health');
+q(`endBattle(true); battle = null; hidePanels();`);
+check(/need/.test(q(`S.growthPts = 0; growNode('troops')`)), 'not enough points: nothing happens');
+check(/\+20/.test(q(`panelAction('gpoints', '', true)`)) && /maxed/.test(q(`panelAction('gmax', '', true)`)) && q(`gLv('builder')`) === 5, 'owner: +20 points, max the tree');
+check(/points back/.test(q(`panelAction('greset', '', true)`)) && q(`gLv('builder')`) === 0, 'owner: clear the tree and get the points back');
+check(q(`panelAction('gpoints', '', false)`) === '👑 Owner only.', 'admins cannot');
+q(`renderTree(); renderAdmin(true);`);
+check(/Seed of Growth/.test(q(`document.getElementById('treeBody').innerHTML`)) && /Growth Tree —/.test(q(`document.getElementById('admBody').innerHTML`)), 'the 🌳 Tree panel and the owner buttons');
+
 // ---- ⛩️ owner panel: Summoning Gate controls ----
 reset({ army: {} }); q(`S.owner = true;`);
 check(/you have 1/.test(q(`panelAction('gateplace', '', true)`)) && /you have 2/.test(q(`panelAction('gateplace', '', true)`)) && q(`countOf('gate')`) === 2, '⛩️ Place as many Gates as you like');

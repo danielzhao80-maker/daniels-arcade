@@ -303,6 +303,30 @@ check(q(`__titles.includes('sb-summoner')`), '🐣 10 eggs hatched → the Summo
 q(`hatch('basic', false, 0.999, 0);`);
 check(q(`__titles.includes('sb-mythic')`), '🤫 hatch a Mythic → the secret Mythic Finder title');
 
+// ---- 👑 owner panel ----
+reset();
+check(/OWNER_HASH = "[0-9a-z]+"/.test(html) && !(process.env.OWNER_CODE && html.toUpperCase().includes(process.env.OWNER_CODE.toUpperCase())), 'the owner code is not in the page (only its hash)');
+check(q(`ownerAction('coins')`) === '🔒 Not allowed.', 'no owner powers without the code');
+if (process.env.OWNER_CODE) {   // the real code is only checked when given: OWNER_CODE=... node tools/test-summon.js
+  check(/OWNER PANEL/.test(q(`redeemCode(${JSON.stringify(process.env.OWNER_CODE.toLowerCase())})`)) && q('S.owner') === true, '(the real owner code opens the Owner Panel)');
+} else { console.log('  (skip) set OWNER_CODE=... to check the real owner code'); q('S.owner = true;'); }
+check(/10,000/.test(q(`ownerAction('coins')`)) && q('S.coins') === 10250 && q('ownerVisit') === true, '🪙 +10,000 coins (and the 👑 button shows for this visit)');
+q(`ownerAction('infcoins'); S.coins = 0;`);
+check(!q(`hatch('cosmic').error`) && q('S.coins') === 0, '♾️ infinite coins: eggs are free');
+check(/1024/.test(q(`ownerAction('allpets')`)) && q('Object.keys(S.pets).length') === 1024, '🐾 every pet (all 1024)');
+q(`ownerAction('maxpets'); ownerAction('bestdeck');`);
+check(q(`Object.values(S.pets).every(function(p){ return p.lvl === MAX_LVL; })`) && q('S.deck.length') === 6, '⭐ max level for every pet, 🃏 best deck');
+check(/every stage/.test(q(`ownerAction('stars')`)) && q('S.stage') === 30 && q('totalStars()') === 90, '⭐⭐⭐ every stage');
+q(`ownerAction('infenergy'); ownerAction('anypet'); startStage(30); battle.energy[0] = 0; step();`);
+check(q('battle.energy[0]') === 10 && q(`summon(0, 'light-tiger')`) && q(`summon(0, 'fire-robot')`), '⚡ infinite energy, and summon ANY pet you own');
+check(/fights for YOU/.test(q(`ownerAction('boss', '4')`)) && q(`battle.units.some(function(u){ return u.id === 'voidlord' && u.side === 0; })`), '👾 a boss on your side');
+check(/won/.test(q(`ownerAction('win')`)) && /VICTORY/.test(q(`document.getElementById('resTitle').textContent`)), '⚡ win this battle');
+q(`battle = null; renderOwner();`);
+check(/Infinite coins: ON/.test(q(`document.getElementById('ownBody').innerHTML`)) && /Void Lord on my side/.test(q(`document.getElementById('ownBody').innerHTML`)), 'the Owner Panel shows every button');
+check(/Started over/.test(q(`ownerAction('reset')`)) && q('S.owner') === true && q('Object.keys(S.pets).length') === 4, '🔄 start over (still the owner)');
+q(`load(); ownerVisit = false; refreshOwnerBtn();`);
+check(q(`document.getElementById('btnOwner').style.display`) === 'none', 'reload: the 👑 button is hidden until you use the panel again');
+
 // ---- screens + drawing ----
 reset();
 q(`renderMenu(); renderMap(); renderPets(); renderEggs(); showPet('mouse'); startStage(1); for (var i = 0; i < 200; i++) step(); renderHud(); draw();`);

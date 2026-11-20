@@ -106,6 +106,12 @@
 </div>
 
 <!-- 🏁 result -->
+<div class="screen" id="owner" style="background:linear-gradient(180deg,#5c4400,#1b1035)">
+  <h2>👑 Owner Panel</h2><div class="sub" id="ownSub">♾️ No limits.</div>
+  <div id="ownBody" style="width:min(720px,96vw)"></div>
+  <div class="sub" id="ownMsg" style="font-weight:900;font-size:1.05rem;min-height:1.4em"></div>
+  <div class="row"><button class="small" id="ownBack">⬅ Back</button></div>
+</div>
 <div class="screen" id="result">
   <h2 id="resTitle"></h2>
   <div class="sub" id="resText" style="font-size:1.05rem"></div>
@@ -113,7 +119,8 @@
 </div>
 
 <!-- ⚔️ battle HUD -->
-<div id="topHud"><span class="pill" id="hudStage"></span><span class="pill">⏱ <b id="hudTime">3:00</b></span><button class="small red" id="btnQuit">🏳️ Give up</button></div>
+<div id="topHud"><span class="pill" id="hudStage"></span><span class="pill">⏱ <b id="hudTime">3:00</b></span><button class="small red" id="btnQuit">🏳️ Give up</button><button class="small orange" id="btnOwnerB" style="display:none">👑 Owner</button></div>
+<button class="small orange" id="btnOwner" style="display:none;position:fixed;top:10px;left:10px;z-index:6">👑 Owner</button>
 <div id="hud"><div id="energy"><i id="energyFill"></i><b id="energyTxt"></b></div><div id="hand"></div></div>
 <div id="toast"></div>
 
@@ -386,7 +393,7 @@ function rollRarity(odds, r) {
 function hatch(kind, free, r1, r2) {   // → { id, fresh, shards } or { error }
   const egg = EGGS[kind]; if (!egg) return { error: "No such egg." };
   if (free) { if (!(S.freeEggs[kind] > 0)) return { error: "You have no free egg of that kind." }; S.freeEggs[kind]--; }
-  else { if (S.coins < egg.cost) return { error: `You need 🪙 ${egg.cost}.` }; S.coins -= egg.cost; }
+  else { if (!canSpend(egg.cost)) return { error: `You need 🪙 ${egg.cost}.` }; spend(egg.cost); }
   const rar = rollRarity(egg.odds, r1), pool = Object.keys(PETS).filter((id) => PETS[id].rarity === rar);
   const id = pool[Math.floor((r2 === undefined ? Math.random() : r2) * pool.length) % pool.length];
   S.hatched = (S.hatched || 0) + 1;
@@ -403,8 +410,8 @@ function levelUp(id) {
   if (p.lvl >= MAX_LVL) return "Already max level!";
   const sh = shardsFor(p.lvl), co = coinsFor(p.lvl);
   if (p.shards < sh) return `Needs ${sh} shards (you have ${p.shards}) — hatch more eggs.`;
-  if (S.coins < co) return `Needs 🪙 ${co}.`;
-  p.shards -= sh; S.coins -= co; p.lvl++; save();
+  if (!canSpend(co)) return `Needs 🪙 ${co}.`;
+  p.shards -= sh; spend(co); p.lvl++; save();
   return null;
 }
 function toggleDeck(id) {
@@ -417,9 +424,53 @@ function toggleDeck(id) {
 
 // ---- 🎁 codes ----------------------------------------------------------------------------------------------------
 const CODES = { SUMMON: { coins: 300 }, PETPOWER: { coins: 500 }, EGGHUNT: { egg: "basic" }, GOLDEN: { egg: "golden" }, DANIEL: { coins: 1000, egg: "golden" } };
+// ---- 👑 OWNER PANEL ---------------------------------------------------------------------------------------------
+// The owner code is NOT written here (the game is public on GitHub) — only its one-way hash (the same code and hash
+// as in the other arcade games). The 👑 button only shows during the visit the panel was used.
+const OWNER_HASH = "1nzwpznwvfj";
+function codeHash(str, seed = 67) {   // cyrb53
+  let h1 = 0xdeadbeef ^ seed, h2 = 0x41c6ce57 ^ seed;
+  for (let i = 0, ch; i < str.length; i++) { ch = str.charCodeAt(i); h1 = Math.imul(h1 ^ ch, 2654435761); h2 = Math.imul(h2 ^ ch, 1597334677); }
+  h1 = Math.imul(h1 ^ (h1 >>> 16), 2246822507); h1 ^= Math.imul(h2 ^ (h2 >>> 13), 3266489909);
+  h2 = Math.imul(h2 ^ (h2 >>> 16), 2246822507); h2 ^= Math.imul(h1 ^ (h1 >>> 13), 3266489909);
+  return (4294967296 * (2097151 & h2) + (h1 >>> 0)).toString(36);
+}
+const isOwner = () => !!S.owner;
+const infCoins = () => !!S.infCoins;
+const canSpend = (n) => infCoins() || S.coins >= n;
+const spend = (n) => { if (!infCoins()) S.coins -= n; };
+let ownerVisit = false;
+function ownerAction(act, arg) {
+  if (!isOwner()) return "🔒 Not allowed.";
+  if (!ownerVisit) { ownerVisit = true; try { refreshOwnerBtn(); } catch (e) {} }
+  if (act === "coins") { S.coins += 10000; save(); return "🪙 +10,000 coins"; }
+  if (act === "infcoins") { S.infCoins = !S.infCoins; save(); return S.infCoins ? "♾️ Infinite coins ON — everything is free!" : "♾️ Infinite coins off"; }
+  if (act === "eggs") { for (const k of Object.keys(EGGS)) S.freeEggs[k] = (S.freeEggs[k] || 0) + 10; save(); return "🥚 +10 free eggs of every kind"; }
+  if (act === "allpets") { let n = 0; for (const id of Object.keys(PETS)) if (!S.pets[id]) { S.pets[id] = { lvl: 1, shards: 0 }; n++; } save(); return `🐾 +${n} pets — you have all ${Object.keys(PETS).length}!`; }
+  if (act === "maxpets") { for (const id of Object.keys(S.pets)) S.pets[id].lvl = MAX_LVL; save(); return `⭐ Every pet you have is level ${MAX_LVL} (all abilities + ultimates)`; }
+  if (act === "bestdeck") {   // the strongest 6 pets you own
+    S.deck = Object.keys(S.pets).sort((a, b) => (PETS[b].hp * PETS[b].dmg * lvlMul(lvlOf(b))) - (PETS[a].hp * PETS[a].dmg * lvlMul(lvlOf(a)))).slice(0, DECK_SIZE); save();
+    return `🃏 Best deck: ${S.deck.map((id) => PETS[id].emoji).join(" ")}`;
+  }
+  if (act === "stages") { S.stage = STAGES; save(); return `🗺️ All ${STAGES} stages unlocked`; }
+  if (act === "stars") { S.stage = STAGES; for (let n = 1; n <= STAGES; n++) S.stars[n] = 3; save(); return "⭐⭐⭐ on every stage"; }
+  if (act === "infenergy") { S.infEnergy = !S.infEnergy; save(); return S.infEnergy ? "⚡ Infinite energy ON — summon as much as you like!" : "⚡ Infinite energy off"; }
+  if (act === "anypet") { S.anyPet = !S.anyPet; save(); return S.anyPet ? "🐾 You can summon ANY pet you own in battle (not just your deck)" : "🐾 Back to your deck of 6"; }
+  if (act === "win") { if (!battle || battle.over) return "Start a battle first."; battle.base[1] = 0; step(); return "⚡ You won!"; }
+  if (act === "boss") {   // a boss fights on YOUR side
+    if (!battle || battle.over) return "Start a battle first.";
+    const ids = ["ogre", "sking", "mammoth", "magma", "voidlord"], id = ids[Math.max(0, Math.min(4, +arg || 0))];
+    battle.units.push(makeUnit(0, id, 3, BASE_X[0] + 50, 1)); return `👹 ${EXTRA[id].name} fights for YOU!`;
+  }
+  if (act === "titles") { ["sb-summoner", "sb-mythic", "sb-champion"].forEach((t) => earnTitle(t)); return "🏅 All 3 Summon Battlers arcade titles"; }
+  if (act === "codes") { S.codes = []; save(); return "🎁 Every code works again"; }
+  if (act === "reset") { const keepOwner = S.owner; S = freshSave(); S.owner = keepOwner; save(); return "🔄 Started over (you're still the owner)"; }
+  return "?";
+}
 function redeemCode(raw) {
   const code = String(raw || "").trim().toUpperCase().replace(/\s+/g, "");
   if (!code) return "Type a code first.";
+  if (codeHash(code) === OWNER_HASH) { S.owner = true; save(); openOwner(); return "👑 OWNER PANEL unlocked — no limits!"; }
   const c = CODES[code]; if (!c) return "❌ That code doesn't exist.";
   if (S.codes.includes(code)) return "You already used that code.";
   S.codes.push(code);
@@ -449,9 +500,10 @@ function startStage(n, rnd) {
 }
 function summon(side, id) {   // side 0 = you, 1 = the enemy. Returns true if it came out.
   const bt = battle; if (!bt || bt.over) return false;
-  const d = def(id); if (!d || (side === 0 && !S.deck.includes(id))) return false;
-  if (bt.energy[side] < d.cost) return false;
-  bt.energy[side] -= d.cost;
+  const d = def(id); if (!d || (side === 0 && !S.deck.includes(id) && !(S.anyPet && S.pets[id]))) return false;   // (👑 any pet you own)
+  const free = side === 0 && S.infEnergy;   // 👑 ⚡ infinite energy: summoning costs nothing
+  if (!free && bt.energy[side] < d.cost) return false;
+  if (!free) bt.energy[side] -= d.cost;
   const lane = Math.floor(bt.rnd() * LANES.length), x = side === 0 ? BASE_X[0] + 40 : BASE_X[1] - 40;
   bt.units.push(makeUnit(side, id, side === 0 ? lvlOf(id) : bt.st.enemyLvl, x, lane));
   return true;
@@ -473,10 +525,11 @@ function hurt(bt, t, dmg, from) {
   }
 }
 function step() {
-  const bt = battle; if (!bt || bt.over) return;
+  const bt = battle; if (!bt || bt.over || bt.paused) return;
   bt.frame++;
   const dbl = bt.frame > BATTLE_TIME - 60 * FPS ? 2 : 1;   // ⚡×2 in the last minute
   if (dbl === 2 && !bt.dblSaid) { bt.dblSaid = true; bt.texts.push({ x: 500, y: 120, t: 150, text: "⚡ DOUBLE ENERGY — last minute!" }); }
+  if (S.infEnergy) bt.energy[0] = MAX_ENERGY;   // 👑 ⚡ infinite energy
   for (const s of [0, 1]) if ((bt.tick[s] += dbl) >= ENERGY_EVERY * (s ? bt.st.aiSlow : 1)) { bt.tick[s] = 0; bt.energy[s] = Math.min(MAX_ENERGY, bt.energy[s] + 1); }
   // 🤖 the enemy: the boss comes out first on a boss stage, then it summons what it can afford (with a little wait)
   if (bt.st.boss && !bt.bossOut && bt.frame > 90) { bt.bossOut = true; bt.units.push(makeUnit(1, bt.st.bossId, 1 + Math.floor(bt.st.n / 12), BASE_X[1] - 50, 1)); bt.texts.push({ x: 800, y: 200, t: 120, text: `👹 ${def(bt.st.bossId).name} appears!` }); }
@@ -599,8 +652,32 @@ let toastT = 0;
 function toast(t) { const e = $("toast"); e.textContent = t; e.style.display = "block"; clearTimeout(toastT); toastT = setTimeout(() => (e.style.display = "none"), 2600); }
 function show(id) { document.querySelectorAll(".screen").forEach((s) => s.classList.toggle("on", s.id === id)); $("hud").classList.remove("on"); $("topHud").classList.remove("on"); }
 document.querySelectorAll("[data-back]").forEach((b) => (b.onclick = () => { renderMenu(); show("menu"); }));
+function refreshOwnerBtn() { const on = isOwner() && ownerVisit; $("btnOwner").style.display = on && !battle ? "inline-block" : "none"; $("btnOwnerB").style.display = on ? "inline-block" : "none"; }
+let ownerFrom = "menu";
+function openOwner() { ownerFrom = battle && !battle.over ? "battle" : "menu"; if (battle && !battle.over) battle.paused = true; renderOwner(); $("ownMsg").textContent = ""; show("owner"); }
+function renderOwner() {
+  const btn = (act, arg, label, cls) => `<button class="small ${cls || ""}" data-oa="${act}" data-arg="${arg}">${label}</button>`;
+  const sec = (t, body) => `<div class="card" style="text-align:left;margin-bottom:10px;cursor:default"><div class="n">${t}</div><div class="row" style="justify-content:flex-start;margin:6px 0 0">${body}</div></div>`;
+  const onOff = (v, l) => (v ? `${l}: ON` : `${l}: off`);
+  $("ownSub").textContent = `♾️ No limits. ${infCoins() ? "✅" : "⬜"} ∞ coins · ${S.infEnergy ? "✅" : "⬜"} ∞ energy · ${S.anyPet ? "✅" : "⬜"} any pet · 🐾 ${Object.keys(S.pets).length}/${Object.keys(PETS).length}`;
+  $("ownBody").innerHTML =
+    sec("🪙 Coins & 🥚 eggs", btn("coins", "", "🪙 +10,000", "green") + btn("infcoins", "", onOff(infCoins(), "♾️ Infinite coins"), infCoins() ? "green" : "") + btn("eggs", "", "🥚 +10 of every egg", "green")) +
+    sec("🐾 Pets", btn("allpets", "", "🐾 Every pet (all 1024)", "green") + btn("maxpets", "", "⭐ Max level for all my pets", "green") + btn("bestdeck", "", "🃏 Best deck") + btn("anypet", "", onOff(S.anyPet, "🐾 Summon any pet"), S.anyPet ? "green" : "")) +
+    sec("🗺️ Stages", btn("stages", "", "🔓 Unlock all 30") + btn("stars", "", "⭐⭐⭐ Every stage", "green")) +
+    sec("⚔️ In battle", btn("infenergy", "", onOff(S.infEnergy, "⚡ Infinite energy"), S.infEnergy ? "green" : "") + btn("win", "", "⚡ Win this battle", "green") +
+      ["👹 Ogre", "🦂 Scorpion King", "🦣 Mammoth", "🗿 Magma Golem", "👾 Void Lord"].map((n, i) => btn("boss", i, `${n} on my side`, "red")).join("")) +
+    sec("🏅 Titles · 🎁 Codes · 🧹", btn("titles", "", "🏅 All 3 arcade titles", "green") + btn("codes", "", "Reset my codes") + btn("reset", "", "🔄 Start over", "red"));
+  $("ownBody").querySelectorAll("[data-oa]").forEach((b) => (b.onclick = () => {
+    const msg = ownerAction(b.dataset.oa, b.dataset.arg);
+    if (["win", "boss"].includes(b.dataset.oa) && battle) { if (!battle.over) { battle.paused = false; showBattle(); } toast(msg); return; }
+    $("ownMsg").textContent = msg; renderOwner(); renderMenu();
+  }));
+}
+$("ownBack").onclick = () => { if (ownerFrom === "battle" && battle && !battle.over) { battle.paused = false; showBattle(); } else { renderMenu(); show("menu"); } };
+$("btnOwner").onclick = openOwner; $("btnOwnerB").onclick = openOwner;
 function renderMenu() {
-  $("petsMax").textContent = Object.keys(PETS).length; $("coins").textContent = S.coins.toLocaleString(); $("stageN").textContent = Math.min(S.stage, STAGES); $("starsN").textContent = totalStars(); $("petsN").textContent = Object.keys(S.pets).length;
+  refreshOwnerBtn();
+  $("petsMax").textContent = Object.keys(PETS).length; $("coins").textContent = infCoins() ? "∞" : S.coins.toLocaleString(); $("stageN").textContent = Math.min(S.stage, STAGES); $("starsN").textContent = totalStars(); $("petsN").textContent = Object.keys(S.pets).length;
 }
 function renderMap() {
   $("worlds").innerHTML = WORLDS.map((w, wi) => `<div style="margin:10px 0"><div class="sub" style="font-weight:900;font-size:1.05rem;margin-bottom:4px">${w.emoji} World ${wi + 1}: ${w.name}</div><div class="stages">` +
@@ -655,7 +732,7 @@ function showPet(id) {
 function renderEggs() {
   $("eggGrid").innerHTML = Object.entries(EGGS).map(([k, e]) => `<div class="card"><div class="e">${e.emoji}</div><div class="n">${e.name}</div>
     <div class="d">${Object.entries(e.odds).filter(([, v]) => v > 0).map(([r, v]) => `${RARITY[r].name} ${v}%`).join(" · ")}</div>
-    <button class="small orange" data-egg="${k}" ${S.coins < e.cost ? "disabled" : ""}>🪙 ${e.cost}</button>${S.freeEggs[k] > 0 ? ` <button class="small green" data-free="${k}">Free ×${S.freeEggs[k]}</button>` : ""}</div>`).join("");
+    <button class="small orange" data-egg="${k}" ${canSpend(e.cost) ? "" : "disabled"}>🪙 ${infCoins() ? "FREE" : e.cost}</button>${S.freeEggs[k] > 0 ? ` <button class="small green" data-free="${k}">Free ×${S.freeEggs[k]}</button>` : ""}</div>`).join("");
   const go = (k, free) => {
     const r = hatch(k, free); if (r.error) return toast(r.error);
     const d = PETS[r.id]; $("eggShow").textContent = "💥"; setTimeout(() => ($("eggShow").textContent = d.emoji), 250);
@@ -668,7 +745,8 @@ function renderEggs() {
 function showBattle() {
   show(null); $("hud").classList.add("on"); $("topHud").classList.add("on");
   $("hudStage").textContent = `${battle.st.worldDef.emoji} Stage ${battle.st.n}${battle.st.boss ? " 👹 BOSS" : ""}`;
-  $("hand").innerHTML = S.deck.map((id) => `<div class="card rar-${PETS[id].rarity}" data-sum="${id}"><span class="c">⚡${PETS[id].cost}</span><span class="lv">${abilitiesAt(id, lvlOf(id)).map((a) => ABILITIES[a].emoji).join("")}</span><div class="e" style="font-size:1.8rem">${PETS[id].emoji}</div><div class="n" style="font-size:.75rem">${PETS[id].name}</div></div>`).join("");
+  refreshOwnerBtn();
+  $("hand").innerHTML = (S.anyPet ? Object.keys(S.pets).sort((a, b) => PETS[b].cost - PETS[a].cost).slice(0, 24) : S.deck).map((id) => `<div class="card rar-${PETS[id].rarity}" data-sum="${id}"><span class="c">⚡${PETS[id].cost}</span><span class="lv">${abilitiesAt(id, lvlOf(id)).map((a) => ABILITIES[a].emoji).join("")}</span><div class="e" style="font-size:1.8rem">${PETS[id].emoji}</div><div class="n" style="font-size:.75rem">${PETS[id].name}</div></div>`).join("");
   $("hand").querySelectorAll("[data-sum]").forEach((c) => (c.onclick = () => { if (!summon(0, c.dataset.sum)) toast(`Not enough ⚡ (needs ${PETS[c.dataset.sum].cost})`); }));
 }
 function renderHud() {

@@ -65,7 +65,7 @@
 <div class="screen on" id="menu">
   <h1>🐾 Summon Battlers</h1>
   <div class="sub">Summon your pets and battle! Collect pets from eggs, build your deck of 6, and smash the enemy base.</div>
-  <div class="row"><span class="pill">🪙 <b id="coins">0</b></span><span class="pill">🗺️ Stage <b id="stageN">1</b>/30</span><span class="pill">⭐ <b id="starsN">0</b></span><span class="pill">🐾 <b id="petsN">0</b>/<b id="petsMax">524</b></span></div>
+  <div class="row"><span class="pill">🪙 <b id="coins">0</b></span><span class="pill">🗺️ Stage <b id="stageN">1</b>/30</span><span class="pill">⭐ <b id="starsN">0</b></span><span class="pill">🐾 <b id="petsN">0</b>/<b id="petsMax">1024</b></span></div>
   <div class="row">
     <button class="green" id="btnPlay">⚔️ Play</button>
     <button id="btnPets">🐾 My Pets & Deck</button>
@@ -169,6 +169,8 @@ const PETS = {
 // summoned helpers and the bosses (never in eggs)
 const EXTRA = {
   pup:     { name: "Pup",      emoji: "🐶", hp: 80,  dmg: 10, range: 26,  speed: 1.9, rate: 30 },
+  ratling: { name: "Little Rat", emoji: "🐀", hp: 50, dmg: 7, range: 26, speed: 2.1, rate: 26 },
+  antling: { name: "Worker Ant", emoji: "🐜", hp: 60, dmg: 8, range: 26, speed: 1.6, rate: 30 },
   inkling: { name: "Inkling",  emoji: "🐙", hp: 160, dmg: 14, range: 110, speed: 1.0, rate: 44 },
   ogre:    { name: "Meadow Ogre",    emoji: "👹", boss: true, hp: 1100, dmg: 34, range: 34, speed: 0.55, rate: 60, splash: 30 },
   sking:   { name: "Scorpion King",  emoji: "🦂", boss: true, hp: 1250, dmg: 32, range: 34, speed: 0.6, rate: 55, poison: 18, splash: 35 },
@@ -211,6 +213,60 @@ const ANIMALS = [
   ["Gorilla", "🦍", "fighter", 2], ["Orangutan", "🦧", "shooter", 2], ["Spider", "🕷️", "shooter", 2], ["Tiger", "🐯", "fighter", 3], ["Leopard", "🐆", "runner", 3],
   ["Bear", "🐻", "tank", 3], ["Polar Bear", "🐻‍❄️", "tank", 3], ["Bison", "🦬", "fighter", 3], ["Mammoth", "🦣", "tank", 3], ["Dodo", "🦤", "healer", 3],
 ];
+// ✨✨ …and 500 MORE: 50 new creatures × 10 elements — each creature also has its OWN signature power (sig).
+// [name, emoji, role, tier 0–3, signature power, what it does]
+const CREATURES = [
+  ["Rat", "🐀", "runner", 0, { summon: { id: "ratling", every: 420 } }, "SWARM: calls another little rat every 7 s."],
+  ["Hare", "🐇", "runner", 0, { charge: 2 }, "LEAP: its first hit does 2×."],
+  ["Rooster", "🐓", "fighter", 0, { charge: 2 }, "WAKE-UP CALL: a 2× first peck."],
+  ["Turkey", "🦃", "tank", 0, { shield: 0.4 }, "FLUFF: takes 40% less damage."],
+  ["Goose", "🪿", "flyer", 0, { lifesteal: 0.3 }, "HONK: heals from its pecks."],
+  ["Ant", "🐜", "runner", 0, { summon: { id: "antling", every: 360 } }, "COLONY: calls a worker ant every 6 s."],
+  ["Caterpillar", "🐛", "tank", 0, { revive: true }, "COCOON: comes back to life once."],
+  ["Cricket", "🦗", "shooter", 0, { freeze: 20 }, "CHIRP: its song stuns for a moment."],
+  ["Worm", "🪱", "healer", 0, { boom: { dmg: 80, r: 60 } }, "WRIGGLE: bursts when beaten."],
+  ["Fly", "🪰", "flyer", 0, { poison: 10 }, "GERMS: its bites poison."],
+  ["Poodle", "🐩", "healer", 0, { aura: 0.1 }, "CHEER: pets near it do +10% damage."],
+  ["Donkey", "🫏", "tank", 0, { charge: 3 }, "BUCK: a 3× first kick."],
+  ["Kangaroo", "🦘", "fighter", 1, { charge: 3 }, "BOXING: a 3× first punch."],
+  ["Llama", "🦙", "shooter", 1, { poison: 12 }, "SPIT: its spit poisons."],
+  ["Camel", "🐪", "tank", 1, { lifesteal: 0.25 }, "OASIS: heals from its hits."],
+  ["Deer", "🦌", "runner", 1, { charge: 2 }, "ANTLERS: a 2× first charge."],
+  ["Boar", "🐗", "fighter", 1, { shield: 0.25 }, "THICK HIDE: takes 25% less damage."],
+  ["Ram", "🐏", "tank", 1, { charge: 3 }, "HEADBUTT: a 3× first hit."],
+  ["Crow", "🐦‍⬛", "flyer", 1, { freeze: 25 }, "SCARE: its caw makes enemies freeze."],
+  ["Dove", "🕊️", "healer", 1, { aura: 0.15 }, "PEACE: pets near it do +15% damage."],
+  ["Skunk", "🦨", "shooter", 1, { poison: 18, splash: 40 }, "STINK CLOUD: poisons a whole group."],
+  ["Badger", "🦡", "fighter", 1, { lifesteal: 0.3 }, "FEROCIOUS: heals from its bites."],
+  ["Sloth", "🦥", "healer", 1, { shield: 0.35 }, "CHILL: takes 35% less damage."],
+  ["Tropical Fish", "🐠", "runner", 1, { boom: { dmg: 90, r: 60 } }, "POP: bursts when beaten."],
+  ["Jellyfish", "🪼", "shooter", 1, { freeze: 30 }, "STING: stuns what it hits."],
+  ["Mushroom", "🍄", "healer", 1, { poison: 14, splash: 50 }, "SPORES: poison a group."],
+  ["Cactus", "🌵", "tank", 1, { shield: 0.3 }, "SPIKES: takes 30% less damage."],
+  ["Moose", "🫎", "tank", 2, { charge: 3 }, "STAMPEDE: a 3× first hit."],
+  ["Ox", "🐂", "tank", 2, { shield: 0.35 }, "IRON HORNS: takes 35% less damage."],
+  ["Water Buffalo", "🐃", "fighter", 2, { splash: 35 }, "TRAMPLE: hits a whole group."],
+  ["Black Cat", "🐈‍⬛", "runner", 2, { revive: true }, "NINE LIVES: comes back once."],
+  ["Humpback", "🐋", "tank", 2, { heal: 25 }, "SONG: heals the pets near it."],
+  ["Oyster", "🦪", "shooter", 2, { shield: 0.4 }, "SHELL: takes 40% less damage."],
+  ["Sunflower", "🌻", "healer", 2, { aura: 0.2 }, "SUNSHINE: pets near it do +20% damage."],
+  ["Pumpkin", "🎃", "shooter", 2, { splash: 50 }, "PUMPKIN BOMBS: splash a group."],
+  ["Snowman", "☃️", "shooter", 2, { freeze: 35 }, "SNOWBALLS: freeze what they hit."],
+  ["Skeleton", "💀", "fighter", 2, { revive: true }, "UNDEAD: rises again once."],
+  ["Zombie", "🧟", "tank", 2, { poison: 20 }, "INFECTION: its bites poison."],
+  ["Brachiosaurus", "🦕", "tank", 2, { heal: 20, shield: 0.2 }, "GENTLE GIANT: tough, and heals its friends."],
+  ["Ghost", "👻", "flyer", 3, { lifesteal: 0.5 }, "HAUNT: drains half of its damage as health."],
+  ["Fairy", "🧚", "healer", 3, { heal: 40 }, "FAIRY DUST: heals all the pets near it a lot."],
+  ["Mermaid", "🧜", "shooter", 3, { freeze: 30, splash: 40 }, "SIREN SONG: freezes a group."],
+  ["Genie", "🧞", "shooter", 3, { aura: 0.25, splash: 40 }, "THREE WISHES: blasts groups and powers up friends."],
+  ["Vampire", "🧛", "fighter", 3, { lifesteal: 0.6 }, "BLOOD BITE: heals 60% of its damage."],
+  ["Alien", "👽", "shooter", 3, { freeze: 40 }, "RAY GUN: freezes what it hits."],
+  ["Robot", "🤖", "fighter", 3, { boom: { dmg: 300, r: 100 } }, "SELF-DESTRUCT: a huge blast when beaten."],
+  ["Wyrm", "🐲", "flyer", 3, { splash: 50, charge: 2 }, "FIRE DIVE: a 2× first hit that splashes."],
+  ["Racehorse", "🐎", "runner", 3, { charge: 3 }, "GALLOP: a 3× first kick."],
+  ["Cockroach", "🪳", "tank", 3, { revive: true, shield: 0.3 }, "UNSTOPPABLE: tough, and comes back once."],
+  ["Coral", "🪸", "healer", 3, { heal: 30, shield: 0.3 }, "REEF: tough, and heals its friends."],
+];
 const RAR_ORDER = ["common", "rare", "epic", "legendary", "mythic"];
 const RAR_MUL = { common: 1, rare: 1.35, epic: 1.8, legendary: 2.6, mythic: 3.6 };
 for (const [aname, emoji, role, tier] of ANIMALS) for (const [ek, el] of Object.entries(ELEMENTS)) {
@@ -222,6 +278,17 @@ for (const [aname, emoji, role, tier] of ANIMALS) for (const [ek, el] of Object.
     range: R0.range, speed: +(R0.speed * (mu.speed || 1)).toFixed(2), rate: Math.round(R0.rate * (mu.rate || 1)), fly: R0.fly, shield: R0.shield, heal: R0.heal ? Math.round(R0.heal * m) : undefined,
     desc: `${el.emoji} ${el.name} ${R0.name.toLowerCase()}.`,
   };
+}
+for (const [cname, emoji, role, tier, sig, sigText] of CREATURES) for (const [ek, el] of Object.entries(ELEMENTS)) {
+  const score = tier + (el.up || 0), R0 = ROLES[role], rarity = RAR_ORDER[Math.max(0, Math.min(4, score - 1))], m = RAR_MUL[rarity], mu = el.mul;
+  const sg = Object.assign({}, sig);
+  if (sg.poison) sg.poison = Math.round(sg.poison * m); if (sg.heal) sg.heal = Math.round(sg.heal * m); if (sg.boom) sg.boom = { dmg: Math.round(sg.boom.dmg * m), r: sg.boom.r };
+  PETS[`${ek}-${cname.toLowerCase().replace(/ /g, "")}`] = Object.assign({
+    name: `${el.name} ${cname}`, emoji, element: ek, role, rarity, gen: true, wave: 2,
+    cost: Math.min(10, R0.cost + RAR_ORDER.indexOf(rarity)), hp: Math.round(R0.hp * m * (mu.hp || 1)), dmg: Math.round(R0.dmg * m * (mu.dmg || 1)),
+    range: R0.range, speed: +(R0.speed * (mu.speed || 1)).toFixed(2), rate: Math.round(R0.rate * (mu.rate || 1)), fly: R0.fly, shield: R0.shield, heal: R0.heal ? Math.round(R0.heal * m) : undefined,
+    desc: `${el.emoji} ${el.name} ${R0.name.toLowerCase()}. ✨ ${sigText}`,
+  }, sg);
 }
 // the original 24 get an element and a role too (for their abilities)
 const ORIG_ELEMENT = { mouse: "wind", bunny: "nature", bee: "toxic", frog: "water", snail: "earth", bird: "wind", fox: "fire", owl: "shadow", snake: "toxic", turtle: "earth", bat: "shadow", penguin: "ice",
@@ -533,7 +600,7 @@ function toast(t) { const e = $("toast"); e.textContent = t; e.style.display = "
 function show(id) { document.querySelectorAll(".screen").forEach((s) => s.classList.toggle("on", s.id === id)); $("hud").classList.remove("on"); $("topHud").classList.remove("on"); }
 document.querySelectorAll("[data-back]").forEach((b) => (b.onclick = () => { renderMenu(); show("menu"); }));
 function renderMenu() {
-  $("coins").textContent = S.coins.toLocaleString(); $("stageN").textContent = Math.min(S.stage, STAGES); $("starsN").textContent = totalStars(); $("petsN").textContent = Object.keys(S.pets).length;
+  $("petsMax").textContent = Object.keys(PETS).length; $("coins").textContent = S.coins.toLocaleString(); $("stageN").textContent = Math.min(S.stage, STAGES); $("starsN").textContent = totalStars(); $("petsN").textContent = Object.keys(S.pets).length;
 }
 function renderMap() {
   $("worlds").innerHTML = WORLDS.map((w, wi) => `<div style="margin:10px 0"><div class="sub" style="font-weight:900;font-size:1.05rem;margin-bottom:4px">${w.emoji} World ${wi + 1}: ${w.name}</div><div class="stages">` +

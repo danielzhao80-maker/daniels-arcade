@@ -139,7 +139,10 @@ const run = (n, max) => q(`(function(){ var i = 0; while (battle && !battle.over
 
 // ---- start ----
 reset();
-check(q('Object.keys(PETS).length') === 524 && q('Object.keys(S.pets).length') === 4 && q('S.deck.length') === 4 && q('S.coins') === 250, 'a new player: 524 pets to find (24 + 500 new), 4 to start with, 🪙 250');
+check(q('Object.keys(PETS).length') === 1024 && q('Object.keys(S.pets).length') === 4 && q('S.deck.length') === 4 && q('S.coins') === 250, 'a new player: 1024 pets to find (24 + 500 + 500 more), 4 to start with, 🪙 250');
+check(q('CREATURES.length') === 50 && q(`new Set(CREATURES.map(function(c){ return c[1]; }).concat(ANIMALS.map(function(a){ return a[1]; }))).size`) === 100, 'the 50 new creatures all look different (100 different animals in all)');
+check(q(`CREATURES.every(function(c){ return c[4] && Object.keys(c[4]).length && c[5]; })`), 'every new creature has its own signature power');
+check(q("PETS['shadow-vampire'].lifesteal") === 0.6 && q("PETS['fire-robot'].boom.dmg") > 300 && /NINE LIVES/.test(q("PETS['ice-blackcat'].desc")), '…e.g. 🧛 Blood Bite, 🤖 Self-Destruct, 🐈‍⬛ Nine Lives');
 check(q('ANIMALS.length') === 50 && q('Object.keys(ELEMENTS).length') === 10 && q("PETS['fire-cat'].name") === 'Fire Cat' && q("PETS['light-tiger'].rarity") === 'mythic' && q("PETS['fire-cat'].rarity") === 'common', '50 animals × 10 elements ("Fire Cat"); a ✨ Light Tiger is Mythic, a Fire Cat Common');
 const rc = JSON.parse(q(`JSON.stringify(RAR_ORDER.map(function(r){ return Object.values(PETS).filter(function(p){ return p.rarity === r; }).length; }))`));
 check(rc[0] > rc[1] && rc[1] > rc[2] && rc[2] > rc[3] && rc[3] > rc[4] && rc[4] >= 10, 'the rarer, the fewer: ' + rc.join(' / '));
@@ -264,6 +267,15 @@ reset(); q(`S.pets['fire-cat'] = { lvl: 1, shards: 0 }; petFilter.rarity = 'comm
 check(q('__f1') > 5 && JSON.stringify(q('__f2')) === JSON.stringify(['fox', 'fire-cat']) === false && q('__f2').includes('fire-cat') && q('__f3').length === 1, '🔎 filter by rarity, element, mine only, and search');
 q(`renderPets(); showPet('fire-cat');`);
 check(/Lv 3: 🔥 Burn/.test(q(`document.getElementById('petInfo').innerHTML`)) && /🔒/.test(q(`document.getElementById('petInfo').innerHTML`)), 'a pet shows its abilities (🔒 until unlocked)');
+
+// ---- signature powers of the new creatures ----
+reset(); q(`startStage(1, function(){ return 0.5; }); battle.aiWait = 1e9; battle.units = [makeUnit(0, 'nature-rat', 1, 300, 1)]; for (var i = 0; i < 421; i++) step();`);
+check(q(`battle.units.some(function(u){ return u.id === 'ratling'; })`), '🐀 Rat: SWARM calls more rats');
+q(`var sk = makeUnit(0, 'fire-skeleton', 1, 300, 1); battle.units = [sk]; hurt(battle, sk, 1e9);`);
+check(q('battle.units[0].hp') === q('battle.units[0].maxHp') && q('battle.units[0].revived') === true, '💀 Skeleton: UNDEAD rises again');
+q(`var rb = makeUnit(0, 'fire-robot', 1, 400, 1), en = makeUnit(1, 'frog', 1, 450, 1); battle.units = [rb, en]; hurt(battle, rb, 1e9); step();`);
+check(q(`battle.units.every(function(u){ return u.id !== 'frog'; })`), '🤖 Robot: SELF-DESTRUCT wipes out what is near');
+q('battle = null;');
 
 // ---- bosses ----
 reset({ stage: 6 }); q(`startStage(6, function(){ return 0.5; }); battle.aiWait = 1e9; for (var i = 0; i < 100; i++) step();`);

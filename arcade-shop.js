@@ -103,6 +103,18 @@
       { id: "xm-snowballer", name: "⛄ Snowball Champ", price: 0, secret: true, lockText: "Christmas Pass 20" },
       { id: "xm-reindeer", name: "🦌 Reindeer Rider", price: 0, secret: true, lockText: "Christmas Pass 38" },
       { id: "santa", name: "🎅 Santa Claus", price: 0, secret: true, lockText: "Christmas Pass 50" },
+      // 🏅 Earned in the games (ArcadeShop.earnTitle) — the ones marked "🤫 Secret" have a secret way to get them.
+      { id: "ma-centurion", name: "💯 Centurion", price: 0, secret: true, lockText: "Monster Attack!: 100 kills in one game" },
+      { id: "ma-chicken", name: "🐔 Pause Chicken", price: 0, secret: true, lockText: "🤫 Secret (Monster Attack!)" },
+      { id: "rb-rebuilder", name: "🏗️ Master Rebuilder", price: 0, secret: true, lockText: "REBUILD: win 10 levels" },
+      { id: "rb-speedrun", name: "⏱️ Speedrunner", price: 0, secret: true, lockText: "🤫 Secret (REBUILD)" },
+      { id: "bs-untouchable", name: "🛡️ Untouchable", price: 0, secret: true, lockText: "Buckshot Roulette: win without losing a life" },
+      { id: "bs-gambler", name: "🎰 Gambler", price: 0, secret: true, lockText: "🤫 Secret (Buckshot Roulette)" },
+      { id: "tr-champ", name: "🏁 Track Champion", price: 0, secret: true, lockText: "Track Run: win 10 races" },
+      { id: "tr-sixes", name: "🎲 Lucky Sixes", price: 0, secret: true, lockText: "🤫 Secret (Track Run)" },
+      { id: "le-bookworm", name: "📚 Bookworm", price: 0, secret: true, lockText: "Learn English: 50 right answers" },
+      { id: "le-perfect", name: "🔤 Perfect Speller", price: 0, secret: true, lockText: "🤫 Secret (Learn English)" },
+      { id: "ic-secrets", name: "🏝️ Island Secret Keeper", price: 0, secret: true, lockText: "🤫 Secret (Island Clash)" },
     ],
   };
 
@@ -549,7 +561,8 @@
   // 🏆 Achievements are PERMANENT: once a save has one, it is also written to its own record (one per
   // account on this computer, "guest" when logged out) that nothing clears — not the Admin Panel's
   // Take away, not a reset, not a wiped save — and load() always puts it back.
-  const ACHIEVEMENT_IDS = ["achilles", "champion", "comeback", "revenge", "dimension"];
+  const ACHIEVEMENT_IDS = ["achilles", "champion", "comeback", "revenge", "dimension",
+    "ma-centurion", "ma-chicken", "rb-rebuilder", "rb-speedrun", "bs-untouchable", "bs-gambler", "tr-champ", "tr-sixes", "le-bookworm", "le-perfect", "ic-secrets"];   // 🏅 (the game titles too)
   function achKey() {
     let n = "guest";
     try { n = (JSON.parse(localStorage.getItem("daniels-arcade-account") || "null") || {}).name || "guest"; } catch {}
@@ -730,6 +743,14 @@
   }
 
   let toastEl, toastTimer;
+  /** 🏅 A game awards a title: you own it (and wear it). True only the first time. */
+  function earnTitle(id, msg) {
+    const item = SHOP.Titles.find((i) => i.id === id); if (!item) return false;
+    let fresh = false;
+    update((s) => { if (s.owned.includes(id)) return; s.owned = [...s.owned, id]; s.equipped.title = id; fresh = true; });
+    if (fresh) toast(msg || `🏅 NEW TITLE: ${item.name}!`);
+    return fresh;
+  }
   function toast(msg) {
     style();
     if (!toastEl) {
@@ -1158,7 +1179,7 @@
   window.ArcadeShop = {
     halloween,
     SHOP, SLOT, SKIN_TABS, SECONDS_PER_COIN, RAINBOW,
-    find, load, update, gameSkins, shareSkins, open, close, toast, registerCurrency,
+    find, load, update, gameSkins, shareSkins, open, close, toast, registerCurrency, earnTitle,
     howToGet, ACHIEVEMENT_IDS, PUMPKIN_PARTS, pumpkinLook, pumpkinSVG, avatarHTML, setAvatarCustom,
     AVATAR_PARTS, avatarLook, avatarSVG, setAvatarPart,
     ABILITIES, ABILITY_TAB, ABILITY_MAX, abilityMax, abilityLevel, abilityValue,

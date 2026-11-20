@@ -550,6 +550,7 @@ function unlockTitle(id, quiet) {
   if (!TITLES.some((t) => t.id === id) || hasTitle(id)) return false;
   S.titles = (S.titles || []).concat(id);
   const t = TITLES.find((q) => q.id === id);
+  if (TITLES.filter((q) => q.secret).every((q) => hasTitle(q.id))) { try { window.ArcadeShop && ArcadeShop.earnTitle && ArcadeShop.earnTitle("ic-secrets", "🏝️ ISLAND SECRET KEEPER! You found all 5 secret titles — an arcade title too!"); } catch (e) {} }   // 🤫 → 🏅 arcade
   if (!quiet) setTimeout(() => { try { toast(`🏅 NEW TITLE: ${t.name}${t.secret ? " — a SECRET one!" : ""}`); } catch (e) {} }, 400);
   return true;
 }

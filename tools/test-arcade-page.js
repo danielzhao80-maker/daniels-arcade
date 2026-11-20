@@ -825,9 +825,10 @@ ok("m60 can't be claimed early", !(r.save().milestones || []).includes("m60"));
 {
   const ra = boot({ seed: { [KEY]: { coins: 0, owned: ["galaxy", "smile", "rookie", "achilles"] } } });
   const rows = ra.$$("#achievements .ms");
-  ok("🏆 Achievements box: 5 challenge titles, 🦶 Achilles Heel first", rows.length === 5 && /Achilles Heel/.test(rows[0].textContent));
+  ok("🏆 Achievements box: 16 challenge titles (5 + the 11 game titles), 🦶 Achilles Heel first", rows.length === 16 && /Achilles Heel/.test(rows[0].textContent));
+  ok("🤫 the secret game titles say Secret (not how)", rows.some((x) => /Pause Chicken/.test(x.textContent) && /Secret/.test(x.textContent)) && !rows.some((x) => /paused 10 times/i.test(x.textContent)));
   ok("🦶 Achilles Heel shows ✓ when you have it; the others 🔒 with how to get them",
-     /✓/.test(rows[0].textContent) && rows.slice(1).every((x) => /🔒/.test(x.textContent)) && /Buckshot/.test(rows[1].textContent) && /1 \/ 5 done/.test(ra.id("achievements").textContent));
+     /✓/.test(rows[0].textContent) && rows.slice(1).every((x) => /🔒/.test(x.textContent)) && /Buckshot/.test(rows[1].textContent) && /1 \/ 16 done/.test(ra.id("achievements").textContent));
   const t = ra.S.SHOP.Titles.find((i) => i.id === "achilles");
   ok("🦶 Achilles Heel is a secret title that says how to get it", t && t.secret && /ONE single hit while you are at full health/.test(ra.S.howToGet(t)));
   const gb = ra.id("godBtn");

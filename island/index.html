@@ -218,6 +218,31 @@ const EVENTS = {
 };
 const EVENT_PET_COST = { jack: 40, zombie: 30, spider: 25, snowman: 40, reindeer: 30, elf: 25 };
 const EVENT_TOWER_COST = 100, EVENT_PACK_COST = 20;
+const EVENT_TROOP_COST = { witch: 15, bomber: 12, santa: 15, snowgolem: 12 };   // for 5
+const EVENT_TROOPS = { halloween: ["witch", "bomber"], christmas: ["santa", "snowgolem"] };
+// 🏅 Badges for beating the boss island: 3 wins, then 10.
+const EVENT_BADGES = { halloween: [[3, "🎃 Pumpkin Smasher"], [10, "👑 Pumpkin King Slayer"]], christmas: [[3, "🎄 Santa's Helper"], [10, "🎅 Christmas Hero"]] };
+const badgesOf = () => Object.entries(EVENT_BADGES).flatMap(([id, list]) => list.filter(([n]) => ((S.bossWins || {})[id] || 0) >= n).map(([, b]) => b));
+// 🎁 Once a day: 🚪 Trick or Treat at Halloween, 📅 the Advent Calendar at Christmas (each December door is bigger).
+const localDay = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+function claimDaily(d) {
+  const ev = eventNow(d); if (!ev) return "No event is on right now.";
+  d = d || new Date(); const day = localDay(d);   // (YOUR date, not the UTC one — a new door at your midnight)
+  if (S.evDaily === day) return `${ev.emoji} Come back tomorrow for another ${ev.id === "halloween" ? "trick or treat" : "door"}!`;
+  S.evDaily = day; let msg;
+  if (ev.id === "halloween") {
+    if (Math.random() < 0.25) { S.candy = evCur(ev) + 3; msg = "👻 TRICK! BOO! … ok, here's 🍬 3 anyway."; }
+    else { const c = 10 + Math.floor(Math.random() * 16), g = Math.min(1000 + 300 * th(), capOf() - S.gold); S.candy = evCur(ev) + c; S.gold += Math.max(0, g); msg = `🍬 TREAT! +${c} candy and 🪙 ${Math.max(0, g).toLocaleString()}`; }
+  } else {
+    const dec = d.getMonth() === 11, n = d.getDate();
+    if (dec && n === 25) { S.presents = evCur(ev) + 100; S.army.snowgolem = (S.army.snowgolem || 0) + 3; msg = "🎅 MERRY CHRISTMAS! 🎁 +100 presents and 3 ⛄ Snow Golems!"; }
+    else if (dec && n <= 24) { S.presents = evCur(ev) + 5 + n; msg = `📅 Door ${n}: 🎁 +${5 + n} presents`; }
+    else { S.presents = evCur(ev) + 10; msg = "📅 🎁 +10 presents"; }
+  }
+  save(); return msg;
+}
+// Your island's look: the event's (🎃 🎄) while one is on, else your newest Prestige map, else tropical.
+const myTheme = () => (eventNow() ? eventNow().theme : prest() ? PRESTIGE[prest() - 1].theme : "tropical");
 function eventNow(d) {
   for (const key of ["island_clash_event_force", "monster_attack_event_force"]) {
     let f = null; try { f = localStorage.getItem(key); } catch (e) {}
@@ -309,6 +334,11 @@ const T = {
   archer:  { name: "Archer",  emoji: "🏹", cost: 35,  house: 1, hp: 40,  dmg: 9,  range: 3,   speed: 1.3, rate: 34, unlock: 2, desc: "Shoots from range." },
   giant:   { name: "Giant",   emoji: "🗿", cost: 120, house: 5, hp: 420, dmg: 16, range: 0.8, speed: 0.8, rate: 40, unlock: 3, targets: "def", desc: "Huge HP. Goes for defences first." },
   mage:    { name: "Mage",    emoji: "🧙", cost: 150, house: 4, hp: 60,  dmg: 22, range: 2.6, speed: 1.2, rate: 45, unlock: 5, splash: 1.1, desc: "Blasts several buildings at once." },
+  // 🎃 🎄 event troops: bought in the event shop (5 at a time) — they can't be trained with gold
+  witch:     { name: "Witch",          emoji: "🧙‍♀️", cost: 0, house: 3, hp: 110, dmg: 26, range: 3,   speed: 1.3, rate: 40, unlock: 1, splash: 1.3, event: "halloween", desc: "🎃 Halloween — hexes whole groups of buildings from range." },
+  bomber:    { name: "Pumpkin Bomber", emoji: "🎃", cost: 0, house: 2, hp: 90,  dmg: 160, range: 0.7, speed: 1.8, rate: 20, unlock: 1, targets: "def", boom: 1.8, event: "halloween", desc: "🎃 Halloween — runs at a defence and EXPLODES (big splash, once)." },
+  santa:     { name: "Santa",          emoji: "🎅", cost: 0, house: 4, hp: 300, dmg: 18, range: 2.6, speed: 1.1, rate: 40, unlock: 1, heal: 0.08, event: "christmas", desc: "🎄 Christmas — throws presents, and every throw HEALS your troops around him." },
+  snowgolem: { name: "Snow Golem",     emoji: "⛄", cost: 0, house: 4, hp: 650, dmg: 14, range: 0.8, speed: 0.8, rate: 40, unlock: 1, targets: "def", event: "christmas", desc: "🎄 Christmas — a huge snowy tank that goes for the defences." },
 };
 
 // ---- 🐺 defending mobs: every Barracks on an island sends out 1 + its level (max 6) when it is attacked —
@@ -438,6 +468,8 @@ const AB = {
   rage:      { name: "Rage",      emoji: "🔥", th: 3, radius: 2.2, color: "#e84118", desc: "Troops in the area: +60% damage, +40% speed for 8 s." },
   freeze:    { name: "Freeze",    emoji: "❄️", th: 4, radius: 2.2, color: "#74b9ff", desc: "Defences in the area stop shooting for 5 s." },
   barricade: { name: "Barricade", emoji: "🧱", th: 5, radius: 1.5, color: "#b2bec3", desc: "Summons a large wall that blocks 10 attacks from the defences." },
+  pumpkinbomb: { name: "Pumpkin Bomb", emoji: "🎃", event: "halloween", radius: 2.4, color: "#e67e22", desc: "🎃 Halloween — a giant flaming pumpkin that blasts every building in a big area." },
+  blizzard:    { name: "Blizzard",     emoji: "❄️", event: "christmas", radius: 3.5, color: "#dff9fb", desc: "🎄 Christmas — a huge snowstorm: defences and animals in a big area freeze for 7 s." },
   agent:     { name: "Agent",     emoji: "🕵️", th: 6, radius: 0.8, color: "#2d3436", desc: "A secret agent the defences can't see: sabotages the strongest defence, then bombs the Town Hall. (Town Hall 6 — or use all 20 codes.)" },
 };
 // 🕵️ the Agent is also a secret reward for using every code
@@ -457,7 +489,7 @@ const abilityUses = (t) => (t >= 6 ? 2 : 1) + gLv("spells");   // (✨ Spell Mas
 if (window.ArcadeShop && ArcadeShop.setGame) ArcadeShop.setGame("island");
 const shopBoost = (k) => { try { const v = window.ArcadeShop && ArcadeShop.abilityValue ? Number(ArcadeShop.abilityValue(k, "island")) : 0; return v > 0 ? v : 0; } catch (e) { return 0; } };
 const abPower = (k) => 1 + shopBoost(k) / 100;
-const abUnlocked = (k) => (k === "agent" ? agentUnlocked() : th() >= AB[k].th) || shopBoost(k) > 0;
+const abUnlocked = (k) => AB[k].event ? !!eventNow() && eventNow().id === AB[k].event : (k === "agent" ? agentUnlocked() : th() >= AB[k].th) || shopBoost(k) > 0;   // (🎃 🎄 event spells: only in their event)
 const lightningDmg = (t) => 200 + 60 * t;
 
 // ---- save --------------------------------------------------------------------------------------
@@ -553,6 +585,13 @@ function buyEventItem(kind, id) {   // kind: "pet" | "tower" | "pack"
     if (have < EVENT_TOWER_COST) return `You need ${ev.curEmoji} ${EVENT_TOWER_COST} (you have ${have}).`;
     S[ev.cur] = have - EVENT_TOWER_COST; S.eventTowers = (S.eventTowers || []).concat(ev.tower); save();
     return `${B[ev.tower].emoji} ${B[ev.tower].name} unlocked for good — build 2 in 🏗️ Build!`;
+  }
+  if (kind === "troops") {   // 5 event troops
+    const t = T[id]; if (!t || t.event !== ev.id) return "That troop isn't in this event.";
+    const cost = EVENT_TROOP_COST[id]; if (have < cost) return `You need ${ev.curEmoji} ${cost} (you have ${have}).`;
+    if (!infTroops() && armyUsed() + t.house * 5 > armyCap()) return "Not enough army space for 5 — build or upgrade Barracks.";
+    S[ev.cur] = have - cost; S.army[id] = (S.army[id] || 0) + 5; save();
+    return `${t.emoji} 5 ${t.name}s joined your army!`;
   }
   if (kind === "pack") {
     if (have < EVENT_PACK_COST) return `You need ${ev.curEmoji} ${EVENT_PACK_COST} (you have ${have}).`;
@@ -678,6 +717,7 @@ function upgradeBuilding(b) {
 }
 function train(kind, n) {
   const t = T[kind]; if (!t) return "No such troop.";
+  if (t.event) return `${EVENTS[t.event].emoji} ${t.name}s come from the ${EVENTS[t.event].name} event shop.`;
   if (barracksLvl() < t.unlock) return `Needs Barracks level ${t.unlock}.`;
   n = n || 1;
   if (armyUsed() + t.house * n > armyCap()) return "Army is full — build or upgrade Barracks.";
@@ -752,7 +792,7 @@ function genIsland(lvl, seed, p) {   // p: a 🌟 Prestige island (its map, towe
 // Your island as someone else will see it (online).
 function myIslandSnapshot() {
   const name = (() => { try { return (JSON.parse(localStorage.getItem("daniels-arcade-account") || "null") || {}).name || ""; } catch (e) { return ""; } })() || "Friend";
-  return { name: name + "'s island", trophies: S.trophies || 0, rebirths: rebirths(), th: th(), prestige: prest(), theme: prest() ? PRESTIGE[prest() - 1].theme : undefined, golems: (S.golems || []).slice(), pets: myPets(), buildings: S.buildings.map((b) => ({ type: b.type, lvl: b.lvl, x: b.x, y: b.y, perks: (b.perks || []).slice() })),
+  return { name: name + "'s island", trophies: S.trophies || 0, rebirths: rebirths(), th: th(), prestige: prest(), theme: myTheme(), golems: (S.golems || []).slice(), pets: myPets(), buildings: S.buildings.map((b) => ({ type: b.type, lvl: b.lvl, x: b.x, y: b.y, perks: (b.perks || []).slice() })),
            loot: { gold: Math.floor(S.gold * 0.1), wood: Math.floor(S.wood * 0.1), stone: Math.floor(S.stone * 0.1) } };
 }
 
@@ -796,13 +836,13 @@ function gateStep(bt) {   // ⛩️ every Summoning Gate on YOUR island
     g.nextSummon = bt.frame + gateEvery();
     const lv = (1 + 0.1 * Math.max(0, barracksLvl() - 1)) * troopBuff(), pool = bt.foes ? bt.troops : bt.mobs;
     if (pool.filter((t) => t.summoned && t.hp > 0).length >= gateMax()) continue;
-    for (const k of Object.keys(T)) for (let i = 0; i < gateN(); i++) {
+    for (const k of Object.keys(T).filter((q) => !T[q].event)) for (let i = 0; i < gateN(); i++) {
       const t = T[k], x = g.x + (Math.random() - 0.5) * 1.2, y = g.y + (Math.random() - 0.5) * 1.2;
       if (bt.foes) bt.troops.push({ kind: k, x, y, hp: t.hp * lv, maxHp: t.hp * lv, dmg: t.dmg * lv, cd: i * 2, target: null, stage: 0, summoned: true, hunter: true });
       else { const d = allyDef(k); bt.mobs.push({ kind: k, def: d, ally: true, summoned: true, x, y, homeX: x, homeY: y, hp: d.hp * lv, maxHp: d.hp * lv, dmg: d.dmg * lv, cd: 0, steal: 0 }); }
     }
     bt.casts.push({ x: g.x, y: g.y, r: 1.6, color: "#a29bfe", t: 60, emoji: "⛩️" });
-    bt.texts.push({ x: g.x, y: g.y - 0.8, t: 60, text: `⛩️ SUMMON! ×${gateN() * Object.keys(T).length}` });
+    bt.texts.push({ x: g.x, y: g.y - 0.8, t: 60, text: `⛩️ SUMMON! ×${gateN() * Object.keys(T).filter((q) => !T[q].event).length}` });
   }
 }
 function foeWaves(bt) {
@@ -890,6 +930,13 @@ function castAbility(kind, x, y) {
   } else if (kind === "heal") { for (const tr of bt.troops) if (tr.hp > 0 && inR(tr)) tr.hp = Math.min(tr.maxHp, tr.hp + tr.maxHp * 0.6 * pow); }
   else if (kind === "rage") { for (const tr of bt.troops) if (tr.hp > 0 && inR(tr)) tr.rageUntil = bt.frame + Math.round(480 * pow); }
   else if (kind === "freeze") { const f = Math.round(300 * pow); for (const b of bt.blds) if (b.hp > 0 && B[b.type].def && inR(b)) b.frozenUntil = bt.frame + f; for (const m of bt.mobs || []) if (m.hp > 0 && inR(m)) m.frozenUntil = bt.frame + f; }
+  else if (kind === "pumpkinbomb") {   // 🎃
+    const dmg = Math.round((350 + 90 * th()) * pow);
+    for (const b of bt.blds) if (b.hp > 0 && inR(b)) { b.hp = Math.max(0, b.hp - dmg); if (b.hp <= 0) bt.fx.push({ x: b.x, y: b.y, t: 30, boom: true }); }
+    for (const m of bt.mobs || []) if (m.hp > 0 && inR(m)) m.hp -= dmg;
+    bt.fx.push({ x, y, t: 30, boom: true });
+  }
+  else if (kind === "blizzard") { const f = Math.round(420 * pow); for (const b of bt.blds) if (b.hp > 0 && B[b.type].def && inR(b)) b.frozenUntil = bt.frame + f; for (const m of bt.mobs || []) if (m.hp > 0 && inR(m)) m.frozenUntil = bt.frame + f; }   // ❄️
   else if (kind === "agent") bt.agents.push({ x, y, phase: "sabotage", target: null, t: 0, pow });
   else if (kind === "barricade") {   // a 3-tile wall, turned to face the island (across the way to its middle)
     const ang = Math.atan2(y - CENTER, x - CENTER), px = -Math.sin(ang) * a.radius, py = Math.cos(ang) * a.radius;
@@ -1069,8 +1116,13 @@ function stepTroops(bt, troops, blds, mobs, rev, opp) {   // opp: the other side
       }
       else if (foe && fdef.dodge && Math.random() < fdef.dodge) bt.texts && bt.texts.push({ x: foe.x, y: foe.y - 0.5, t: 40, text: "MISS!" });   // 👻
       else if (foe) { foe.hp -= dmgNow; if (foe.hp <= 0) bt.fx.push({ x: foe.x, y: foe.y, t: 16 }); }
+      else if (t.boom) {   // 🎃 the Pumpkin Bomber: one big BOOM, and that's it
+        for (const b of blds) if (b.hp > 0 && Math.hypot(b.x - tg.x, b.y - tg.y) <= t.boom) hit(b, dmgNow);
+        bt.fx.push({ x: tr.x, y: tr.y, t: 30, boom: true }); bt.texts && bt.texts.push({ x: tr.x, y: tr.y - 0.5, t: 40, text: "BOOM!" }); tr.hp = 0;
+      }
       else if (t.splash) { for (const b of blds) if (b.hp > 0 && Math.hypot(b.x - tg.x, b.y - tg.y) <= t.splash) hit(b, dmgNow); }
       else hit(tg, dmgNow);
+      if (t.heal) for (const o of troops) if (o.hp > 0 && Math.hypot(o.x - tr.x, o.y - tr.y) <= 2) o.hp = Math.min(o.maxHp, o.hp + o.maxHp * t.heal);   // 🎅 presents heal
       if (t.range > 1) bt.shots.push({ x: tr.x, y: tr.y, tx: tg.x, ty: tg.y, t: 10, col: t.splash ? "#a55eea" : "#feca57" });
     }
   }
@@ -1232,7 +1284,8 @@ function startDefense(from) {
     });
   }
   showBattleBar(); hidePanels(); hideInfo();
-  toast(from ? `😠 ${from.name} wants REVENGE! Their island joined yours — they're coming over the bridge!` : "🚢 RAIDER BOATS! Your island is under attack!");
+  const evr = eventNow();
+  toast(from ? `😠 ${from.name} wants REVENGE! Their island joined yours — they're coming over the bridge!` : evr ? (evr.id === "halloween" ? "👻 GHOST SHIPS! Spooky raiders are attacking!" : "🎅 THE GRINCH'S BOATS! Raiders are after your presents!") : "🚢 RAIDER BOATS! Your island is under attack!");
   return null;
 }
 function maybeRevenge(island) {   // after you raid a computer island: 50% it comes back for you in 2–4 minutes
@@ -1299,6 +1352,8 @@ function endBattle(forced) {
     const ev = EVENTS[bt.opts.eventBoss];
     if (stars > 0) {
       const first = S.eventBossDay !== todayStr(); S.eventBossDay = todayStr();
+      const had = badgesOf(); S.bossWins = Object.assign({}, S.bossWins, { [ev.id]: ((S.bossWins || {})[ev.id] || 0) + 1 });
+      const fresh = badgesOf().filter((b) => !had.includes(b)); if (fresh.length) text += ` 🏅 NEW BADGE: ${fresh.join(", ")}!`;
       title = `${ev.emoji} You beat ${ev.boss}!`; text += addEventCur(first ? 40 + 10 * stars : 5 * stars, first ? "(today's boss bonus!)" : "") + ` · 🏆 +${10 + stars * 5}`; S.trophies += 10 + stars * 5;
     } else { title = `${ev.emoji} ${ev.boss} was too strong`; text += " Try again — bring more troops!"; }
   } else if (bt.opts.prestige) {   // 🌟 the trial: ⭐⭐ = the next Prestige
@@ -1532,7 +1587,7 @@ const arcadeAdmin = () => { try { const sv = JSON.parse(localStorage.getItem("da
 const isOwner = () => !!S.owner;
 const isAdmin = () => isOwner() || !!S.admin || arcadeAdmin();
 const ADMIN_CAPS = { gold: 3000, wood: 3000, stone: 3000, troops: 20, golems: 1, pets: 1, towers: 1, storage: 1, abil: 1, deals: 1, skip: 3 };
-const todayStr = () => new Date().toISOString().slice(0, 10);
+const todayStr = () => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`; };   // (your local date: limits reset at YOUR midnight)
 function adminLeft(k) { if (!S.adminDay || S.adminDay.date !== todayStr()) S.adminDay = { date: todayStr() }; return ADMIN_CAPS[k] - (S.adminDay[k] || 0); }
 function adminSpend(k, n) { const left = adminLeft(k); if (n > left) return false; S.adminDay[k] = (S.adminDay[k] || 0) + n; return true; }
 // All panel actions. owner = no limits; admin = ADMIN_CAPS a day and no Town Hall / rank / raid / trophies.
@@ -1883,9 +1938,10 @@ function renderBuild() {
 function renderArmy() {
   $("armySub").textContent = `Army space ${armyUsed()}/${armyCap()} · Barracks level ${barracksLvl()} (higher levels unlock troops and make them stronger)`;
   $("armyGrid").innerHTML = Object.entries(T).map(([k, t]) => {
-    const locked = barracksLvl() < t.unlock;
+    if (t.event && !(S.army[k] > 0)) return "";   // (event troops: only shown when you have some)
+    const locked = barracksLvl() < t.unlock || !!t.event;
     return `<div class="card"><div class="e">${t.emoji}</div><div class="n">${t.name} × ${S.army[k] || 0}</div><div class="d">${t.desc}<br>❤️ ${t.hp} · 💥 ${t.dmg} · space ${t.house}</div>
-      <div class="c">${locked ? `🔒 Barracks Lv ${t.unlock}` : `🪙 ${t.cost}`}</div>
+      <div class="c">${t.event ? `${EVENTS[t.event].emoji} event shop` : locked ? `🔒 Barracks Lv ${t.unlock}` : `🪙 ${t.cost}`}</div>
       <button class="small blue" data-train="${k}" ${locked ? "disabled" : ""}>+1</button> <button class="small blue" data-train5="${k}" ${locked ? "disabled" : ""}>+5</button></div>`;
   }).join("");
   $("armyGrid").innerHTML += `<div class="card" style="grid-column:1/-1;background:rgba(255,255,255,.04)"><div class="n">🗿 Golems — they guard YOUR island (one of each)</div><div class="d">They stand by your Town Hall and fight anyone who attacks you online.</div></div>`
@@ -1941,9 +1997,9 @@ function renderInfo() {
       "<br>🗿 Your golems: " + ((S.golems || []).length ? S.golems.map((k) => `${MOB[k].emoji} ${MOB[k].name}`).join(", ") : "none yet — buy them in 🛡️ Army") +
       (prest() ? "<br>🌟 Every Barracks also sends: " + PRESTIGE.slice(0, prest()).map((P) => `${MOB[P.mob].emoji} ${MOB[P.mob].name}`).join(", ") : "") +
       "<br>" + Object.values(MOB).filter((m) => !m.prestige || m.prestige <= prest()).map((m) => `${m.emoji} <b>${m.name}</b>: ${m.desc}`).join("<br>")) +
-    sec("✨ Mini abilities (in battle)", Object.entries(AB).map(([k, a]) => `${a.emoji} ${a.name}: ${abUnlocked(k) ? `<b>${abilityUses(I.th)}</b> per battle${shopBoost(k) ? ` · 🛒 +${shopBoost(k)}% power` : ""}` : `🔒 Town Hall ${a.th} (or the arcade shop)`} — ${a.desc}`).join("<br>")
+    sec("✨ Mini abilities (in battle)", Object.entries(AB).map(([k, a]) => `${a.emoji} ${a.name}: ${abUnlocked(k) ? `<b>${abilityUses(I.th)}</b> per battle${shopBoost(k) ? ` · 🛒 +${shopBoost(k)}% power` : ""}` : (a.event ? `${EVENTS[a.event].emoji} only during ${EVENTS[a.event].name}` : `🔒 Town Hall ${a.th} (or the arcade shop)`)} — ${a.desc}`).join("<br>")
       + `<br><span style="opacity:.8">🛒 The arcade shop's ⚡ Abilities tab sells them for Island Clash: they unlock early and get stronger. Switch them on in the ⚡ bar.</span>`) +
-    sec("⚔️ Record", `🏆 <b>${I.trophies}</b> trophies · <b>${I.wins}</b> wins · raid level <b>${I.raid}</b> reached<br>🏴‍☠️ Raiders beaten <b>${S.raidsWon || 0}</b> · lost to <b>${S.raidsLost || 0}</b> — next raid in ${$("raidIn").textContent}`);
+    sec("⚔️ Record", (badgesOf().length ? `🏅 ${badgesOf().join(" · ")}<br>` : "") + `🏆 <b>${I.trophies}</b> trophies · <b>${I.wins}</b> wins · raid level <b>${I.raid}</b> reached<br>🏴‍☠️ Raiders beaten <b>${S.raidsWon || 0}</b> · lost to <b>${S.raidsLost || 0}</b> — next raid in ${$("raidIn").textContent}`);
 }
 function showInfo(b) {
   selected = b;
@@ -2147,10 +2203,16 @@ function renderEvent() {
     ev.pets.map((id) => card(MOB[id].emoji, MOB[id].name, MOB[id].desc.replace(/^\S+ \w+ — /, ""), `${ev.curEmoji} ${EVENT_PET_COST[id]}`, `<button class="small" data-evpet="${id}" ${have < EVENT_PET_COST[id] ? "disabled" : ""}>Adopt</button>`)).join("") +
     card(B[ev.tower].emoji, B[ev.tower].name, B[ev.tower].desc.replace(/^\S+ \w+ — /, "") + " Yours for good — build 2.", owned ? "✅ Unlocked" : `${ev.curEmoji} ${EVENT_TOWER_COST}`, owned ? "" : `<button class="small" data-evtower="1" ${have < EVENT_TOWER_COST ? "disabled" : ""}>Unlock</button>`) +
     card(ev.emoji, "Event pack", `${costText({ gold: 2000 + 500 * th(), wood: 2000 + 500 * th(), stone: 2000 + 500 * th() })}`, `${ev.curEmoji} ${EVENT_PACK_COST}`, `<button class="small" data-evpack="1" ${have < EVENT_PACK_COST ? "disabled" : ""}>Buy</button>`) +
-    `</div><div class="sub" style="margin-top:8px">🎁 Event codes: type them in the code box while ${ev.name} is on.</div>`;
+    EVENT_TROOPS[ev.id].map((id) => card(T[id].emoji, `${T[id].name} ×5`, T[id].desc.replace(/^\S+ \w+ — /, ""), `${ev.curEmoji} ${EVENT_TROOP_COST[id]} · you have ${S.army[id] || 0}`, `<button class="small" data-evtroop="${id}" ${have < EVENT_TROOP_COST[id] ? "disabled" : ""}>Recruit 5</button>`)).join("") +
+    `</div><div class="card" style="text-align:left;margin-top:10px"><div class="n">${ev.id === "halloween" ? "🚪 Trick or Treat" : "📅 Advent Calendar"} — once a day</div>
+      <div class="row" style="justify-content:flex-start"><button class="green" id="evDaily" ${S.evDaily === localDay(new Date()) ? "disabled" : ""}>${ev.id === "halloween" ? "🚪 Knock on the door" : "📅 Open today's door"}</button></div>
+      <div class="d">✨ In battle you also get the ${AB[ev.id === "halloween" ? "pumpkinbomb" : "blizzard"].emoji} ${AB[ev.id === "halloween" ? "pumpkinbomb" : "blizzard"].name} spell while ${ev.name} is on. 🏅 Badges: ${EVENT_BADGES[ev.id].map(([n, b]) => `${badgesOf().includes(b) ? "✅" : "⬜"} ${b} (beat the boss ${n}×)`).join(" · ")} — you've beaten it ${(S.bossWins || {})[ev.id] || 0}×.</div></div>
+    <div class="sub" style="margin-top:8px">🎁 Event codes: type them in the code box while ${ev.name} is on.</div>`;
   $("evBossGo").onclick = () => { const e = startEventBoss(); if (e) toast(e); };
   $("evBody").querySelectorAll("[data-evpet]").forEach((b) => (b.onclick = () => { toast(buyEventItem("pet", b.dataset.evpet)); renderEvent(); renderTop(); }));
   $("evBody").querySelectorAll("[data-evtower]").forEach((b) => (b.onclick = () => { toast(buyEventItem("tower")); renderEvent(); renderTop(); }));
+  $("evBody").querySelectorAll("[data-evtroop]").forEach((b) => (b.onclick = () => { toast(buyEventItem("troops", b.dataset.evtroop)); renderEvent(); renderTop(); }));
+  const dly = $("evDaily"); if (dly) dly.onclick = () => { toast(claimDaily()); renderEvent(); renderTop(); };
   $("evBody").querySelectorAll("[data-evpack]").forEach((b) => (b.onclick = () => { toast(buyEventItem("pack")); renderEvent(); renderTop(); }));
 }
 $("btnEvent").onclick = () => { hideInfo(); renderEvent(); openPanel("eventPanel"); };
@@ -2217,6 +2279,7 @@ function drawBoats(bt) {
     const [x, y] = toScreen(bo.x, bo.y), bob = Math.sin(bt.frame / 10 + bo.tx) * 2;
     ctx.font = `${tile * 1.3}px serif`; ctx.textAlign = "center"; ctx.textBaseline = "middle"; ctx.fillText("🚢", x, y + bob);
     ctx.fillStyle = "#2d3436"; ctx.fillRect(x - tile * 0.5, y - tile * 0.8, tile, 4); ctx.fillStyle = "#e17055"; ctx.fillRect(x - tile * 0.5, y - tile * 0.8, tile * bo.hp / bo.maxHp, 4);
+    const evb = eventNow(); if (evb) stamp(evb.id === "halloween" ? "👻" : "🎅", x, y - tile * 0.9 + bob, tile * 0.7);   // 🎃 🎄 themed raider boats
     if (!bo.landed) { ctx.font = `bold ${tile * 0.35}px Nunito, sans-serif`; ctx.fillStyle = "#fff"; ctx.fillText("🏴‍☠️ " + bo.party.length, x, y + tile * 0.75); }
   }
 }
@@ -2320,7 +2383,7 @@ function frame(now) {
     const bt = battle;
     if (bt.homeBlds) {   // ⚔️ your whole island, on the left
       const dx = bt.bridge.home.dx; ctx.save(); ctx.translate(dx * tile, 0);
-      drawIsland(th(), bt.homeBlds.map((b) => Object.assign({}, b, { x: b.x - dx })), time, { battle: true, noSea: true, theme: prest() ? PRESTIGE[prest() - 1].theme : "tropical" });
+      drawIsland(th(), bt.homeBlds.map((b) => Object.assign({}, b, { x: b.x - dx })), time, { battle: true, noSea: true, theme: myTheme() });
       ctx.restore();
     }
     if (bt.otherBlds) {   // 😠 their whole island, on the left
@@ -2388,7 +2451,7 @@ function frame(now) {
     ctx.font = "bold 18px Nunito, sans-serif"; ctx.fillStyle = "#fff"; ctx.textAlign = "center";
     ctx.fillText(bt.opts.defense ? (bt.bridge ? `😠 ${bt.opts.revenge} is coming over the bridge! Tap your island to send out your troops.` : "🚢 Raider boats! Tap your island to send out your troops — your towers shoot the boats too.") : bt.selected && bt.selected.startsWith("ab:") ? `${AB[bt.selected.slice(3)].emoji} Tap anywhere to cast ${AB[bt.selected.slice(3)].name}` : `⚔️ ${bt.island.name}${bt.foes ? " is fighting back!" : ""} — tap YOUR island (left) to send your ${bt.selected ? T[bt.selected].name.toLowerCase() + "s" : "troops"} over the bridge 🌉`, innerWidth / 2, 74);
   } else {
-    drawIsland(th(), S.buildings, time, { home: true, theme: eventNow() ? eventNow().theme : prest() ? PRESTIGE[prest() - 1].theme : "tropical" });   // (🎃 🎄 an event dresses up your island)   // 🌟 your island takes on your newest Prestige map
+    drawIsland(th(), S.buildings, time, { home: true, theme: myTheme() });   // (🎃 🎄 an event dresses up your island)   // 🌟 your island takes on your newest Prestige map
     drawHomeDefenders(time);   // 🐺 your animals by their Barracks, 🗿 your golems by the Town Hall
     if (placing || moving) { ctx.font = "bold 16px Nunito, sans-serif"; ctx.fillStyle = "#fff"; ctx.textAlign = "center"; const k = placing || moving.type; ctx.fillText(`${placing ? "Placing" : "Moving"}: ${B[k].emoji} ${B[k].name} — tap an empty green spot`, innerWidth / 2, 104); }
   }

@@ -1150,6 +1150,38 @@ q(`renderTop();`);
 check(q(`document.getElementById('btnEvent').style.display`) === 'none', 'no event: no event button');
 q(`localStorage.removeItem('island_clash_event_force'); localStorage.removeItem('monster_attack_event_force'); S.pets = [];`);
 
+// ---- 🎃 🎄 more event stuff ----
+reset({ army: {} }); q(`localStorage.setItem('island_clash_event_force', 'halloween'); S.candy = 200;`);
+check(/event shop/.test(q(`train('witch', 1)`)) && !(q('S.army.witch') > 0), "event troops can't be trained with gold");
+check(/5 Witchs|5 Witch/.test(q(`buyEventItem('troops', 'witch')`)) && q('S.army.witch') === 5 && q('S.candy') === 185, '🧙‍♀️ recruit 5 Witches with candy');
+check(/isn't in this event/.test(q(`buyEventItem('troops', 'santa')`)), "…only this event's troops");
+q(`S.army = {}; buyEventItem('troops', 'bomber'); S.army.warrior = 3; startBattle(genIsland(4)); battle.mobs = []; battle.waves = [];`);
+check(q(`'pumpkinbomb' in battle.abil`) && !q(`'blizzard' in battle.abil`), '🎃 the Pumpkin Bomb spell during Halloween (not the Blizzard)');
+const bl0 = q(`battle.blds.filter(function(b){ return b.hp < b.maxHp; }).length`);
+q(`castAbility('pumpkinbomb', CENTER, CENTER);`);
+check(q(`battle.blds.filter(function(b){ return b.hp < b.maxHp; }).length`) > bl0, '🎃 Pumpkin Bomb blasts the buildings in a big area');
+q(`deploy('bomber', 0, 0); var bm = battle.troops[battle.troops.length - 1]; var d = battle.blds.find(function(b){ return B[b.type].def; }); bm.x = d.x + 0.5; bm.y = d.y; bm.stage = 2; bm.target = d; bm.cd = 0; var h0 = d.hp; battleStep(); window.__bomb = { alive: bm.hp > 0, hit: d.hp < h0 };`);
+check(q('__bomb.hit') === true && q('__bomb.alive') === false, '🎃 the Pumpkin Bomber explodes on a defence (once)');
+q(`endBattle(true); battle = null; hidePanels(); localStorage.setItem('island_clash_event_force', 'christmas'); S.presents = 100; S.army = {}; buyEventItem('troops', 'santa'); S.army.warrior = 3; startBattle(genIsland(4)); battle.mobs = []; battle.waves = [];`);
+check(q(`'blizzard' in battle.abil`) && q('S.presents') === 85, '❄️ the Blizzard spell and 🎅 Santas at Christmas');
+q(`castAbility('blizzard', CENTER, CENTER);`);
+check(q(`battle.blds.filter(function(b){ return B[b.type].def && b.frozenUntil > battle.frame; }).length`) > 0, '❄️ Blizzard freezes the defences');
+q(`deploy('santa', 0, 0); deploy('warrior', 0, 0); var sa = battle.troops[0], wa = battle.troops[1]; wa.hp = 10; wa.x = sa.x + 0.5; wa.y = sa.y; sa.stage = wa.stage = 2; var tg = battle.blds.find(function(b){ return b.hp > 0; }); sa.target = tg; sa.x = tg.x + 2; sa.y = tg.y; wa.x = sa.x + 0.4; wa.y = sa.y; sa.cd = 0; wa.stunUntil = 1e9; battleStep();`);
+check(q('battle.troops[1].hp') > 10, '🎅 Santa heals the troops around him');
+q(`endBattle(true); battle = null; hidePanels();`);
+// daily gifts
+check(/Door 10: 🎁 \+15/.test(q(`S.evDaily = null; claimDaily(new Date(2026, 11, 10, 12))`)) && /tomorrow/.test(q(`claimDaily(new Date(2026, 11, 10, 15))`)), '📅 Advent Calendar: one door a day (door 10 = 🎁 15)');
+check(/MERRY CHRISTMAS/.test(q(`S.evDaily = null; claimDaily(new Date(2026, 11, 25, 12))`)) && q('S.army.snowgolem') >= 3, '🎅 Christmas Day: 🎁 100 and Snow Golems');
+q(`localStorage.setItem('island_clash_event_force', 'halloween');`);
+check(/TREAT|TRICK/.test(q(`S.evDaily = null; claimDaily(new Date(2026, 9, 20, 12))`)), '🚪 Trick or Treat at Halloween');
+// badges
+q(`S.bossWins = { halloween: 2 }; S.army = { giant: 10, mage: 10, warrior: 30 }; startEventBoss(); battle.blds.forEach(function(b){ if (b.type !== 'wall') b.hp = 0; }); endBattle();`);
+check(/NEW BADGE: 🎃 Pumpkin Smasher/.test(q(`document.getElementById('resText').textContent`)) && q('badgesOf().length') === 1, '🏅 beat the boss 3 times: the 🎃 Pumpkin Smasher badge');
+q(`battle = null; hidePanels(); renderEvent(); renderInfo();`);
+check(/Trick or Treat/.test(q(`document.getElementById('evBody').innerHTML`)) && /Pumpkin Smasher/.test(q(`document.getElementById('infoBody').innerHTML`)), 'the event panel and 📊 My Island show it');
+check(q(`(function(){ S.owner = true; var g = 0; S.buildings.push({ type: 'gate', lvl: 1, x: 12, y: 12 }); S.army = { warrior: 1 }; startBattle(genIsland(2)); battle.waves = []; battleStep(); var ev = battle.troops.filter(function(t){ return T[t.kind].event; }).length; endBattle(true); battle = null; hidePanels(); return ev; })()`) === 0, '⛩️ the Summoning Gate summons normal troops only');
+q(`localStorage.removeItem('island_clash_event_force'); S.revenge = null;`);
+
 // ---- ⛩️ owner panel: Summoning Gate controls ----
 reset({ army: {} }); q(`S.owner = true;`);
 check(/you have 1/.test(q(`panelAction('gateplace', '', true)`)) && /you have 2/.test(q(`panelAction('gateplace', '', true)`)) && q(`countOf('gate')`) === 2, '⛩️ Place as many Gates as you like');
@@ -1171,7 +1203,7 @@ q(`panelAction('gateamount', '', true);`);
 // ---- ♾️ owner: infinite troops ----
 reset({ army: {} }); q(`S.owner = true;`);
 check(/ON/.test(q(`panelAction('inftroops', '', true)`)) && q(`panelAction('inftroops', '', false)`) === '👑 Owner only.', 'owner switches on infinite troops (admins cannot)');
-check(q(`startBattle(genIsland(2))`) === null && Object.keys(JSON.parse(q('JSON.stringify(battle.army)'))).length === 4 && q('battle.army.giant') === 9999, 'attack with an empty army: every troop, infinite');
+check(q(`startBattle(genIsland(2))`) === null && Object.keys(JSON.parse(q('JSON.stringify(battle.army)'))).length === q('Object.keys(T).length') && q('battle.army.giant') === 9999, 'attack with an empty army: every troop, infinite');
 q(`for (var i = 0; i < 50; i++) deploy('giant', 0, 0);`);
 check(q('battle.army.giant') === 9999 && q('battle.troops.length') === 50, 'send as many as you want — it never runs out');
 q(`battle.drawBar();`);

@@ -1075,6 +1075,20 @@ q(`renderBoard();`);
 check(/You are #/.test(q(`document.getElementById('boardSub').textContent`)) && /\(you\)/.test(q(`document.getElementById('boardBody').innerHTML`)), 'the 🏆 Leaders panel');
 q(`boardPlayers = []; S.met = {};`);
 
+// ---- 😠 revenge shows their whole island ----
+reset({ army: { warrior: 3 } });
+q(`window.__r = Math.random; Math.random = function(){ return 0.1; }; startBattle(genIsland(7, 321)); endBattle(true); battle = null; hidePanels(); Math.random = window.__r;`);
+check(q('S.revenge.level') === 7 && q('S.revenge.seed') === 321, 'a revenge remembers which island it was');
+q(`S.revenge.at = 0; frame(performance.now());`);
+check(q('!!battle && battle.opts.defense && battle.bridge.home.full && battle.bridge.home.theirs') && q('battle.otherBlds.length') === q('genIsland(7, 321).buildings.length'), '😠 revenge: their WHOLE island is on the left (the same island you raided)');
+check(q(`battle.otherBlds.every(function(b){ return b.x < battle.bridge.a.x; }) && battle.troops.every(function(t){ return onHome(battle.bridge, t.x, t.y); })`), 'their army starts on their island and comes over the bridge');
+q(`battle.mobs.forEach(function(m){ m.pet = true; }); for (var i = 0; i < 2500 && !battle.over; i++) { battle.troops.forEach(function(t){ t.dmg = 0; }); battleStep(); }`);
+check(q(`battle.otherBlds.some(function(b){ return b.hp < b.maxHp; })`), 'your pets can go over and smash their island');
+q(`battle.otherBlds.filter(function(b){ return b.type !== 'wall'; }).slice(0, 2).forEach(function(b){ b.hp = 0; }); battle.troops.forEach(function(t){ t.hp = 0; }); if (!battle.over) battleStep();`);
+const smashedPct = q('pctOf(battle.otherBlds, battle.otherTotal)');
+check(smashedPct > 0 && /smashed/.test(q(`document.getElementById('resText').textContent`)), 'beat them: bonus loot for what your animals smashed', smashedPct + '% smashed · ' + q(`document.getElementById('resText').textContent`).slice(-90));
+q(`battle = null; hidePanels(); S.revenge = null;`);
+
 // ---- ⛩️ owner panel: Summoning Gate controls ----
 reset({ army: {} }); q(`S.owner = true;`);
 check(/you have 1/.test(q(`panelAction('gateplace', '', true)`)) && /you have 2/.test(q(`panelAction('gateplace', '', true)`)) && q(`countOf('gate')`) === 2, '⛩️ Place as many Gates as you like');

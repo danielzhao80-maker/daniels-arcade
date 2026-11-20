@@ -604,10 +604,10 @@ function genIsland(lvl, seed, p) {   // p: a 🌟 Prestige island (its map, towe
   for (let k = 0, n = Math.min(14, Math.floor(lvl / 2)) + (p ? 4 + 2 * p : 0); k < n; k++) pets.push(petPool[Math.floor(r() * petPool.length)]);
   if (p) {
     for (const k in loot) loot[k] = Math.round(loot[k] * (1 + 0.6 * p));
-    return { name: `${PRESTIGE[p - 1].emoji} ${PRESTIGE[p - 1].map}`, th: t, buildings: list, loot, level: lvl, prestige: p, pets, theme: PRESTIGE[p - 1].theme };
+    return { name: `${PRESTIGE[p - 1].emoji} ${PRESTIGE[p - 1].map}`, th: t, buildings: list, loot, level: lvl, seed, prestige: p, pets, theme: PRESTIGE[p - 1].theme };
   }
   const ni = (lvl * 7 + (seed || 0) * 13) % ISLAND_NAMES.length;   // 7 and 24 share no factor: every name comes up
-  return { name: ISLAND_NAMES[ni] + (lvl > ISLAND_NAMES.length ? " " + Math.ceil(lvl / ISLAND_NAMES.length) : ""), th: t, buildings: list, loot, level: lvl, pets,
+  return { name: ISLAND_NAMES[ni] + (lvl > ISLAND_NAMES.length ? " " + Math.ceil(lvl / ISLAND_NAMES.length) : ""), th: t, buildings: list, loot, level: lvl, seed, pets,
            theme: THEME_ORDER[((seed || lvl) + lvl) % THEME_ORDER.length] };
 }
 // Your island as someone else will see it (online).
@@ -785,7 +785,7 @@ function walkTo(bt, m, x, y, sp) {
 // enemyBlds: the OTHER island's buildings — 🐾 pets smash them too (whatever enemy is nearest: troop, animal or building).
 function mobStep(bt, mobs, troops, ctr, noSteal, hostile, enemyBlds) {
   mobs = mobs || bt.mobs || []; troops = troops || bt.troops; hostile = hostile || (mobs === bt.mobs ? bt.homeMobs : null) || [];
-  enemyBlds = enemyBlds || (mobs === bt.mobs ? bt.homeBlds : null) || [];
+  enemyBlds = enemyBlds || (mobs === bt.mobs ? bt.homeBlds || bt.otherBlds : null) || [];
   for (const m of mobs) {
     if (m.hp <= 0 || m.frozenUntil > bt.frame) continue;
     const M = mobDef(m);
@@ -1071,7 +1071,12 @@ function startDefense(from) {
   battle.stolen = { gold: 0, wood: 0, stone: 0 }; battle.texts = [];
   const lv = 1 + 0.15 * (th() - 1), r0 = landRadius(isl.th) + 1.4;
   if (from) {   // 😠 revenge: their island joins yours with a bridge and they march across it
-    battle.bridge = makeBridge(isl.th, from.name, from.th);
+    if (from.level) {   // their WHOLE island (rebuilt exactly) on the left, joined to yours by the bridge
+      const other = genIsland(from.level, from.seed, from.p), Re = landRadius(other.th), Rm = landRadius(isl.th), HX = CENTER - Rm - 2.6 - Re - 0.4, dx = HX - CENTER;
+      battle.bridge = { a: { x: HX + Re + 0.2, y: CENTER }, b: { x: CENTER - Rm - 0.2, y: CENTER }, home: { x: HX, y: CENTER, r: Re, name: from.name, th: other.th, full: true, theirs: true, dx, theme: other.theme } };
+      battle.otherBlds = other.buildings.map((b) => Object.assign({}, b, { x: b.x + dx, hp: hpOf(b.type, b.lvl), maxHp: hpOf(b.type, b.lvl), cd: 0 }));
+      battle.otherTotal = battle.otherBlds.filter((b) => b.type !== "wall").length;
+    } else battle.bridge = makeBridge(isl.th, from.name, from.th);   // (a revenge saved before islands were remembered)
     for (const [k, n] of Object.entries(army)) for (let j = 0; j < n; j++) {
       const t = T[k], [x, y] = homeSpot(battle.bridge);
       battle.troops.push({ kind: k, x, y, hp: t.hp * lv, maxHp: t.hp * lv, dmg: t.dmg * lv, cd: 0, target: null, raider: true, stage: 0 });
@@ -1092,7 +1097,7 @@ function startDefense(from) {
 }
 function maybeRevenge(island) {   // after you raid a computer island: 50% it comes back for you in 2–4 minutes
   if (!island || island.rankUp || island.prestigeTrial || S.revenge || Math.random() >= 0.5) return false;
-  S.revenge = { name: island.name, th: island.th, at: Date.now() + (120 + Math.random() * 120) * 1000 };
+  S.revenge = { name: island.name, th: island.th, level: island.level, seed: island.seed, p: island.prestige || 0, at: Date.now() + (120 + Math.random() * 120) * 1000 };   // (enough to rebuild their island)
   setTimeout(() => toast(`😠 ${island.name} swore REVENGE — they'll attack you soon!`), 1800);
   return true;
 }
@@ -1112,8 +1117,12 @@ function endDefense(bt) {
       if (fit) { S.army[k] = (S.army[k] || 0) + fit; joined.push(`${T[k].emoji} ${fit}`); }
     }
     const got = {}; for (const k of ["gold", "wood", "stone"]) { got[k] = Math.max(0, Math.min(Math.floor(bt.raid.loot[k] / 4) + (bt.stolen[k] || 0), cap - S[k])); S[k] += got[k]; }
+    if (bt.otherBlds) {   // 😠 your animals and pets went over and smashed their island: bonus loot
+      const theirs = pctOf(bt.otherBlds, bt.otherTotal);
+      if (theirs > 0) { for (const k of RES) { const add = Math.max(0, Math.min(Math.floor(bt.raid.loot[k] * theirs / 100), capOf() - S[k])); S[k] += add; got[k] += add; } bt.smashed = theirs; }
+    }
     S.raidsWon = (S.raidsWon || 0) + 1; S.trophies += 5;
-    title = bt.opts.revenge ? `🛡️ You beat ${bt.opts.revenge}'s revenge!` : "🛡️ You beat the raiders!"; text = `They only destroyed ${pct}%. Recruits joined your army: ${joined.join(" ") || "none (no army space)"} · loot ${costText(got)} · 🏆 +5`;
+    title = bt.opts.revenge ? `🛡️ You beat ${bt.opts.revenge}'s revenge!` : "🛡️ You beat the raiders!"; text = `They only destroyed ${pct}%. Recruits joined your army: ${joined.join(" ") || "none (no army space)"} · loot ${costText(got)} · 🏆 +5${bt.smashed ? ` · 🐾 your animals smashed ${bt.smashed}% of ${bt.opts.revenge} (bonus loot!)` : ""}`;
   }
   if (bt.opts.revenge) S.revenge = null; else S.nextRaidAt = Date.now() + RAID_EVERY;   // revenge doesn't reset the raid timer
   if (back) text += ` · 🛡️ ${back} of your troops came home.`;
@@ -1440,7 +1449,7 @@ function panelAction(act, arg, owner) {
     if (act === "adeals") { if (!adminSpend("deals", 1)) return used("deals", "new deals"); S.dealShift = (S.dealShift || 0) + 1; S.deals = null; save(); return "⭐ New special deals are in the 🤝 Trade panel!"; }
     if (act === "askip") { if (!adminSpend("skip", 1)) return used("skip", "raid delays"); S.nextRaidAt = Math.max(S.nextRaidAt || Date.now(), Date.now()) + RAID_EVERY; save(); return `⏩ The next raid comes ${Math.ceil((S.nextRaidAt - Date.now()) / 60000)} min from now`; }
     if (act === "araid") { hidePanels(); return startDefense() || "🏴‍☠️ Here they come!"; }
-    if (act === "arevenge") { hidePanels(); const isl = genIsland(Math.max(1, S.raidLevel), 1 + Math.floor(Math.random() * 999)); return startDefense({ name: isl.name, th: isl.th }) || `😠 ${isl.name} wants revenge!`; }
+    if (act === "arevenge") { hidePanels(); const isl = genIsland(Math.max(1, S.raidLevel), 1 + Math.floor(Math.random() * 999)); return startDefense({ name: isl.name, th: isl.th, level: isl.level, seed: isl.seed, p: isl.prestige || 0 }) || `😠 ${isl.name} wants revenge!`; }
     return "👑 Owner only.";
   }
   if (act === "th") {
@@ -1471,7 +1480,7 @@ function panelAction(act, arg, owner) {
   }
   if (act === "revengenow") {
     hidePanels(); const isl = genIsland(Math.max(1, S.raidLevel), 1 + Math.floor(Math.random() * 999));
-    const e = startDefense({ name: isl.name, th: isl.th }); return e || `😠 ${isl.name} wants revenge!`;
+    const e = startDefense({ name: isl.name, th: isl.th, level: isl.level, seed: isl.seed, p: isl.prestige || 0 }); return e || `😠 ${isl.name} wants revenge!`;
   }
   if (act === "noraids") { S.noRaids = !S.noRaids; if (!S.noRaids) S.nextRaidAt = Date.now() + RAID_EVERY; save(); return S.noRaids ? "🏴‍☠️ Raids and revenge are OFF" : "🏴‍☠️ Raids are back on (next in 10 min)"; }
   if (act === "win") {   // ⚡ win the battle you're in right now
@@ -1967,7 +1976,8 @@ function drawBridge(br, time) {
     for (let x = ax - tile * 0.6; x < bx; x += tile * 0.35) { ctx.beginPath(); ctx.moveTo(x, ay - h / 2); ctx.lineTo(x, ay + h / 2); ctx.stroke(); }
     const [hx, hy] = toScreen(br.home.x, br.home.y - br.home.r - 1.3);
     ctx.font = `bold ${Math.max(12, tile * 0.55)}px Nunito, sans-serif`; ctx.textAlign = "center"; ctx.fillStyle = "#55efc4"; ctx.strokeStyle = "#000"; ctx.lineWidth = 3;
-    ctx.strokeText("🛡️ " + br.home.name, hx, hy); ctx.fillText("🛡️ " + br.home.name, hx, hy);
+    const label = (br.home.theirs ? "😠 " : "🛡️ ") + br.home.name; if (br.home.theirs) ctx.fillStyle = "#ff7675";
+    ctx.strokeText(label, hx, hy); ctx.fillText(label, hx, hy);
     return;
   }
   const [ax, ay] = toScreen(br.a.x, br.a.y), [bx] = toScreen(br.b.x - 0.6, br.b.y), h = tile * 0.95;
@@ -2093,6 +2103,11 @@ function frame(now) {
     if (bt.homeBlds) {   // ⚔️ your whole island, on the left
       const dx = bt.bridge.home.dx; ctx.save(); ctx.translate(dx * tile, 0);
       drawIsland(th(), bt.homeBlds.map((b) => Object.assign({}, b, { x: b.x - dx })), time, { battle: true, noSea: true, theme: prest() ? PRESTIGE[prest() - 1].theme : "tropical" });
+      ctx.restore();
+    }
+    if (bt.otherBlds) {   // 😠 their whole island, on the left
+      const dx = bt.bridge.home.dx; ctx.save(); ctx.translate(dx * tile, 0);
+      drawIsland(bt.bridge.home.th, bt.otherBlds.map((b) => Object.assign({}, b, { x: b.x - dx })), time, { battle: true, noSea: true, theme: bt.bridge.home.theme });
       ctx.restore();
     }
     if (bt.bridge) drawBridge(bt.bridge, time);   // 🌉

@@ -139,8 +139,8 @@ const run = (n, max) => q(`(function(){ var i = 0; while (battle && !battle.over
 
 // ---- start ----
 reset();
-check(q('Object.keys(PETS).length') === 1037 && q('Object.keys(S.pets).length') === 4 && q('S.deck.length') === 4 && q('S.coins') === 250, 'a new player: 1037 pets to find (24 + 13 top-rarity + 1000 elemental), 4 to start with, 🪙 250');
-check(JSON.stringify(q('RAR_ORDER')) === JSON.stringify(['common', 'uncommon', 'rare', 'epic', 'legendary', 'mythic', 'divine', 'celestial', 'secret']), '9 rarities: Common, Uncommon, Rare, Epic, Legendary, Mythic, ✨ Divine, 🌌 Celestial, 🤫 Secret');
+check(q('Object.keys(PETS).length') === 1040 && q('Object.keys(S.pets).length') === 4 && q('S.deck.length') === 4 && q('S.coins') === 250, 'a new player: 1040 pets (24 + 13 top-rarity + 3 👑 owner-only + 1000 elemental), 4 to start with, 🪙 250');
+check(JSON.stringify(q('RAR_ORDER')) === JSON.stringify(['common', 'uncommon', 'rare', 'epic', 'legendary', 'mythic', 'divine', 'celestial', 'secret', 'owner']), '10 rarities: Common … ✨ Divine, 🌌 Celestial, 🤫 Secret and 👑 Owner');
 check(q('CREATURES.length') === 50 && q(`new Set(CREATURES.map(function(c){ return c[1]; }).concat(ANIMALS.map(function(a){ return a[1]; }))).size`) === 100, 'the 50 new creatures all look different (100 different animals in all)');
 check(q(`CREATURES.every(function(c){ return c[4] && Object.keys(c[4]).length && c[5]; })`), 'every new creature has its own signature power');
 check(q("PETS['shadow-vampire'].lifesteal") === 0.6 && q("PETS['fire-robot'].boom.dmg") > 300 && /NINE LIVES/.test(q("PETS['ice-blackcat'].desc")), '…e.g. 🧛 Blood Bite, 🤖 Self-Destruct, 🐈‍⬛ Nine Lives');
@@ -315,7 +315,7 @@ if (process.env.OWNER_CODE) {   // the real code is only checked when given: OWN
 check(/10,000/.test(q(`ownerAction('coins')`)) && q('S.coins') === 10250 && q('ownerVisit') === true, '🪙 +10,000 coins (and the 👑 button shows for this visit)');
 q(`ownerAction('infcoins'); S.coins = 0;`);
 check(!q(`hatch('cosmic').error`) && q('S.coins') === 0, '♾️ infinite coins: eggs are free');
-check(/1037/.test(q(`ownerAction('allpets')`)) && q('Object.keys(S.pets).length') === 1037, '🐾 every pet (all 1037)');
+check(/1040/.test(q(`ownerAction('allpets')`)) && q('Object.keys(S.pets).length') === 1040, '🐾 every pet (all 1040)');
 q(`ownerAction('maxpets'); ownerAction('bestdeck');`);
 check(q(`Object.values(S.pets).every(function(p){ return p.lvl === MAX_LVL; })`) && q('S.deck.length') === 6, '⭐ max level for every pet, 🃏 best deck');
 check(/every stage/.test(q(`ownerAction('stars')`)) && q('S.stage') === 30 && q('totalStars()') === 90, '⭐⭐⭐ every stage');
@@ -412,6 +412,49 @@ q(`startStage(1); for (var i = 0; i < 30; i++) { battle.energy[0] = 10; summon(0
 check(/\+120/.test(q('claimQuest(1)')) && /ALL 3 DONE/.test(q('claimQuest(2)')), 'summon 30 and win 2 → all 3 done: a bonus 🥚');
 q(`renderDaily(); renderMenu();`);
 check(/Daily reward/.test(q(`document.getElementById('dailyBody').innerHTML`)), 'the 📅 Daily & Quests screen');
+
+// ---- 👑 owner-only summons ----
+reset();
+check(q(`Object.values(PETS).filter(function(p){ return p.ownerOnly; }).length`) === 3 && q(`Object.values(EGGS).every(function(e){ return !e.odds.owner; })`), '3 👑 owner-only pets, and no egg can give them');
+q(`S.pets.danielsummoner = { lvl: 10, shards: 0 };`);
+check(/Only the owner/.test(q(`toggleDeck('danielsummoner')`)), 'not the owner: you can\'t use them');
+q(`S.owner = true;`);
+check(/yours/.test(q(`ownerAction('ownerpets')`)) && q(`toggleDeck('danielsummoner')`) === null, 'the owner gets all 3 (and can use them)');
+q(`startStage(1, function(){ return 0.3; }); battle.aiWait = 1e9; battle.energy[0] = 10; summon(0, 'danielsummoner'); for (var i = 0; i < 241; i++) step();`);
+check(q(`battle.units.some(function(u){ return u.side === 0 && PETS[u.id] && PETS[u.id].rarity === 'legendary'; })`), '🧙‍♂️ Daniel the Summoner calls Legendary pets');
+q(`var ib = makeUnit(0, 'infinitybeast', 10, 300, 1); battle.units = [ib]; hurt(battle, ib, 1e9); hurt(battle, ib, 1e9); hurt(battle, ib, 1e9); window.__ib3 = ib.hp > 0; hurt(battle, ib, 1e9); step();`);
+check(q('__ib3') === true && q('battle.units.length') === 0, '♾️ Infinity Beast comes back 3 times (then it\'s done)');
+q(`S.owner = false; battle.energy[0] = 10;`);
+check(q(`summon(0, 'danielsummoner')`) === false, '…and nobody but the owner can summon them');
+q('battle = null; S.owner = true;');
+// custom summon
+const cid = q(`saveCustom({ name: 'Mega <b>Dan</b>', emoji: '🦸', role: 'shooter', element: 'fire', hp: 999999, dmg: 500, cost: 0, speed: 9, powers: ['fly', 'splash', 'nope'] })`);
+check(/^custom-/.test(cid) && q(`PETS['${cid}'].name`) === 'Mega bDan/b' && q(`PETS['${cid}'].hp`) === 50000 && q(`PETS['${cid}'].cost`) === 1 && q(`PETS['${cid}'].speed`) === 3 && q(`PETS['${cid}'].fly`) === true && q(`PETS['${cid}'].splash`) === 70, '🛠️ Custom Summon: the owner makes a pet (numbers kept sensible, no tags)');
+check(q(`S.pets['${cid}'].lvl`) === 10 && q(`S.deck.includes('${cid}')`), '…it joins your pets at Lv 10 (and your deck)');
+q(`load();`);
+check(q(`PETS['${cid}'] && PETS['${cid}'].emoji`) === '🦸', '…and is still there after a reload');
+check(q(`(function(){ S.owner = false; var e = saveCustom({ name: 'x' }); S.owner = true; return e; })()`) === null, 'only the owner can make custom pets');
+check(q(`myHello().custom['${cid}'].name`) === 'Mega <b>Dan</b>', 'online: your custom pet is sent to your friend…');
+q(`delete PETS['${cid}']; netData({ t: 'hello', name: 'Me', deck: ['${cid}'], lvls: {}, custom: { '${cid}': { name: 'Mega Dan', emoji: '🦸', role: 'tank', hp: 1000 } } });`);
+check(q(`PETS['${cid}'].name`) === 'Mega Dan' && JSON.stringify(q('NETS.friendDeck')) === JSON.stringify([cid]), '…so they can see it in the battle');
+check(q(`deleteCustom('${cid}')`) === true && !q(`PETS['${cid}']`) && !q(`S.deck.includes('${cid}')`), 'delete a custom pet');
+q(`renderCustom();`);
+check(/Create my pet/.test(q(`document.getElementById('customForm').innerHTML`)), 'the 🛠️ Custom Summon screen');
+q(`netReset();`);
+
+// ---- ⚔️ PvP (same screen) ----
+reset(); q(`S.pets['fire-tiger'] = { lvl: 5, shards: 0 };`);
+check(/at least 1/.test(q(`startPvP([])`)), 'Player 2 needs a deck');
+check(q(`startPvP(['frog', 'fire-tiger'])`) === null && q('battle.pvp') && q('battle.aiWait') > 1e8, '⚔️ PvP: two players, no computer');
+q('battle.energy[1] = 10;'); check(q(`summon(1, 'fire-tiger')`) === true && q(`battle.units[0].side`) === 1 && q(`battle.units[0].lvl`) === 5, 'Player 2 summons on the right (their own deck)');
+check(q(`summon(1, 'mouse')`) === false && q(`summon(0, 'mouse')`) === true, "…each player can only use their own deck");
+q(`S.infEnergy = true; battle.energy[0] = 0;`);
+check(q(`summon(0, 'mouse')`) === false, 'no owner infinite energy in PvP');
+q(`S.infEnergy = false; showBattle(); renderHud();`);
+check(q(`document.getElementById('p2box').style.display`) === 'flex' && /data-sum2/.test(q(`document.getElementById('hand2').innerHTML`)), "Player 2's cards and ⚡ bar show");
+q(`battle.base[0] = 0; step();`);
+check(/PLAYER 2 WINS/.test(q(`document.getElementById('resTitle').textContent`)), 'break a base: that player wins');
+q('battle = null;');
 
 // ---- screens + drawing ----
 reset();

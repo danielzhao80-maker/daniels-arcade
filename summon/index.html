@@ -55,7 +55,7 @@
   #topHud.on { display: flex; }
   #toast { position: fixed; top: 60px; left: 50%; transform: translateX(-50%); background: rgba(0,0,0,.85); padding: 10px 18px; border-radius: 14px; font-weight: 900; z-index: 50; display: none; max-width: 90vw; text-align: center; }
   input { font-family: "Fredoka One", cursive; font-size: 1rem; padding: 8px 12px; border-radius: 14px; border: 2px solid #fff; background: rgba(255,255,255,.12); color: #fff; width: 170px; text-transform: uppercase; }
-  .rar-common { border-color: #b2bec3; } .rar-rare { border-color: #48dbfb; } .rar-epic { border-color: #a55eea; } .rar-legendary { border-color: #feca57; } .rar-uncommon { border-color: #55efc4; } .rar-divine { border-color: #fff3b0; box-shadow: 0 0 16px #fff3b0; } .rar-celestial { border-color: #74b9ff; box-shadow: 0 0 18px #74b9ff, inset 0 0 12px #6c5ce7; } .rar-secret { border-color: #fd79a8; box-shadow: 0 0 20px #fd79a8, 0 0 34px #a29bfe; background: linear-gradient(135deg, rgba(253,121,168,.25), rgba(108,92,231,.3)) !important; } .rar-mythic { border-color: #ff6b6b; box-shadow: 0 0 14px #ff6b6b; }
+  .rar-common { border-color: #b2bec3; } .rar-rare { border-color: #48dbfb; } .rar-epic { border-color: #a55eea; } .rar-legendary { border-color: #feca57; } .rar-owner { border-color: #f9ca24; box-shadow: 0 0 22px #f9ca24, 0 0 40px #e67e22; background: linear-gradient(135deg, rgba(249,202,36,.3), rgba(230,126,34,.3)) !important; } .rar-uncommon { border-color: #55efc4; } .rar-divine { border-color: #fff3b0; box-shadow: 0 0 16px #fff3b0; } .rar-celestial { border-color: #74b9ff; box-shadow: 0 0 18px #74b9ff, inset 0 0 12px #6c5ce7; } .rar-secret { border-color: #fd79a8; box-shadow: 0 0 20px #fd79a8, 0 0 34px #a29bfe; background: linear-gradient(135deg, rgba(253,121,168,.25), rgba(108,92,231,.3)) !important; } .rar-mythic { border-color: #ff6b6b; box-shadow: 0 0 14px #ff6b6b; }
   #result { background: rgba(10,5,25,.92); justify-content: center; }
   #eggShow { font-size: 5rem; margin: 10px; transition: transform .3s; }
 </style>
@@ -73,6 +73,7 @@
     <button class="green" id="btnPlay">⚔️ Play</button>
     <button class="orange" id="btnOnline">🌐 Online fight</button>
     <button class="red" id="btnSurvival">♾️ Survival</button>
+    <button class="red" id="btnPvp">⚔️ PvP (2 players)</button>
     <button class="green" id="btnDaily">📅 Daily & Quests <span id="dailyDot"></span></button>
     <button id="btnPets">🐾 My Pets & Deck</button>
     <button class="orange" id="btnEggs">🥚 Hatch Eggs</button>
@@ -113,6 +114,19 @@
 </div>
 
 <!-- 🏁 result -->
+<div class="screen" id="custom" style="background:linear-gradient(180deg,#5c4400,#1b1035)">
+  <h2>🛠️ Custom Summon</h2><div class="sub">👑 Owner only. Design your own pet — it joins your pets at level 10.</div>
+  <div class="card" style="width:min(560px,96vw);text-align:left;cursor:default" id="customForm"></div>
+  <div class="grid" id="customList" style="margin-top:12px"></div>
+  <div class="row"><button class="small" id="customBack">⬅ Owner Panel</button></div>
+</div>
+<div class="screen" id="pvp" style="background:radial-gradient(circle at 50% 20%,#c0392b,#1b1035 70%)">
+  <h2>⚔️ PvP — two players, one screen</h2>
+  <div class="sub">Player 1 uses YOUR deck (left side, keys 1–6). Player 2 picks 6 pets below (right side, keys 7 8 9 0 - =). Tap cards or use the keys!</div>
+  <div class="sub" id="pvpSub" style="font-weight:900"></div>
+  <div class="grid" id="pvpGrid"></div>
+  <div class="row"><button class="small" id="pvpRandom">🎲 Random 6</button><button class="green" id="pvpGo">⚔️ FIGHT!</button><button class="small" data-back>⬅ Back</button></div>
+</div>
 <div class="screen" id="daily" style="background:radial-gradient(circle at 50% 20%,#e17055,#1b1035 70%)">
   <h2>📅 Daily & Quests</h2>
   <div id="dailyBody" style="width:min(640px,96vw)"></div>
@@ -142,7 +156,11 @@
 <!-- ⚔️ battle HUD -->
 <div id="topHud"><span class="pill" id="hudStage"></span><span class="pill">⏱ <b id="hudTime">3:00</b></span><button class="small red" id="btnQuit">🏳️ Give up</button><button class="small" id="btn3dB">🎲 3D</button><button class="small orange" id="btnOwnerB" style="display:none">👑 Owner</button></div>
 <button class="small orange" id="btnOwner" style="display:none;position:fixed;top:10px;left:10px;z-index:6">👑 Owner</button>
-<div id="hud"><div id="spells" style="display:flex;gap:6px;flex-wrap:wrap;justify-content:center"></div><div id="energy"><i id="energyFill"></i><b id="energyTxt"></b></div><div id="hand"></div></div>
+<div id="hud"><div id="spells" style="display:flex;gap:6px;flex-wrap:wrap;justify-content:center"></div>
+  <div style="display:flex;gap:18px;flex-wrap:wrap;justify-content:center;align-items:flex-end">
+    <div style="display:flex;flex-direction:column;align-items:center;gap:6px"><div id="p1lab" class="pill" style="display:none">🟢 Player 1 · keys 1–6</div><div id="energy"><i id="energyFill"></i><b id="energyTxt"></b></div><div id="hand"></div></div>
+    <div id="p2box" style="display:none;flex-direction:column;align-items:center;gap:6px"><div class="pill">🔴 Player 2 · keys 7 8 9 0 - =</div><div id="energy2" style="width:min(420px,44vw);height:18px;background:rgba(0,0,0,.5);border:2px solid #fff;border-radius:12px;overflow:hidden;position:relative"><i id="energyFill2" style="display:block;height:100%;background:linear-gradient(90deg,#ff7675,#fd79a8)"></i><b id="energyTxt2" style="position:absolute;inset:0;text-align:center;font-size:.8rem;line-height:14px"></b></div><div id="hand2" style="display:flex;gap:8px;flex-wrap:wrap;justify-content:center"></div></div>
+  </div></div>
 <div id="toast"></div>
 
 <script>
@@ -171,6 +189,7 @@ const RARITY = {   // (in order, rarest last)
   divine:    { name: "Divine",    color: "#fff3b0", shards: 10 },
   celestial: { name: "Celestial", color: "#74b9ff", shards: 10 },
   secret:    { name: "Secret",    color: "#fd79a8", shards: 10 },
+  owner:     { name: "👑 Owner",  color: "#f9ca24", shards: 10 },   // (never from eggs: only the owner has these)
 };
 const PETS = {
   mouse:    { name: "Mouse",        emoji: "🐭", rarity: "common",    cost: 2,  hp: 80,   dmg: 10, range: 26,  speed: 1.6, rate: 34, desc: "Fast and cheap." },
@@ -209,6 +228,10 @@ const PETS = {
   galaxywhale:{ name: "Galaxy Whale",    emoji: "🌌", rarity: "celestial", cost: 10, hp: 10000, dmg: 50, range: 40, speed: 0.6, rate: 50, shield: 0.4, heal: 120, summon: { id: "inkling", every: 240 }, desc: "Heals everything near it and calls little helpers." },
   watcher:    { name: "The Watcher",     emoji: "👁️", rarity: "secret", cost: 10, hp: 9000, dmg: 160, range: 220, speed: 0.8, rate: 40, fly: true, splash: 90, freeze: 60, desc: "🤫 Sees everything: freezing blasts from very far away." },
   voidmaw:    { name: "Void Maw",        emoji: "🕳️", rarity: "secret", cost: 10, hp: 14000, dmg: 180, range: 60, speed: 0.6, rate: 55, splash: 140, lifesteal: 0.5, revive: true, desc: "🤫 A hole that eats whole armies — and comes back once." },
+  // 👑 OWNER ONLY — only the owner can have or summon these
+  danielsummoner: { name: "Daniel the Summoner", emoji: "🧙‍♂️", rarity: "owner", ownerOnly: true, cost: 10, hp: 15000, dmg: 160, range: 180, speed: 0.9, rate: 36, splash: 70, aura: 0.5, summon: { id: "@legendary", every: 240 }, desc: "👑 OWNER ONLY — calls a random LEGENDARY pet to fight for you every 4 s, and +50% damage to friends." },
+  royalguardian:  { name: "Royal Guardian",      emoji: "⚜️", rarity: "owner", ownerOnly: true, cost: 10, hp: 40000, dmg: 120, range: 60, speed: 0.6, rate: 45, shield: 0.7, heal: 300, splash: 80, desc: "👑 OWNER ONLY — almost unbreakable (blocks 70%) and heals every friend near it." },
+  infinitybeast:  { name: "Infinity Beast",      emoji: "♾️", rarity: "owner", ownerOnly: true, cost: 10, hp: 18000, dmg: 260, range: 40, speed: 1.4, rate: 34, splash: 100, lifesteal: 0.5, revives: 3, desc: "👑 OWNER ONLY — smashes everything and comes back to life THREE times." },
   arcadeking: { name: "Arcade King",     emoji: "👑", rarity: "secret", cost: 10, hp: 12000, dmg: 150, range: 120, speed: 1.0, rate: 36, splash: 80, aura: 0.5, heal: 100, summon: { id: "pup", every: 180 }, desc: "🤫 Rules the arcade: +50% damage to friends, heals them, and calls pups." },
   kraken:   { name: "Cosmic Kraken", emoji: "🦑", rarity: "mythic",   cost: 10, hp: 2500, dmg: 60, range: 140, speed: 0.7, rate: 52, splash: 80, summon: { id: "inkling", every: 300 }, desc: "Smashes groups and calls 🐙 inklings every 5 s." },
 };
@@ -314,8 +337,8 @@ const CREATURES = [
   ["Coral", "🪸", "healer", 3, { heal: 30, shield: 0.3 }, "REEF: tough, and heals its friends."],
 ];
 const RAR_ORDER = Object.keys(RARITY);   // common … secret
-const RAR_MUL = { common: 1, uncommon: 1.15, rare: 1.35, epic: 1.8, legendary: 2.6, mythic: 3.6, divine: 4.8, celestial: 6.2, secret: 8 };
-const RAR_RANK = { common: 0, uncommon: 0, rare: 1, epic: 2, legendary: 3, mythic: 4, divine: 5, celestial: 6, secret: 7 };   // (energy cost bumps, world pools)
+const RAR_MUL = { common: 1, uncommon: 1.15, rare: 1.35, epic: 1.8, legendary: 2.6, mythic: 3.6, divine: 4.8, celestial: 6.2, secret: 8, owner: 12 };
+const RAR_RANK = { common: 0, uncommon: 0, rare: 1, epic: 2, legendary: 3, mythic: 4, divine: 5, celestial: 6, secret: 7, owner: 8 };   // (energy cost bumps, world pools)
 const GEN_RARITY = ["common", "uncommon", "rare", "epic", "legendary", "mythic"];   // score 0–5 → the 1000 element pets
 for (const [aname, emoji, role, tier] of ANIMALS) for (const [ek, el] of Object.entries(ELEMENTS)) {
   // rarity: the animal's tier + the element's rank (Nature/Water/Wind/Earth 0, Fire/Ice/Storm/Toxic 1, Light/Shadow 2)
@@ -342,7 +365,7 @@ for (const [cname, emoji, role, tier, sig, sigText] of CREATURES) for (const [ek
 const ORIG_ELEMENT = { mouse: "wind", bunny: "nature", bee: "toxic", frog: "water", snail: "earth", bird: "wind", fox: "fire", owl: "shadow", snake: "toxic", turtle: "earth", bat: "shadow", penguin: "ice",
   wolf: "storm", unicorn: "light", scorpion: "toxic", octopus: "water", eagle: "storm", puffer: "water", dragon: "fire", lion: "light", trex: "earth", whale: "water", phoenix: "fire", kraken: "shadow",
   sunspirit: "fire", moonspirit: "ice", rainbow: "light", angel: "light", crystal: "earth", volcanot: "fire", starsprite: "light", comet: "storm", planeteater: "shadow", galaxywhale: "water",
-  watcher: "shadow", voidmaw: "shadow", arcadeking: "light" };
+  watcher: "shadow", voidmaw: "shadow", arcadeking: "light", danielsummoner: "light", royalguardian: "earth", infinitybeast: "shadow" };
 for (const [id, el] of Object.entries(ORIG_ELEMENT)) {
   const d = PETS[id]; d.element = el;
   d.role = d.heal ? "healer" : d.shield ? "tank" : d.fly && d.range < 60 ? "flyer" : d.range >= 60 ? "shooter" : d.speed >= 1.7 ? "runner" : "fighter";
@@ -369,7 +392,7 @@ const ABILITIES = {
   thunder: { emoji: "🌩️", name: "Thunder Call",    desc: "ULTIMATE: lightning hits the strongest enemy every 5 s.", ult: true },
   titan:   { emoji: "👑", name: "Titan",           desc: "ULTIMATE: Giant Form AND Double Strike!", ult: true },
 };
-const ULTIMATE = { common: "giant", uncommon: "giant", rare: "double", epic: "revive", legendary: "thunder", mythic: "titan", divine: "titan", celestial: "titan", secret: "titan" };
+const ULTIMATE = { common: "giant", uncommon: "giant", rare: "double", epic: "revive", legendary: "thunder", mythic: "titan", divine: "titan", celestial: "titan", secret: "titan", owner: "titan" };
 const ABILITY_LEVELS = [3, 6, 10];
 function abilitiesOf(id) {   // → [[unlock level, ability id], …]
   const d = PETS[id]; if (!d || !d.element) return [];
@@ -417,8 +440,39 @@ function freshSave() {
            deck: ["mouse", "bunny", "frog", "bird"], stage: 1, stars: {}, codes: [], hatched: 0, wins: 0, freeEggs: {} };
 }
 let S;
+// ---- 🛠️ CUSTOM SUMMONS: the owner designs their own pets (saved in S.custom, owner-only, 👑 Owner rarity)
+const CUSTOM_POWERS = { fly: "🕊️ Flies", splash: "💥 Splash", heal: "💚 Heals friends", freeze: "❄️ Freezes", poison: "☠️ Poison", shield: "🛡️ Shield", lifesteal: "🧛 Lifesteal", charge: "🦘 3× first hit", revive: "♻️ Comes back once", summon: "🐶 Calls pups", aura: "🦁 Powers up friends" };
+function cleanCustom(c) {   // numbers clamped, text kept short — used for your own designs and ones a friend sends online
+  const n = (v, lo, hi, d) => Math.max(lo, Math.min(hi, Number.isFinite(+v) ? +v : d));
+  const role = ROLES[c.role] ? c.role : "fighter", el = ELEMENTS[c.element] ? c.element : "light", pw = Array.isArray(c.powers) ? c.powers.filter((p) => CUSTOM_POWERS[p]) : [];
+  const d = { name: String(c.name || "My Pet").replace(/[<>&"]/g, "").slice(0, 24) || "My Pet", emoji: String(c.emoji || "🐾").slice(0, 8) || "🐾", rarity: "owner", ownerOnly: true, custom: true,
+    element: el, role, cost: Math.round(n(c.cost, 1, 10, 6)), hp: Math.round(n(c.hp, 50, 50000, 3000)), dmg: Math.round(n(c.dmg, 1, 2000, 100)),
+    range: ["shooter", "healer"].includes(role) ? 150 : 30, speed: n(c.speed, 0.3, 3, 1.2), rate: 40, powers: pw };
+  if (pw.includes("fly")) d.fly = true; if (pw.includes("splash")) d.splash = 70; if (pw.includes("heal")) d.heal = Math.round(d.hp * 0.02); if (pw.includes("freeze")) d.freeze = 40;
+  if (pw.includes("poison")) d.poison = Math.round(d.dmg * 0.2); if (pw.includes("shield")) d.shield = 0.5; if (pw.includes("lifesteal")) d.lifesteal = 0.4; if (pw.includes("charge")) d.charge = 3;
+  if (pw.includes("revive")) d.revive = true; if (pw.includes("summon")) d.summon = { id: "pup", every: 300 }; if (pw.includes("aura")) d.aura = 0.3;
+  d.desc = `🛠️ CUSTOM (owner only)${pw.length ? " — " + pw.map((p) => CUSTOM_POWERS[p]).join(", ") : ""}.`;
+  return d;
+}
+function registerCustoms() { for (const [id, c] of Object.entries(S.custom || {})) PETS[id] = cleanCustom(c); }
+function saveCustom(c, id) {   // → the pet's id (new, or the one being edited)
+  if (!isOwner()) return null;
+  S.custom = S.custom || {};
+  id = id && S.custom[id] ? id : "custom-" + (Date.now() % 1e9).toString(36) + Math.floor(Math.random() * 100);
+  S.custom[id] = c; PETS[id] = cleanCustom(c);
+  S.pets[id] = S.pets[id] || { lvl: MAX_LVL, shards: 0 };
+  if (!S.deck.includes(id) && S.deck.length < DECK_SIZE) S.deck.push(id);
+  save(); return id;
+}
+function deleteCustom(id) {
+  if (!S.custom || !S.custom[id]) return false;
+  delete S.custom[id]; delete PETS[id]; delete S.pets[id]; S.deck = S.deck.filter((x) => x !== id);
+  if (!S.deck.length) S.deck = Object.keys(S.pets).slice(0, 1);
+  save(); return true;
+}
 function load() {
   try { S = Object.assign(freshSave(), JSON.parse(localStorage.getItem(SAVE_KEY) || "null") || {}); } catch (e) { S = freshSave(); }
+  registerCustoms();
   S.deck = (S.deck || []).filter((id) => S.pets[id]).slice(0, DECK_SIZE);
   if (!S.deck.length) S.deck = Object.keys(S.pets).slice(0, DECK_SIZE);
 }
@@ -460,6 +514,7 @@ function levelUp(id) {
 }
 function toggleDeck(id) {
   if (!owned(id)) return "You don't have that pet yet.";
+  if (PETS[id] && PETS[id].ownerOnly && !isOwner()) return "👑 Only the owner can use that pet.";
   const i = S.deck.indexOf(id);
   if (i >= 0) { if (S.deck.length <= 1) return "Keep at least 1 pet in your deck."; S.deck.splice(i, 1); }
   else { if (S.deck.length >= DECK_SIZE) return `Your deck is full (${DECK_SIZE}) — take one out first.`; S.deck.push(id); }
@@ -490,6 +545,8 @@ function ownerAction(act, arg) {
   if (act === "coins") { S.coins += 10000; save(); return "🪙 +10,000 coins"; }
   if (act === "infcoins") { S.infCoins = !S.infCoins; save(); return S.infCoins ? "♾️ Infinite coins ON — everything is free!" : "♾️ Infinite coins off"; }
   if (act === "eggs") { for (const k of Object.keys(EGGS)) S.freeEggs[k] = (S.freeEggs[k] || 0) + 10; save(); return "🥚 +10 free eggs of every kind"; }
+  if (act === "ownerpets") { for (const id of ["danielsummoner", "royalguardian", "infinitybeast"]) S.pets[id] = { lvl: MAX_LVL, shards: 0 }; save(); return "👑 Daniel the Summoner, Royal Guardian and Infinity Beast are yours (Lv 10)!"; }
+  if (act === "custom") { show("custom"); renderCustom(); return "🛠️ Custom Summon"; }
   if (act === "allpets") { let n = 0; for (const id of Object.keys(PETS)) if (!S.pets[id]) { S.pets[id] = { lvl: 1, shards: 0 }; n++; } save(); return `🐾 +${n} pets — you have all ${Object.keys(PETS).length}!`; }
   if (act === "maxpets") { for (const id of Object.keys(S.pets)) S.pets[id].lvl = MAX_LVL; save(); return `⭐ Every pet you have is level ${MAX_LVL} (all abilities + ultimates)`; }
   if (act === "bestdeck") {   // the strongest 6 pets you own
@@ -627,14 +684,16 @@ function startStage(n, rnd) {
 function summon(side, id) {   // side 0 = you, 1 = the enemy (or your friend online). Returns true if it came out.
   const bt = battle; if (!bt || bt.over) return false;
   if (bt.guest) return guestSummon(id);   // 🌐 the guest only asks the host
-  const d = def(id); if (!d || (side === 0 && !S.deck.includes(id) && !(S.anyPet && S.pets[id] && !bt.online))) return false;   // (👑 any pet you own — not online)
+  const d = def(id); if (!d || (side === 0 && !S.deck.includes(id) && !(S.anyPet && S.pets[id] && !bt.online) && !(bt.pvp))) return false;   // (👑 any pet you own — not online)
+  if (d.ownerOnly && !bt.online && !isOwner()) return false;   // 👑 owner-only pets
+  if (bt.pvp && !(bt.pdeck[side] || []).includes(id)) return false;   // ⚔️ each player's own deck
   if (side === 1 && bt.online && !(NETS.friendDeck || []).includes(id)) return false;   // 🌐 only your friend's deck
-  const free = side === 0 && S.infEnergy && !bt.online;   // 👑 ⚡ infinite energy (not online — that's fair play)
+  const free = side === 0 && S.infEnergy && !bt.online && !bt.pvp;   // 👑 ⚡ infinite energy (not online — that's fair play)
   if (!free && bt.energy[side] < d.cost) return false;
   if (!free) bt.energy[side] -= d.cost;
   const lane = Math.floor(bt.rnd() * LANES.length), x = side === 0 ? BASE_X[0] + 40 : BASE_X[1] - 40;
-  if (side === 0 && !bt.online) questAdd("summon", 1);
-  bt.units.push(makeUnit(side, id, side === 0 ? lvlOf(id) : bt.online ? Math.max(1, Math.min(MAX_LVL, (NETS.friendLvls || {})[id] || 1)) : bt.st.enemyLvl, x, lane));
+  if (side === 0 && !bt.online && !bt.pvp) questAdd("summon", 1);
+  bt.units.push(makeUnit(side, id, side === 0 || bt.pvp ? lvlOf(id) : bt.online ? Math.max(1, Math.min(MAX_LVL, (NETS.friendLvls || {})[id] || 1)) : bt.st.enemyLvl, x, lane));
   return true;
 }
 function auraBoost(bt, u) {   // 🦁 +25% from a friendly Lion King near
@@ -647,6 +706,7 @@ function hurt(bt, t, dmg, from) {
   t.hp -= dmg;
   if (t.hp <= 0) {
     if (has(t, "revive") && !t.secondLife) { t.secondLife = true; t.hp = t.maxHp * 0.5; bt.texts.push({ x: t.x, y: t.y - 30, t: 60, text: "♻️ SECOND LIFE!" }); return; }
+    if (d.revives && (t.revN || 0) < d.revives) { t.revN = (t.revN || 0) + 1; t.hp = t.maxHp; bt.texts.push({ x: t.x, y: t.y - 30, t: 60, text: `♾️ BACK! (${t.revN}/${d.revives})` }); return; }   // ♾️
     if (d.revive && !t.revived) { t.revived = true; t.hp = t.maxHp; bt.texts.push({ x: t.x, y: t.y - 30, t: 60, text: "🔥 REBORN!" }); return; }   // 🐦‍🔥
     if (d.boom) for (const o of bt.units) if (o.hp > 0 && o.side !== t.side && Math.abs(o.x - t.x) < d.boom.r) { o.hp -= d.boom.dmg * lvlMul(t.lvl); }   // 🐡 💥
     if (d.boom) bt.fx.push({ x: t.x, y: t.y, t: 30, r: d.boom.r });
@@ -658,7 +718,7 @@ function step() {
   bt.frame++;
   const dbl = bt.frame > BATTLE_TIME - 60 * FPS && !bt.survival ? 2 : 1;   // ⚡×2 in the last minute
   if (dbl === 2 && !bt.dblSaid) { bt.dblSaid = true; bt.texts.push({ x: 500, y: 120, t: 150, text: "⚡ DOUBLE ENERGY — last minute!" }); }
-  if (S.infEnergy && !bt.online) bt.energy[0] = MAX_ENERGY;   // 👑 ⚡ infinite energy
+  if (S.infEnergy && !bt.online && !bt.pvp) bt.energy[0] = MAX_ENERGY;   // 👑 ⚡ infinite energy
   if (bt.spellCd) for (const k in bt.spellCd) if (bt.spellCd[k] > 0) bt.spellCd[k]--;   // ✨
   if (bt.survival && (bt.frame >= bt.nextWave || (bt.frame > bt.nextWave - 1020 && !bt.units.some((u) => u.side === 1 && u.hp > 0)))) { survivalWave(bt); bt.nextWave = bt.frame + 1200; }   // ♾️
   for (const s of [0, 1]) if ((bt.tick[s] += dbl) >= ENERGY_EVERY * (s ? bt.st.aiSlow : 1)) { bt.tick[s] = 0; bt.energy[s] = Math.min(MAX_ENERGY, bt.energy[s] + 1); }
@@ -681,7 +741,12 @@ function step() {
       if (big) { hurt(bt, big, u.dmg * 3, u); bt.shots.push({ x: big.x, y: 0, tx: big.x, ty: big.y, t: 14, col: "#fff59d" }); bt.texts.push({ x: big.x, y: big.y - 40, t: 40, text: "🌩️" }); }
     }
     if (u.frozen > 0) { u.frozen--; continue; }
-    if (d.summon && --u.summonCd <= 0) { u.summonCd = d.summon.every; const m = makeUnit(u.side, d.summon.id, u.lvl, u.x - dir * 10, u.lane); bt.units.push(m); }
+    if (d.summon && --u.summonCd <= 0) {
+      u.summonCd = d.summon.every;
+      let sid = d.summon.id;
+      if (sid === "@legendary") { const pool = Object.keys(PETS).filter((k) => PETS[k].rarity === "legendary"); sid = pool[Math.floor(bt.rnd() * pool.length)]; bt.texts.push({ x: u.x, y: u.y - 50, t: 50, text: `🧙‍♂️ ${PETS[sid].emoji} SUMMONED!` }); }   // 🧙‍♂️
+      bt.units.push(makeUnit(u.side, sid, u.lvl, u.x - dir * 10, u.lane));
+    }
     // the nearest enemy ahead that this pet can reach (ground pets can't hit flyers unless they shoot)
     let tg = null, bd = 1e9;
     for (const o of bt.units) {
@@ -752,6 +817,13 @@ function starsFor(bt) { const left = bt.base[0] / bt.baseMax[0]; return 1 + (lef
 function endBattle(giveUp) {
   const bt = battle; if (!bt || bt.over) return;
   if (bt.online) return endOnline(giveUp);
+  if (bt.pvp) {   // ⚔️ who won?
+    bt.over = true;
+    const p1 = giveUp ? false : bt.base[1] <= 0 ? true : bt.base[0] <= 0 ? false : bt.base[0] >= bt.base[1];
+    S.coins += 25; save();
+    showResult(giveUp ? "🏳️ Player 1 gave up — 🔴 Player 2 wins!" : p1 ? "🏆 🟢 PLAYER 1 WINS!" : "🏆 🔴 PLAYER 2 WINS!", `Great battle! 🪙 +25 for playing. Bases left: 🟢 ${Math.max(0, Math.ceil(bt.base[0]))} · 🔴 ${Math.max(0, Math.ceil(bt.base[1]))}`, false);
+    return;
+  }
   if (bt.survival) {   // ♾️ coins for every wave you got through
     bt.over = true; const w = Math.max(0, bt.wave - (bt.units.some((u) => u.side === 1 && u.hp > 0) ? 1 : 0)), coins = 20 * w, best = w > (S.bestWave || 0);
     S.coins += coins; if (best) S.bestWave = w; questAdd("survive", w, true); save();
@@ -800,13 +872,15 @@ function renderOwner() {
   $("ownSub").textContent = `♾️ No limits. ${infCoins() ? "✅" : "⬜"} ∞ coins · ${S.infEnergy ? "✅" : "⬜"} ∞ energy · ${S.anyPet ? "✅" : "⬜"} any pet · 🐾 ${Object.keys(S.pets).length}/${Object.keys(PETS).length}`;
   $("ownBody").innerHTML =
     sec("🪙 Coins & 🥚 eggs", btn("coins", "", "🪙 +10,000", "green") + btn("infcoins", "", onOff(infCoins(), "♾️ Infinite coins"), infCoins() ? "green" : "") + btn("eggs", "", "🥚 +10 of every egg", "green")) +
-    sec("🐾 Pets", btn("allpets", "", "🐾 Every pet (all 1024)", "green") + btn("maxpets", "", "⭐ Max level for all my pets", "green") + btn("bestdeck", "", "🃏 Best deck") + btn("anypet", "", onOff(S.anyPet, "🐾 Summon any pet"), S.anyPet ? "green" : "")) +
+    sec("👑 Owner-only summons", btn("ownerpets", "", "👑 Get the 3 owner pets", "green") + btn("custom", "", "🛠️ Custom Summon (make your own!)", "orange")) +
+    sec("🐾 Pets", btn("allpets", "", `🐾 Every pet (all ${Object.keys(PETS).length})`, "green") + btn("maxpets", "", "⭐ Max level for all my pets", "green") + btn("bestdeck", "", "🃏 Best deck") + btn("anypet", "", onOff(S.anyPet, "🐾 Summon any pet"), S.anyPet ? "green" : "")) +
     sec("🗺️ Stages", btn("stages", "", "🔓 Unlock all 30") + btn("stars", "", "⭐⭐⭐ Every stage", "green")) +
     sec("⚔️ In battle", btn("infenergy", "", onOff(S.infEnergy, "⚡ Infinite energy"), S.infEnergy ? "green" : "") + btn("win", "", "⚡ Win this battle", "green") +
       ["👹 Ogre", "🦂 Scorpion King", "🦣 Mammoth", "🗿 Magma Golem", "👾 Void Lord"].map((n, i) => btn("boss", i, `${n} on my side`, "red")).join("")) +
     sec("🏅 Titles · 🎁 Codes · 🧹", btn("titles", "", "🏅 All 3 arcade titles", "green") + btn("codes", "", "Reset my codes") + btn("reset", "", "🔄 Start over", "red"));
   $("ownBody").querySelectorAll("[data-oa]").forEach((b) => (b.onclick = () => {
     const msg = ownerAction(b.dataset.oa, b.dataset.arg);
+    if (b.dataset.oa === "custom") return;
     if (["win", "boss"].includes(b.dataset.oa) && battle) { if (!battle.over) { battle.paused = false; showBattle(); } toast(msg); return; }
     $("ownMsg").textContent = msg; renderOwner(); renderMenu();
   }));
@@ -903,7 +977,8 @@ const olMsg = (t) => { const e = $("olMsg"); if (e) e.textContent = t; };
 function netSend(o) { try { NETS.conn && NETS.conn.open && NETS.conn.send(o); } catch (e) {} }
 function netReset() { try { NETS.conn && NETS.conn.close(); NETS.peer && NETS.peer.destroy(); } catch (e) {} Object.assign(NETS, { peer: null, conn: null, role: null, friendDeck: null, friendLvls: null, friendName: "" }); }
 const myName = () => { try { return (JSON.parse(localStorage.getItem("daniels-arcade-account") || "null") || {}).name || "Friend"; } catch (e) { return "Friend"; } };
-const myHello = () => ({ t: "hello", name: myName(), deck: S.deck.slice(), lvls: Object.fromEntries(S.deck.map((id) => [id, lvlOf(id)])) });
+const myHello = () => ({ t: "hello", name: myName(), deck: S.deck.slice(), lvls: Object.fromEntries(S.deck.map((id) => [id, lvlOf(id)])),
+  custom: Object.fromEntries(S.deck.filter((id) => PETS[id] && PETS[id].custom).map((id) => [id, S.custom[id]])) });   // (so your friend can see your 🛠️ custom pets)
 function onlineStage() {   // a fair arena: the same base for both, no AI, no boss
   return { n: 0, online: true, world: 0, worldDef: { name: "Arena", emoji: "🌐", sky: ["#2d3561", "#6c5ce7"], ground: "#4b6584" }, boss: false, bossId: null, enemyLvl: 1, deck: [], baseHp: 1500, coins: 0, aiSlow: 1 };
 }
@@ -933,6 +1008,7 @@ function netData(m) {
   if (!m || typeof m !== "object") return;
   if (m.t === "hello") {
     NETS.friendName = String(m.name || "Friend").slice(0, 24);
+    for (const [cid, c] of Object.entries(m.custom || {})) if (/^custom-[a-z0-9]{1,14}$/.test(cid) && !PETS[cid]) PETS[cid] = cleanCustom(c || {});   // 🛠️ the friend's custom pets
     NETS.friendDeck = (Array.isArray(m.deck) ? m.deck : []).filter((id) => PETS[id]).slice(0, DECK_SIZE);
     NETS.friendLvls = {}; for (const id of NETS.friendDeck) NETS.friendLvls[id] = Math.max(1, Math.min(MAX_LVL, Math.floor(+(m.lvls || {})[id] || 1)));
     if (NETS.role === "host") { olMsg(`⚔️ ${NETS.friendName} joined — FIGHT!`); setTimeout(startOnline, 600); }
@@ -985,12 +1061,57 @@ function onlineResult(iWin, left) {
   showResult(iWin ? (left ? "🏆 You win — your friend left!" : "🏆 YOU WIN ONLINE!") : "💥 You lost online",
     `${iWin ? "You beat" : "You lost to"} ${NETS.friendName || "your friend"}. 🪙 +${coins} · online record ${S.onlineWins || 0} wins / ${S.onlineLosses || 0} losses`, false);
 }
+// ---- ⚔️ PvP: two players on ONE screen. Player 1 = left (your deck, keys 1–6), Player 2 = right (6 pets they
+// pick from your collection, keys 7 8 9 0 - =). No computer, no spells, no owner cheats — just the two of you.
+let pvpPick = [];
+const PVP_KEYS = [["1", "2", "3", "4", "5", "6"], ["7", "8", "9", "0", "-", "="]];
+function startPvP(deck2) {
+  deck2 = (deck2 || []).filter((id) => S.pets[id] && !(PETS[id].ownerOnly && !isOwner())).slice(0, DECK_SIZE);
+  if (!deck2.length) return "Player 2 needs at least 1 pet.";
+  const st = { n: 0, pvp: true, world: 0, worldDef: { name: "PvP Arena", emoji: "⚔️", sky: ["#c0392b", "#f8c291"], ground: "#6ab04c" }, boss: false, bossId: null, enemyLvl: 1, deck: [], baseHp: 1500, coins: 0, aiSlow: 1 };
+  battle = { st, rnd: Math.random, frame: 0, units: [], shots: [], fx: [], texts: [], over: false, energy: [5, 5], tick: [0, 0], base: [1500, 1500], baseMax: [1500, 1500],
+             aiWait: 1e9, bossOut: true, pvp: true, pdeck: [S.deck.slice(), deck2] };
+  showBattle(); return null;
+}
+function renderPvpPick() {
+  $("pvpSub").textContent = `Player 2's deck: ${pvpPick.length}/${DECK_SIZE} ${pvpPick.map((id) => PETS[id].emoji).join(" ")}`;
+  $("pvpGrid").innerHTML = Object.keys(S.pets).filter((id) => !(PETS[id].ownerOnly && !isOwner())).map((id) => petCard(id)).join("");
+  $("pvpGrid").querySelectorAll("[data-pet]").forEach((c) => { const id = c.dataset.pet; c.classList.toggle("indeck", pvpPick.includes(id));
+    c.onclick = () => { const i = pvpPick.indexOf(id); if (i >= 0) pvpPick.splice(i, 1); else if (pvpPick.length < DECK_SIZE) pvpPick.push(id); renderPvpPick(); }; });
+}
+addEventListener("keydown", (e) => {   // ⚔️ PvP keys
+  if (!battle || !battle.pvp || battle.over) return;
+  for (const side of [0, 1]) { const i = PVP_KEYS[side].indexOf(e.key); if (i >= 0 && battle.pdeck[side][i]) summon(side, battle.pdeck[side][i]); }
+});
+function renderCustom(editId) {
+  const c = editId && S.custom && S.custom[editId] ? S.custom[editId] : { name: "", emoji: "🐾", role: "fighter", element: "light", hp: 3000, dmg: 150, cost: 6, speed: 1.2, powers: ["splash"] };
+  const opt = (obj, cur) => Object.entries(obj).map(([k, v]) => `<option value="${k}" ${k === cur ? "selected" : ""}>${v.emoji ? v.emoji + " " : ""}${v.name}</option>`).join("");
+  const inp = (id, label, val, extra) => `<label style="display:block;margin:6px 0;font-weight:900">${label} <input id="${id}" value="${String(val).replace(/"/g, "")}" ${extra || ""} style="text-transform:none;width:160px"></label>`;
+  $("customForm").innerHTML = inp("cName", "Name", c.name, 'maxlength="24" placeholder="My Super Pet"') + inp("cEmoji", "Emoji", c.emoji, 'maxlength="8"') +
+    `<label style="display:block;margin:6px 0;font-weight:900">Role <select id="cRole" style="font-family:inherit;border-radius:10px;padding:5px">${opt(ROLES, c.role)}</select></label>` +
+    `<label style="display:block;margin:6px 0;font-weight:900">Element <select id="cEl" style="font-family:inherit;border-radius:10px;padding:5px">${opt(ELEMENTS, c.element)}</select></label>` +
+    inp("cHp", "❤️ Health (50–50,000)", c.hp, 'type="number"') + inp("cDmg", "💥 Damage (1–2,000)", c.dmg, 'type="number"') + inp("cCost", "⚡ Cost (1–10)", c.cost, 'type="number"') + inp("cSpeed", "💨 Speed (0.3–3)", c.speed, 'type="number" step="0.1"') +
+    `<div style="font-weight:900;margin-top:6px">Powers</div><div class="row" style="justify-content:flex-start;margin:4px 0">${Object.entries(CUSTOM_POWERS).map(([k, l]) => `<label class="pill" style="cursor:pointer;font-size:.8rem"><input type="checkbox" data-pw="${k}" ${c.powers && c.powers.includes(k) ? "checked" : ""} style="width:auto"> ${l}</label>`).join("")}</div>` +
+    `<div class="row"><button class="green" id="cSave">${editId ? "💾 Save changes" : "✨ Create my pet"}</button></div>`;
+  $("customList").innerHTML = Object.keys(S.custom || {}).map((id) => petCard(id, `<button class="small" data-cedit="${id}">✏️ Edit</button> <button class="small red" data-cdel="${id}">🗑️</button>`)).join("");
+  $("cSave").onclick = () => {
+    const c2 = { name: $("cName").value, emoji: $("cEmoji").value, role: $("cRole").value, element: $("cEl").value, hp: $("cHp").value, dmg: $("cDmg").value, cost: $("cCost").value, speed: $("cSpeed").value,
+                 powers: [...document.querySelectorAll("#customForm [data-pw]")].filter((x) => x.checked).map((x) => x.dataset.pw) };
+    const id = saveCustom(c2, editId); toast(id ? `🛠️ ${PETS[id].emoji} ${PETS[id].name} is ready (Lv ${MAX_LVL})!` : "👑 Owner only."); renderCustom();
+  };
+  $("customList").querySelectorAll("[data-cedit]").forEach((b) => (b.onclick = (e) => { e.stopPropagation(); renderCustom(b.dataset.cedit); }));
+  $("customList").querySelectorAll("[data-cdel]").forEach((b) => (b.onclick = (e) => { e.stopPropagation(); deleteCustom(b.dataset.cdel); toast("🗑️ Deleted"); renderCustom(); }));
+}
 function showBattle() {
   show(null); $("hud").classList.add("on"); $("topHud").classList.add("on");
-  $("hudStage").textContent = battle.survival ? "♾️ Survival" : battle.online ? `🌐 vs ${NETS.friendName || "a friend"}` : `${battle.st.worldDef.emoji} Stage ${battle.st.n}${battle.st.boss ? " 👹 BOSS" : ""}`;
+  $("p2box").style.display = battle.pvp ? "flex" : "none"; $("p1lab").style.display = battle.pvp ? "inline-block" : "none";
+  $("hudStage").textContent = battle.pvp ? "⚔️ PvP" : battle.survival ? "♾️ Survival" : battle.online ? `🌐 vs ${NETS.friendName || "a friend"}` : `${battle.st.worldDef.emoji} Stage ${battle.st.n}${battle.st.boss ? " 👹 BOSS" : ""}`;
   refreshOwnerBtn();
-  $("hand").innerHTML = (S.anyPet && !battle.online ? Object.keys(S.pets).sort((a, b) => PETS[b].cost - PETS[a].cost).slice(0, 24) : S.deck).map((id) => `<div class="card rar-${PETS[id].rarity}" data-sum="${id}"><span class="c">⚡${PETS[id].cost}</span><span class="lv">${abilitiesAt(id, lvlOf(id)).map((a) => ABILITIES[a].emoji).join("")}</span><div class="e" style="font-size:1.8rem">${PETS[id].emoji}</div><div class="n" style="font-size:.75rem">${PETS[id].name}</div></div>`).join("");
-  $("spells").innerHTML = battle.online ? "" : Object.entries(SPELLS).filter(([k]) => spellOpen(k)).map(([k, sp]) => `<button class="small" data-spell="${k}" title="${sp.desc}">${sp.emoji} ${sp.name}</button>`).join("");
+  const card = (id, attr) => `<div class="card rar-${PETS[id].rarity}" ${attr}="${id}"><span class="c">⚡${PETS[id].cost}</span><div class="e" style="font-size:1.6rem">${PETS[id].emoji}</div><div class="n" style="font-size:.72rem">${PETS[id].name}</div></div>`;
+  $("hand2").innerHTML = battle.pvp ? battle.pdeck[1].map((id) => card(id, "data-sum2")).join("") : "";
+  $("hand2").querySelectorAll("[data-sum2]").forEach((c) => (c.onclick = () => { if (!summon(1, c.dataset.sum2)) toast(`Player 2: not enough ⚡`); }));
+  $("hand").innerHTML = (battle.pvp ? battle.pdeck[0] : S.anyPet && !battle.online ? Object.keys(S.pets).sort((a, b) => PETS[b].cost - PETS[a].cost).slice(0, 24) : S.deck).map((id) => `<div class="card rar-${PETS[id].rarity}" data-sum="${id}"><span class="c">⚡${PETS[id].cost}</span><span class="lv">${abilitiesAt(id, lvlOf(id)).map((a) => ABILITIES[a].emoji).join("")}</span><div class="e" style="font-size:1.8rem">${PETS[id].emoji}</div><div class="n" style="font-size:.75rem">${PETS[id].name}</div></div>`).join("");
+  $("spells").innerHTML = battle.online || battle.pvp ? "" : Object.entries(SPELLS).filter(([k]) => spellOpen(k)).map(([k, sp]) => `<button class="small" data-spell="${k}" title="${sp.desc}">${sp.emoji} ${sp.name}</button>`).join("");
   $("spells").querySelectorAll("[data-spell]").forEach((b) => (b.onclick = () => { const e = castSpell(b.dataset.spell); if (e) toast(e); }));
   $("hand").querySelectorAll("[data-sum]").forEach((c) => (c.onclick = () => { if (!summon(0, c.dataset.sum)) toast(`Not enough ⚡ (needs ${PETS[c.dataset.sum].cost})`); }));
 }
@@ -1001,6 +1122,7 @@ function renderHud() {
   const left = Math.max(0, Math.ceil((BATTLE_TIME - bt.frame) / FPS)); $("hudTime").textContent = bt.survival ? `wave ${bt.wave} · next in ${Math.max(0, Math.ceil((bt.nextWave - bt.frame) / FPS))}s` : `${Math.floor(left / 60)}:${String(left % 60).padStart(2, "0")}${left <= 60 ? " ⚡×2" : ""}`;
   $("spells").querySelectorAll("[data-spell]").forEach((b) => { const cd = (bt.spellCd || {})[b.dataset.spell] || 0, sp = SPELLS[b.dataset.spell]; b.disabled = cd > 0; b.textContent = cd > 0 ? `${sp.emoji} ${Math.ceil(cd / FPS)}s` : `${sp.emoji} ${sp.name}`; });
   $("hand").querySelectorAll("[data-sum]").forEach((c) => c.classList.toggle("cant", PETS[c.dataset.sum].cost > bt.energy[me]));
+  if (bt.pvp) { $("energyFill2").style.width = `${100 * bt.energy[1] / MAX_ENERGY}%`; $("energyTxt2").textContent = `⚡ ${bt.energy[1]} / ${MAX_ENERGY}`; $("hand2").querySelectorAll("[data-sum2]").forEach((c) => c.classList.toggle("cant", PETS[c.dataset.sum2].cost > bt.energy[1])); }
 }
 function showResult(title, text, win) {
   show("result"); $("resTitle").textContent = title; $("resText").textContent = text;
@@ -1008,12 +1130,16 @@ function showResult(title, text, win) {
   $("resNext").textContent = win ? "➡ Next stage" : "🔁 Try again";
 }
 $("resNext").onclick = () => { const n = battle.st.n + 1; battle = null; const e = startStage(n); if (e) toast(e); };
-$("resMap").onclick = () => { const wasOnline = battle && (battle.online || battle.survival); battle = null; if (wasOnline) { netReset(); renderMenu(); show("menu"); } else { renderMap(); show("map"); } };
+$("resMap").onclick = () => { const wasOnline = battle && (battle.online || battle.survival || battle.pvp); battle = null; if (wasOnline) { netReset(); renderMenu(); show("menu"); } else { renderMap(); show("map"); } };
 $("btnQuit").onclick = () => endBattle(true);
 $("btnPlay").onclick = () => { renderMap(); show("map"); };
 $("btn3d").onclick = () => setMode3d(!S.mode3d);
 $("btn3dB").onclick = () => setMode3d(!S.mode3d);
 $("btnSurvival").onclick = () => startSurvival();
+$("btnPvp").onclick = () => { if (!pvpPick.length) pvpPick = Object.keys(S.pets).filter((id) => !(PETS[id].ownerOnly && !isOwner())).sort(() => Math.random() - 0.5).slice(0, DECK_SIZE); renderPvpPick(); show("pvp"); };
+$("pvpRandom").onclick = () => { pvpPick = Object.keys(S.pets).filter((id) => !(PETS[id].ownerOnly && !isOwner())).sort(() => Math.random() - 0.5).slice(0, DECK_SIZE); renderPvpPick(); };
+$("pvpGo").onclick = () => { const e = startPvP(pvpPick); if (e) toast(e); };
+$("customBack").onclick = () => openOwner();
 $("btnDaily").onclick = () => { renderDaily(); show("daily"); };
 $("btnOnline").onclick = () => { olMsg(""); $("olRecord").textContent = `Your online record: ${S.onlineWins || 0} wins / ${S.onlineLosses || 0} losses · your deck: ${S.deck.map((id) => PETS[id].emoji).join(" ")}`; show("online"); };
 $("olHost").onclick = hostOnline;

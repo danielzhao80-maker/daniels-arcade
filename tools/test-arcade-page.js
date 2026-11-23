@@ -671,19 +671,34 @@ A("coins10"); A("coins100"); ok("+10 +100", r.save().coins === 117);
   const rnd = r.w.Math.random; r.w.Math.random = () => 0.005;   // a lucky ticket (1% a ticket)
   A("lottonow"); await flush(5); r.w.Math.random = rnd;
   ok("admin: Open now draws the lotto (a lucky ticket wins 75)", r.save().lotto.tickets === 0 && r.save().lotto.last.won === 75 && /Claim/.test(r.id("lotto").textContent));
+  ok("the draw animation opens: your 2 tickets shake", r.id("lottoDrawVeil").classList.contains("open") && r.$$("#lottoDrawTix .tk").length === 2 && /2 tickets/.test(r.id("lottoDrawSub").textContent) && r.id("lottoDrawOk").hidden);
+  r.adv(1.4); await flush(3); r.adv(0.3); await flush(3); r.adv(0.3); await flush(3); r.adv(0.3); await flush(3);
+  ok("…the tickets flip and the result shows (a ⭐ lucky one)", r.$$("#lottoDrawTix .tk.win").length === 1 && r.$$("#lottoDrawTix .tk.lose").length === 1 && /You won 🪙 75/.test(r.id("lottoDrawResult").textContent) && !r.id("lottoDrawClaim").hidden && !r.id("lottoDrawOk").hidden);
+  r.id("lottoDrawOk").click(); await flush(3);
+  ok("OK closes it", !r.id("lottoDrawVeil").classList.contains("open"));
+  A("lottoyearly"); await flush(5);
+  ok("…and it doesn't play again for the same draw", !r.id("lottoDrawVeil").classList.contains("open"));
   r.id("lottoClaim").click(); await flush(5); ok("…and the prize can be claimed", r.save().coins === c0 + 75);
   A("lottoyearly"); await flush(5);
   const nm = new Date(r.w.Date.now()); ok("admin: back to yearly", r.save().lotto.endsAt === new Date(nm.getFullYear() + 1, 0, 1).getTime());
   r.setSave((x) => { x.lotto.tickets = 3; }); r.w.Math.random = () => 0.5;
   A("lottonow"); A("lottonow"); await flush(5); r.w.Math.random = rnd;
+  r.adv(1.4); await flush(3); for (let i = 0; i < 4; i++) { r.adv(0.3); await flush(3); }
+  ok("unlucky draw: every ticket ✖, and the sad message", r.$$("#lottoDrawTix .tk.lose").length === 3 && /No lucky ticket/.test(r.id("lottoDrawResult").textContent) && r.id("lottoDrawClaim").hidden);
+  r.id("lottoDrawOk").click(); await flush(3);
   ok("unlucky tickets win nothing", r.save().lotto.last.won === 0 && /no lucky ticket/.test(r.id("lotto").textContent) && !r.id("lottoClaim"));
   // the time comes while the page is open → the lotto opens by itself
   r.setSave((x) => { x.lotto.tickets = 4; x.lotto.endsAt = r.w.Date.now() + 90e3; }); A("lottonow"); A("lottonow"); await flush(5);
+  r.adv(5); await flush(5); r.id("lottoDrawOk").click(); await flush(3);   // (skip that draw's animation)
   r.setSave((x) => { x.lotto.tickets = 4; x.lotto.endsAt = r.w.Date.now() + 90e3; });
   r.w.Math.random = () => 0.005; r.id("lotto1").click(); await flush(5);
   ok("under a day left: minutes on the card", /min left/.test(r.id("lotto").textContent) && r.save().lotto.tickets === 5, r.id("lotto").textContent.slice(0, 40));
   r.adv(60); await flush(5); r.adv(35); await flush(10); r.w.Math.random = rnd;
   ok("…and it opens by itself when the time comes", r.save().lotto.tickets === 0 && r.save().lotto.last.tickets === 5 && /Claim/.test(r.id("lotto").textContent), JSON.stringify(r.save().lotto));
+  r.adv(1.4); await flush(3); for (let i = 0; i < 7; i++) { r.adv(0.3); await flush(3); }
+  ok("…with the draw animation (Claim right there)", r.id("lottoDrawVeil").classList.contains("open") && !r.id("lottoDrawClaim").hidden && /5 tickets/.test(r.id("lottoDrawSub").textContent));
+  r.id("lottoDrawClaim").click(); await flush(5);
+  ok("claiming from the animation", !r.id("lottoDrawVeil").classList.contains("open") && r.save().lotto.last.claimed === true);
   r.id("admLottoAt").value = ""; A("lottoat"); ok("no time picked → a hint", /Pick a date/.test(r.toast())); }
 // 🎃 Halloween & Backrooms admin buttons
 r.w.localStorage.setItem("monster_attack_candy", "5"); r.w.localStorage.removeItem("monster_attack_hw_earned_" + new Date(r.st.now).getFullYear());

@@ -112,6 +112,20 @@
     background: rgba(0,0,0,.65); backdrop-filter: blur(4px);
   }
   .panel-veil.open { display: flex; }
+  /* 🎟️ the lotto draw */
+  .lotto-draw { text-align: center; }
+  .lotto-draw h2 { margin: 0 auto 8px !important; }
+  .lotto-tix { display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; margin: 18px 0; min-height: 44px; }
+  .tk { width: 58px; height: 38px; border-radius: 8px; display: grid; place-items: center; font-size: 1.15rem; font-weight: 800;
+        background: linear-gradient(135deg, #ffd34d, #ff9f1c); color: #3b2300; animation: tkshake .35s ease-in-out infinite; }
+  .tk.lose { animation: tkflip .45s ease forwards; background: #34304a; color: #8b86a3; }
+  .tk.win { animation: tkflip .45s ease forwards, tkglow 1s .45s ease-in-out infinite alternate; background: linear-gradient(135deg, #fff38a, #ffc400); }
+  .lotto-result { font-size: 1.15rem; font-weight: 800; min-height: 1.6em; }
+  .lotto-result.pop { animation: tkpop .5s ease; }
+  @keyframes tkshake { 0%, 100% { transform: rotate(-4deg); } 50% { transform: rotate(4deg) translateY(-3px); } }
+  @keyframes tkflip { 0% { transform: rotateY(0); } 50% { transform: rotateY(90deg) scale(1.1); } 100% { transform: rotateY(0); } }
+  @keyframes tkglow { from { box-shadow: 0 0 6px #ffd34d; } to { box-shadow: 0 0 26px #ffe066; transform: scale(1.12); } }
+  @keyframes tkpop { 0% { transform: scale(.4); opacity: 0; } 70% { transform: scale(1.15); } 100% { transform: scale(1); opacity: 1; } }
   .panel {
     width: min(560px, 100%); max-height: 88vh; overflow: auto; padding: 22px;
     background: var(--bg); border: 1px solid var(--line); border-radius: 22px; box-shadow: 0 30px 80px rgba(0,0,0,.6);
@@ -429,6 +443,19 @@
 
     <h4>🟢 The Easy Quest</h4>
     <div id="easyBox"></div>
+  </div>
+</div>
+
+<div class="panel-veil" id="lottoDrawVeil">
+  <div class="panel lotto-draw" role="dialog" aria-label="Lotto draw">
+    <h2>🎟️ THE LOTTO IS OPENING!</h2>
+    <p class="sub" id="lottoDrawSub"></p>
+    <div class="lotto-tix" id="lottoDrawTix"></div>
+    <div class="lotto-result" id="lottoDrawResult"></div>
+    <div style="display:flex;gap:8px;justify-content:center;margin-top:14px">
+      <button class="btn" id="lottoDrawClaim" hidden>🎁 Claim your prize!</button>
+      <button class="btn ghost" id="lottoDrawOk" hidden>OK</button>
+    </div>
   </div>
 </div>
 
@@ -1091,7 +1118,7 @@
       if (!L.yearly) { L.yearly = true; L.endsAt = Math.max(L.endsAt || 0, yearAfter(L.season) || nextYear()); }   // (seasons used to be months)
       if (L.endsAt <= Date.now()) {
         let lucky = false; for (let i = 0; i < Math.min(L.tickets, 1e6) && !lucky; i++) lucky = Math.random() < 0.01;
-        L.last = { season: L.season, tickets: L.tickets, players: L.tickets > 0 ? 1 : 0, won: lucky ? 75 : 0, claimed: false };
+        L.last = { season: L.season, tickets: L.tickets, players: L.tickets > 0 ? 1 : 0, won: lucky ? 75 : 0, claimed: false, at: Date.now() };
         L.season = L.season === seasonNow() ? seasonNow() + "-2" : seasonNow(); L.tickets = 0; L.endsAt = nextYear();
       }
     });
@@ -1131,6 +1158,43 @@
     }
     renderWallet(); renderLotto();
   }
+  // 🎟️ The draw animation: the first time you see a season's result, your tickets shake, flip one by one,
+  // and then the result shows — and only after that does the card show the new season (0 tickets).
+  const LOTTO_SEEN = "daniels-arcade-lotto-seen";   // (per computer: which draws you've already watched)
+  const lottoSeen = () => { try { return localStorage.getItem(LOTTO_SEEN) || ""; } catch { return ""; } };
+  let lottoDrawing = false;
+  function playLottoDraw(d) {   // d: { id, season, tickets, won (points), grand, canClaim }
+    lottoDrawing = true;
+    try { localStorage.setItem(LOTTO_SEEN, d.id); } catch {}
+    const shown = Math.min(d.tickets, 12);
+    $("lottoDrawSub").textContent = `Season ${d.season} — you had ${d.tickets} ticket${d.tickets === 1 ? "" : "s"}. Each one has a 1% chance…`;
+    $("lottoDrawTix").innerHTML = Array.from({ length: shown }, () => `<div class="tk">🎟️</div>`).join("") + (d.tickets > shown ? `<div class="tk" style="width:auto;padding:0 8px">+${d.tickets - shown}</div>` : "");
+    $("lottoDrawResult").textContent = "🥁 …"; $("lottoDrawResult").classList.remove("pop");
+    $("lottoDrawClaim").hidden = $("lottoDrawOk").hidden = true;
+    $("lottoDrawVeil").classList.add("open");
+    const tix = [...$("lottoDrawTix").children], lucky = d.won || d.grand ? Math.floor(Math.random() * shown) : -1;
+    return new Promise((done) => {
+      let i = 0;
+      const flip = () => {
+        if (!$("lottoDrawVeil").classList.contains("open")) return done();
+        if (i < tix.length) {
+          const t = tix[i];
+          if (i === lucky) { t.className = "tk win"; t.textContent = "⭐"; } else if (t.textContent === "🎟️") { t.className = "tk lose"; t.textContent = "✖"; }
+          i++; return setTimeout(flip, 260);
+        }
+        tix.forEach((t) => { if (!/win|lose/.test(t.className)) t.className = "tk lose"; });   // (the "+N more" one too)
+        const r = $("lottoDrawResult");
+        r.textContent = d.grand ? "🛠️🎉 YOU WON THE ADMIN PANEL! 🎉" : d.won ? `🎉 A lucky ticket! You won 🪙 ${d.won} points!` : "😢 No lucky ticket this time. Your tickets are used up — good luck next season!";
+        r.classList.add("pop");
+        $("lottoDrawClaim").hidden = !d.canClaim; $("lottoDrawOk").hidden = false;
+        done();
+      };
+      setTimeout(flip, 1400);   // shake… then flip
+    });
+  }
+  $("lottoDrawOk").onclick = () => { $("lottoDrawVeil").classList.remove("open"); lottoDrawing = false; };
+  $("lottoDrawClaim").onclick = () => { $("lottoDrawVeil").classList.remove("open"); lottoDrawing = false; claimLotto(); };
+
   let lottoTimer = 0;
   async function renderLotto() {
     let mine, players, total, last, shared = lottoOnline();
@@ -1141,10 +1205,13 @@
       ({ mine, players, total } = lottoView); const l = lottoView.last;
       last = l && { season: l.season, players: l.players, text: l.grandWinners.length ? `🛠️ Admin Panel won by ${l.grandWinners.join(", ")}!` : (l.smallWinners || []).length ? `🪙 75 points won by ${l.smallWinners.join(", ")}` : l.players >= 250 ? "Nobody won the Admin Panel." : l.players >= 50 ? "No draw (50–249 players)." : l.players ? "No lucky tickets this time." : "No tickets.",
                     canClaim: (l.iWonGrand || l.iWonSmall) && !l.claimed };
+      if (l && l.myTickets > 0) last.draw = { id: "on:" + l.season, season: l.season, tickets: l.myTickets, won: l.iWonSmall ? 75 : 0, grand: l.iWonGrand, canClaim: last.canClaim };
     } else {
       localLottoRoll(); const L = save.lotto; mine = L.tickets; players = L.tickets ? 1 : 0; total = L.tickets;
       last = L.last && L.last.tickets ? { season: L.last.season, players: 1, text: L.last.won ? "Only you played — a lucky ticket won 🪙 75 points!" : "Only you played — no lucky ticket this time.", canClaim: !L.last.claimed && L.last.won > 0 } : null;
+      if (last) last.draw = { id: "off:" + L.last.season + ":" + (L.last.at || ""), season: L.last.season, tickets: L.last.tickets, won: L.last.won, grand: false, canClaim: last.canClaim };
     }
+    if (last && last.draw && lottoSeen() !== last.draw.id && !lottoDrawing) playLottoDraw(last.draw);   // first time: watch the draw
     const end = (shared && lottoView ? lottoView.endsAt : save.lotto.endsAt) || nextYear(), left = Math.max(0, end - Date.now());
     const leftText = left >= 864e5 ? `${Math.ceil(left / 864e5)} day${Math.ceil(left / 864e5) === 1 ? "" : "s"} left` : left >= 36e5 ? `${Math.ceil(left / 36e5)} hours left` : `${Math.ceil(left / 6e4)} min left`;
     clearTimeout(lottoTimer);   // under a day left: keep the countdown fresh, and open the lotto the moment it's time

@@ -661,6 +661,23 @@ ok("∞ off restores the old coins", r.save().coins === 123 && !r.save().admin.i
 T("infCoins"); ok("∞ toggle on", r.save().coins === INF && r.save().coinsBeforeInf === 123);
 setCoins("7"); ok("set coins while ∞ -> normal 7", r.save().coins === 7 && !r.save().admin.infCoins);
 A("coins10"); A("coins100"); ok("+10 +100", r.save().coins === 117);
+// 🎟️ when the lotto opens (just you: no account)
+{ const fut = new Date(r.w.Date.now() + 3 * 864e5), pad = (n) => String(n).padStart(2, "0");
+  r.id("admLottoAt").value = `${fut.getFullYear()}-${pad(fut.getMonth() + 1)}-${pad(fut.getDate())}T${pad(fut.getHours())}:${pad(fut.getMinutes())}`;
+  A("lottoat"); await flush(5);
+  ok("admin: set when the lotto opens", Math.abs(r.save().lotto.endsAt - (r.w.Date.now() + 3 * 864e5)) < 6e4 && /3 days left/.test(r.id("lotto").textContent) && /opens/.test(r.id("admLottoNow").textContent), r.save().lotto && r.save().lotto.endsAt);
+  r.setSave((x) => { x.lotto.tickets = 2; }); const c0 = r.save().coins;
+  A("lottonow"); await flush(5); ok("Open now asks twice", r.save().lotto.tickets === 2);
+  const rnd = r.w.Math.random; r.w.Math.random = () => 0.005;   // a lucky ticket (1% a ticket)
+  A("lottonow"); await flush(5); r.w.Math.random = rnd;
+  ok("admin: Open now draws the lotto (a lucky ticket wins 75)", r.save().lotto.tickets === 0 && r.save().lotto.last.won === 75 && /Claim/.test(r.id("lotto").textContent));
+  r.id("lottoClaim").click(); await flush(5); ok("…and the prize can be claimed", r.save().coins === c0 + 75);
+  A("lottoyearly"); await flush(5);
+  const nm = new Date(r.w.Date.now()); ok("admin: back to yearly", r.save().lotto.endsAt === new Date(nm.getFullYear() + 1, 0, 1).getTime());
+  r.setSave((x) => { x.lotto.tickets = 3; }); r.w.Math.random = () => 0.5;
+  A("lottonow"); A("lottonow"); await flush(5); r.w.Math.random = rnd;
+  ok("unlucky tickets win nothing", r.save().lotto.last.won === 0 && /no lucky ticket/.test(r.id("lotto").textContent) && !r.id("lottoClaim"));
+  r.id("admLottoAt").value = ""; A("lottoat"); ok("no time picked → a hint", /Pick a date/.test(r.toast())); }
 // 🎃 Halloween & Backrooms admin buttons
 r.w.localStorage.setItem("monster_attack_candy", "5"); r.w.localStorage.removeItem("monster_attack_hw_earned_" + new Date(r.st.now).getFullYear());
 A("cur100"); A("cur1000");

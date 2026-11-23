@@ -366,7 +366,7 @@
         </div>
         <div class="free-card">
           <b>🎟️ Lotto</b>
-          <small>A ticket costs 50 arcade points. At the end of the season (each month) the tickets are drawn.</small>
+          <small>A ticket costs 50 arcade points. At the end of the season (each year) the tickets are drawn.</small>
           <div id="lotto" style="width:100%"></div>
         </div>
       </div>
@@ -461,6 +461,15 @@
     <div class="admin-grid">
       <button data-admin="owner">👑 Owner title<small>Get the Owner, Admin and VIP titles</small></button>
       <button data-admin="unlock">🔓 Unlock all<small>Every theme, avatar, title and skin</small></button>
+    </div>
+
+    <h4>🎟️ Lotto</h4>
+    <p class="sub" id="admLottoNow"></p>
+    <div class="admin-row">
+      <input id="admLottoAt" type="datetime-local" aria-label="When the lotto opens" style="min-width:210px">
+      <button class="btn" data-admin="lottoat">Set when it opens</button>
+      <button class="btn ghost" data-admin="lottonow">Open now</button>
+      <button class="btn ghost" data-admin="lottoyearly">Yearly</button>
     </div>
 
     <h4>⚡ Abilities</h4>
@@ -1055,12 +1064,12 @@
   window.addEventListener("hashchange", () => { renderFree(); renderMilestones(); renderAchievements(); });
   window.addEventListener("focus", renderAchievements);   // back from a game: show what you just unlocked
 
-  // 🎟️ LOTTO: spend 50 arcade points on a ticket. A season is a month; when it ends the tickets are drawn:
+  // 🎟️ LOTTO: spend 50 arcade points on a ticket. A season is a year (the 🛠️ Admin Panel can pick another time); when it ends the tickets are drawn:
   //   • 250+ players: each ticket has a 0.000000000000000000000000001% chance to win the 🛠️ Admin Panel in
   //     every game and the arcade (practically never!);
-  //   • fewer than 50 players: one ticket wins 75 points.   (50–249 players: no draw.)
+  //   • fewer than 50 players: each ticket has a 1% chance to win its player 75 points.   (50–249 players: no draw.)
   // Logged in (with the arcade server): everyone's tickets are in one draw on the server. Otherwise it's just you.
-  const LOTTO_PRICE = 50, seasonNow = () => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`; };
+  const LOTTO_PRICE = 50, seasonNow = () => String(new Date().getFullYear());
   const lottoAcc = () => { try { return JSON.parse(localStorage.getItem("daniels-arcade-account") || "null"); } catch { return null; } };
   const lottoOnline = () => hasServer && !!(lottoAcc() && lottoAcc().token);
   async function lottoApi(method, route, body) {   // (its own little fetch, so it works before the account code below has loaded)
@@ -1072,11 +1081,34 @@
     save = ArcadeShop.update((sv) => { sv.adminUnlocked = true; });
     try { const k = "island_clash_save", d = JSON.parse(localStorage.getItem(k) || "null"); if (d) { d.admin = true; d.adminUsed = true; localStorage.setItem(k, JSON.stringify(d)); } } catch {}
   }
-  function localLottoRoll() {   // just you in the draw: always under 50 players, so a ticket wins 75 points
+  const nextYear = () => new Date(new Date().getFullYear() + 1, 0, 1).getTime();
+  const yearAfter = (season) => { const y = parseInt(season, 10); return y ? new Date(y + 1, 0, 1).getTime() : 0; };
+  function localLottoRoll() {   // just you in the draw: always under 50 players, so each ticket has a 1% chance at 75 points
+    const L0 = save.lotto;   // (only write the save when something changes)
+    if (L0 && L0.yearly && L0.endsAt > Date.now()) return;
     save = ArcadeShop.update((sv) => {
       const L = sv.lotto || (sv.lotto = { season: seasonNow(), tickets: 0 });
-      if (L.season !== seasonNow()) { L.last = { season: L.season, tickets: L.tickets, players: L.tickets > 0 ? 1 : 0, won: L.tickets > 0 ? 75 : 0, claimed: false }; L.season = seasonNow(); L.tickets = 0; }
+      if (!L.yearly) { L.yearly = true; L.endsAt = Math.max(L.endsAt || 0, yearAfter(L.season) || nextYear()); }   // (seasons used to be months)
+      if (L.endsAt <= Date.now()) {
+        let lucky = false; for (let i = 0; i < Math.min(L.tickets, 1e6) && !lucky; i++) lucky = Math.random() < 0.01;
+        L.last = { season: L.season, tickets: L.tickets, players: L.tickets > 0 ? 1 : 0, won: lucky ? 75 : 0, claimed: false };
+        L.season = L.season === seasonNow() ? seasonNow() + "-2" : seasonNow(); L.tickets = 0; L.endsAt = nextYear();
+      }
     });
+  }
+  // 🛠️ Admin Panel: when the lotto opens (is drawn) — at: a time, "now", or "yearly"
+  async function scheduleLotto(at) {
+    const body = at === "now" ? { now: true } : at === "yearly" ? { yearly: true } : { at };
+    if (lottoOnline()) {
+      try { lottoView = await lottoApi("POST", "lotto/schedule", body); } catch (e) { return toast("🎟️ " + e.message); }
+    } else {
+      if (body.at && !(body.at > Date.now())) return toast("🎟️ Pick a time in the future.");
+      localLottoRoll();
+      save = ArcadeShop.update((sv) => { sv.lotto.endsAt = body.now ? Date.now() : body.yearly ? nextYear() : body.at; });
+      localLottoRoll();
+    }
+    toast(body.now ? "🎟️ The lotto was drawn!" : body.yearly ? "🎟️ The lotto is drawn at the end of each year again." : `🎟️ The lotto opens ${new Date(body.at).toLocaleString()}`);
+    renderLotto();
   }
   const canPayPoints = (n) => (ArcadeShop.isInf && ArcadeShop.isInf(save)) || save.coins >= n;
   async function buyLotto(n) {
@@ -1100,22 +1132,23 @@
     renderWallet(); renderLotto();
   }
   async function renderLotto() {
-    const end = new Date(); end.setMonth(end.getMonth() + 1, 1); end.setHours(0, 0, 0, 0);
-    const days = Math.max(0, Math.ceil((end - Date.now()) / 864e5));
     let mine, players, total, last, shared = lottoOnline();
     if (shared) {
       try { lottoView = await lottoApi("GET", "lotto"); } catch { shared = false; }
     }
     if (shared && lottoView) {
       ({ mine, players, total } = lottoView); const l = lottoView.last;
-      last = l && { season: l.season, players: l.players, text: l.grandWinners.length ? `🛠️ Admin Panel won by ${l.grandWinners.join(", ")}!` : l.smallWinner ? `🪙 75 points won by ${l.smallWinner}` : l.players >= 250 ? "Nobody won the Admin Panel." : l.players ? "No draw (50–249 players)." : "No tickets.",
+      last = l && { season: l.season, players: l.players, text: l.grandWinners.length ? `🛠️ Admin Panel won by ${l.grandWinners.join(", ")}!` : (l.smallWinners || []).length ? `🪙 75 points won by ${l.smallWinners.join(", ")}` : l.players >= 250 ? "Nobody won the Admin Panel." : l.players >= 50 ? "No draw (50–249 players)." : l.players ? "No lucky tickets this time." : "No tickets.",
                     canClaim: (l.iWonGrand || l.iWonSmall) && !l.claimed };
     } else {
       localLottoRoll(); const L = save.lotto; mine = L.tickets; players = L.tickets ? 1 : 0; total = L.tickets;
-      last = L.last && L.last.tickets ? { season: L.last.season, players: 1, text: "Only you played — your ticket won 🪙 75 points!", canClaim: !L.last.claimed && L.last.won > 0 } : null;
+      last = L.last && L.last.tickets ? { season: L.last.season, players: 1, text: L.last.won ? "Only you played — a lucky ticket won 🪙 75 points!" : "Only you played — no lucky ticket this time.", canClaim: !L.last.claimed && L.last.won > 0 } : null;
     }
-    const prizeNow = players >= 250 ? "🛠️ Admin Panel draw ON (a 0.000000000000000000000000001% chance a ticket!)" : players < 50 ? "under 50 players: one ticket wins 🪙 75" : "50–249 players: no draw (250 players unlocks the 🛠️ Admin Panel draw)";
-    $("lotto").innerHTML = `<div class="ms" style="grid-template-columns:1fr auto"><b>🎟️ Your tickets: ${mine}</b><span>${days} day${days === 1 ? "" : "s"} left</span></div>
+    const end = (shared && lottoView ? lottoView.endsAt : save.lotto.endsAt) || nextYear(), left = Math.max(0, end - Date.now());
+    const leftText = left >= 864e5 ? `${Math.ceil(left / 864e5)} day${Math.ceil(left / 864e5) === 1 ? "" : "s"} left` : left >= 36e5 ? `${Math.ceil(left / 36e5)} hours left` : `${Math.ceil(left / 6e4)} min left`;
+    const an = $("admLottoNow"); if (an) an.textContent = `This season (${shared ? "everyone, on the server" : "just you"}) opens ${new Date(end).toLocaleString()} — ${leftText}.`;
+    const prizeNow = players >= 250 ? "🛠️ Admin Panel draw ON (a 0.000000000000000000000000001% chance a ticket!)" : players < 50 ? "under 50 players: each ticket has a 1% chance at 🪙 75" : "50–249 players: no draw (250 players unlocks the 🛠️ Admin Panel draw)";
+    $("lotto").innerHTML = `<div class="ms" style="grid-template-columns:1fr auto"><b>🎟️ Your tickets: ${mine}</b><span title="Drawn ${new Date(end).toLocaleString()}">${leftText}</span></div>
       <div class="ms" style="display:block"><span>👥 ${players} player${players === 1 ? "" : "s"} · ${total} ticket${total === 1 ? "" : "s"} this season${shared ? "" : " (just you — log in to play with everyone)"}</span></div>
       <small style="opacity:.85">${prizeNow}. 🏆 250 players needed for the Admin Panel prize.</small>
       <div style="display:flex;gap:6px;justify-content:center;margin-top:6px"><button class="btn" id="lotto1">🎟️ Buy 1 (🪙 50)</button><button class="btn" id="lotto5">🎟️ Buy 5 (🪙 250)</button></div>
@@ -1411,7 +1444,7 @@
   const armed = {};
   const twice = (key, warn) => {
     if (Date.now() - (armed[key] || 0) > 3000) { armed[key] = Date.now(); toast(warn); return false; }
-    return true;
+    delete armed[key]; return true;   // (the next time asks again)
   };
 
   $("adminVeil").addEventListener("click", (e) => {
@@ -1460,6 +1493,12 @@
       const got = ArcadeShop.grantSecretReward();
       return adminChanged(got ? "🎟️ All codes found — 🕵️ Secret Agent pack unlocked!" : "🎟️ All codes found");
     }
+    if (act === "lottoat") {
+      const at = new Date($("admLottoAt").value).getTime();
+      return at ? scheduleLotto(at) : toast("🎟️ Pick a date and time first.");
+    }
+    if (act === "lottonow") { if (!twice("lottonow", "Click Open now again to draw the lotto.")) return; return scheduleLotto("now"); }
+    if (act === "lottoyearly") return scheduleLotto("yearly");
     const all = Object.values(SHOP).flat();
     const msg = {};
     ArcadeShop.update((sv) => {

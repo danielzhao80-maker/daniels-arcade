@@ -634,6 +634,12 @@ r = boot({ seed: { [KEY]: { adminUnlocked: true, hardDone: true, mediumDone: tru
 ok("new save with Easy done keeps admin", r.save().adminUnlocked === true);
 r = boot({ seed: { [KEY]: { adminUnlocked: true, hardDone: true } } });
 ok("old owner-skip save keeps admin", r.save().adminUnlocked === true);
+r = boot({ seed: { [KEY]: { adminUnlocked: true, lottoAdmin: true } } });
+ok("🎟️ an Admin Panel won in the lotto stays after a reload (no quests needed)", r.save().adminUnlocked === true && r.d.body.classList.contains("is-admin"));
+r = boot({ seed: { [KEY]: { adminUnlocked: true, lottoAdmin: true, mediumDone: true } } });
+ok("…even with the Medium Quests done but not the Easy one", r.save().adminUnlocked === true);
+r = boot({ seed: { [KEY]: { lotto: { season: "2026-11", tickets: 3, yearly: true, endsAt: Date.now() + 864e5 * 30 } } } });
+ok("🎟️ an old month-named season becomes the year (2026-11 → 2026), tickets kept", r.save().lotto.season === "2026" && r.save().lotto.tickets === 3, r.save().lotto.season);
 ok("no errors: " + r.errs.join(" | "), r.errs.length === 0);
 
 // ================================================================== 6. admin panel
@@ -703,7 +709,8 @@ A("coins10"); A("coins100"); ok("+10 +100", r.save().coins === 117);
   r.setSave((x) => { x.lotto.tickets = 7; }); const ends = r.save().lotto.endsAt, seen = r.w.localStorage.getItem("daniels-arcade-lotto-seen");
   r.w.Math.random = () => 0.5; A("lottopreview"); r.adv(1.4); await flush(3); for (let i = 0; i < 9; i++) { r.adv(0.3); await flush(3); } r.w.Math.random = rnd;
   ok("▶ Watch the draw plays the animation with your 7 tickets", r.id("lottoDrawVeil").classList.contains("open") && r.$$("#lottoDrawTix .tk.lose").length === 7 && /Preview/.test(r.id("lottoDrawSub").textContent) && /preview/.test(r.id("lottoDrawResult").textContent) && r.id("lottoDrawClaim").hidden);
-  r.id("lottoDrawOk").click(); await flush(3);
+  r.w.document.dispatchEvent(new r.w.KeyboardEvent("keydown", { key: "Escape" })); await flush(3);
+  ok("Escape closes the draw window", !r.id("lottoDrawVeil").classList.contains("open"));
   ok("…and nothing changes: same tickets, same draw time", r.save().lotto.tickets === 7 && r.save().lotto.endsAt === ends && r.w.localStorage.getItem("daniels-arcade-lotto-seen") === seen);
   r.id("admLottoAt").value = ""; A("lottoat"); ok("no time picked → a hint", /Pick a date/.test(r.toast())); }
 // 🎃 Halloween & Backrooms admin buttons

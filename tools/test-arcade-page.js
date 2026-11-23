@@ -677,6 +677,13 @@ A("coins10"); A("coins100"); ok("+10 +100", r.save().coins === 117);
   r.setSave((x) => { x.lotto.tickets = 3; }); r.w.Math.random = () => 0.5;
   A("lottonow"); A("lottonow"); await flush(5); r.w.Math.random = rnd;
   ok("unlucky tickets win nothing", r.save().lotto.last.won === 0 && /no lucky ticket/.test(r.id("lotto").textContent) && !r.id("lottoClaim"));
+  // the time comes while the page is open → the lotto opens by itself
+  r.setSave((x) => { x.lotto.tickets = 4; x.lotto.endsAt = r.w.Date.now() + 90e3; }); A("lottonow"); A("lottonow"); await flush(5);
+  r.setSave((x) => { x.lotto.tickets = 4; x.lotto.endsAt = r.w.Date.now() + 90e3; });
+  r.w.Math.random = () => 0.005; r.id("lotto1").click(); await flush(5);
+  ok("under a day left: minutes on the card", /min left/.test(r.id("lotto").textContent) && r.save().lotto.tickets === 5, r.id("lotto").textContent.slice(0, 40));
+  r.adv(60); await flush(5); r.adv(35); await flush(10); r.w.Math.random = rnd;
+  ok("…and it opens by itself when the time comes", r.save().lotto.tickets === 0 && r.save().lotto.last.tickets === 5 && /Claim/.test(r.id("lotto").textContent), JSON.stringify(r.save().lotto));
   r.id("admLottoAt").value = ""; A("lottoat"); ok("no time picked → a hint", /Pick a date/.test(r.toast())); }
 // 🎃 Halloween & Backrooms admin buttons
 r.w.localStorage.setItem("monster_attack_candy", "5"); r.w.localStorage.removeItem("monster_attack_hw_earned_" + new Date(r.st.now).getFullYear());

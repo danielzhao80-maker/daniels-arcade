@@ -1131,6 +1131,7 @@
     }
     renderWallet(); renderLotto();
   }
+  let lottoTimer = 0;
   async function renderLotto() {
     let mine, players, total, last, shared = lottoOnline();
     if (shared) {
@@ -1146,6 +1147,8 @@
     }
     const end = (shared && lottoView ? lottoView.endsAt : save.lotto.endsAt) || nextYear(), left = Math.max(0, end - Date.now());
     const leftText = left >= 864e5 ? `${Math.ceil(left / 864e5)} day${Math.ceil(left / 864e5) === 1 ? "" : "s"} left` : left >= 36e5 ? `${Math.ceil(left / 36e5)} hours left` : `${Math.ceil(left / 6e4)} min left`;
+    clearTimeout(lottoTimer);   // under a day left: keep the countdown fresh, and open the lotto the moment it's time
+    if (left < 864e5) lottoTimer = setTimeout(renderLotto, Math.min(left + 1500, 60e3));
     const an = $("admLottoNow"); if (an) an.textContent = `This season (${shared ? "everyone, on the server" : "just you"}) opens ${new Date(end).toLocaleString()} — ${leftText}.`;
     const prizeNow = players >= 250 ? "🛠️ Admin Panel draw ON (a 0.000000000000000000000000001% chance a ticket!)" : players < 50 ? "under 50 players: each ticket has a 1% chance at 🪙 75" : "50–249 players: no draw (250 players unlocks the 🛠️ Admin Panel draw)";
     $("lotto").innerHTML = `<div class="ms" style="grid-template-columns:1fr auto"><b>🎟️ Your tickets: ${mine}</b><span title="Drawn ${new Date(end).toLocaleString()}">${leftText}</span></div>

@@ -1145,6 +1145,8 @@
   }
   const canPayPoints = (n) => (ArcadeShop.isInf && ArcadeShop.isInf(save)) || save.coins >= n;
   async function buyLotto(n) {
+    n = Math.floor(Number(n)); save = ArcadeShop.load();   // (the newest wallet)
+    if (!(n >= 1 && n <= 1000)) return toast("🎟️ Pick 1 to 1000 tickets.");
     const cost = LOTTO_PRICE * n;
     if (!canPayPoints(cost)) return toast(`🎟️ You need 🪙 ${cost} arcade points.`);
     if (lottoOnline()) {
@@ -1202,14 +1204,14 @@
   $("lottoDrawOk").onclick = () => { $("lottoDrawVeil").classList.remove("open"); };
   $("lottoDrawClaim").onclick = () => { $("lottoDrawVeil").classList.remove("open"); claimLotto(); };
 
-  let lottoTimer = 0;
+  let lottoTimer = 0, lottoWant = 1;   // (how many tickets the box is set to)
   async function renderLotto() {
     let mine, players, total, last, shared = lottoOnline();
     if (shared) {
       try { lottoView = await lottoApi("GET", "lotto"); } catch { shared = false; }
       const local = shared && save.lotto && save.lotto.yearly && save.lotto.endsAt > Date.now() ? save.lotto.tickets : 0;
       if (local > 0) {   // tickets bought while logged out (this season) move into the online lotto
-        try { for (let left = local; left > 0; left -= 20) lottoView = await lottoApi("POST", "lotto/buy", { n: Math.min(20, left) }); } catch {}
+        try { for (let left = local; left > 0; left -= 1000) lottoView = await lottoApi("POST", "lotto/buy", { n: Math.min(1000, left) }); } catch {}
         save = ArcadeShop.update((sv) => { sv.lotto.tickets = 0; });
         toast(`🎟️ Your ${local} ticket${local === 1 ? "" : "s"} from before you logged in joined the online lotto!`);
       }
@@ -1234,9 +1236,20 @@
     $("lotto").innerHTML = `<div class="ms" style="grid-template-columns:1fr auto"><b>🎟️ Your tickets: ${mine}</b><span title="Drawn ${new Date(end).toLocaleString()}">${leftText}</span></div>
       <div class="ms" style="display:block"><span>👥 ${players} player${players === 1 ? "" : "s"} · ${total} ticket${total === 1 ? "" : "s"} this season${shared ? "" : " (just you — log in to play with everyone)"}</span></div>
       <small style="opacity:.85">${prizeNow}. 🏆 250 players needed for the Admin Panel prize.</small>
-      <div style="display:flex;gap:6px;justify-content:center;margin-top:6px"><button class="btn" id="lotto1">🎟️ Buy 1 (🪙 50)</button><button class="btn" id="lotto5">🎟️ Buy 5 (🪙 250)</button></div>
+      <div style="display:flex;gap:6px;justify-content:center;align-items:center;flex-wrap:wrap;margin-top:6px">
+        <label style="font-size:.85rem">How many? <input id="lottoN" type="number" min="1" max="1000" step="1" value="${lottoWant}" inputmode="numeric" style="width:80px;padding:6px 8px;border-radius:10px;border:1px solid var(--line);background:rgba(255,255,255,.06);color:inherit;font:inherit;font-weight:800"></label>
+        <button class="btn" id="lottoBuy">🎟️ Buy ${lottoWant} (🪙 ${lottoWant * LOTTO_PRICE})</button>
+      </div>
+      <div style="display:flex;gap:6px;justify-content:center;margin-top:6px"><button class="btn ghost" id="lotto1">Buy 1 (🪙 50)</button><button class="btn ghost" id="lotto5">Buy 5 (🪙 250)</button></div>
       ${last ? `<small style="display:block;margin-top:6px">Last season (${last.season}): ${last.text}</small>${last.canClaim ? `<button class="btn" id="lottoClaim" style="margin-top:4px">🎁 Claim your prize!</button>` : ""}` : ""}`;
     $("lotto1").onclick = () => buyLotto(1); $("lotto5").onclick = () => buyLotto(5);
+    $("lottoN").oninput = () => {   // the price updates as you type
+      const n = Math.floor(Number($("lottoN").value)), okN = n >= 1 && n <= 1000;
+      if (okN) lottoWant = n;
+      $("lottoBuy").textContent = okN ? `🎟️ Buy ${n} (🪙 ${n * LOTTO_PRICE})` : "🎟️ Pick 1–1000";
+      $("lottoBuy").disabled = !okN;
+    };
+    $("lottoBuy").onclick = () => buyLotto($("lottoN").value);
     const c = $("lottoClaim"); if (c) c.onclick = claimLotto;
   }
   renderLotto();

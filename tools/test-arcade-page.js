@@ -672,6 +672,17 @@ A("coins10"); A("coins100"); ok("+10 +100", r.save().coins === 117);
   r.id("admLottoAt").value = `${fut.getFullYear()}-${pad(fut.getMonth() + 1)}-${pad(fut.getDate())}T${pad(fut.getHours())}:${pad(fut.getMinutes())}`;
   A("lottoat"); await flush(5);
   ok("admin: set when the lotto opens", Math.abs(r.save().lotto.endsAt - (r.w.Date.now() + 3 * 864e5)) < 6e4 && /3 days left/.test(r.id("lotto").textContent) && /opens/.test(r.id("admLottoNow").textContent), r.save().lotto && r.save().lotto.endsAt);
+  // 🎟️ pick how many tickets
+  { const t0 = r.save().lotto.tickets; r.setSave((x) => { x.coins = 1000; delete x.admin.infCoins; });
+    r.id("lottoN").value = "7"; r.id("lottoN").dispatchEvent(new r.w.Event("input"));
+    ok("the Buy button shows the price as you type (7 → 🪙 350)", /Buy 7 \(🪙 350\)/.test(r.id("lottoBuy").textContent) && !r.id("lottoBuy").disabled);
+    r.id("lottoBuy").click(); await flush(5);
+    ok("buy 7 tickets: −350 points, +7 tickets", r.save().coins === 650 && r.save().lotto.tickets === t0 + 7, r.save().coins);
+    ok("…and the box remembers 7", r.id("lottoN").value === "7");
+    r.id("lottoN").value = "0"; r.id("lottoN").dispatchEvent(new r.w.Event("input"));
+    ok("0 or a silly number can't be bought", r.id("lottoBuy").disabled && /1–1000/.test(r.id("lottoBuy").textContent));
+    r.id("lottoN").value = "20"; r.id("lottoN").dispatchEvent(new r.w.Event("input")); r.id("lottoBuy").click(); await flush(5);
+    ok("not enough points for 20 (🪙 1000) → nothing bought", r.save().coins === 650 && r.save().lotto.tickets === t0 + 7 && /need 🪙 1000/.test(r.toast())); }
   r.setSave((x) => { x.lotto.tickets = 2; }); const c0 = r.save().coins;
   A("lottonow"); await flush(5); ok("Open now asks twice — the button says so", r.save().lotto.tickets === 2 && /Click again/.test(r.$('[data-admin="lottonow"]').textContent));
   const rnd = r.w.Math.random; r.w.Math.random = () => 0.005;   // a lucky draw (1% a player)

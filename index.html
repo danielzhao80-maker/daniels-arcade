@@ -364,6 +364,11 @@
           <small>Challenges across the games — each one unlocks its title, and it's yours forever.</small>
           <div id="achievements" style="width:100%"></div>
         </div>
+        <div class="free-card">
+          <b>🎟️ Lotto</b>
+          <small>A ticket costs 50 arcade points. At the end of the season (each month) the tickets are drawn.</small>
+          <div id="lotto" style="width:100%"></div>
+        </div>
       </div>
     </section>
 
@@ -1049,6 +1054,76 @@
   renderAchievements();
   window.addEventListener("hashchange", () => { renderFree(); renderMilestones(); renderAchievements(); });
   window.addEventListener("focus", renderAchievements);   // back from a game: show what you just unlocked
+
+  // 🎟️ LOTTO: spend 50 arcade points on a ticket. A season is a month; when it ends the tickets are drawn:
+  //   • 250+ players: each ticket has a 0.000000000000000000000000001% chance to win the 🛠️ Admin Panel in
+  //     every game and the arcade (practically never!);
+  //   • fewer than 50 players: one ticket wins 100 points.   (50–249 players: no draw.)
+  // Logged in (with the arcade server): everyone's tickets are in one draw on the server. Otherwise it's just you.
+  const LOTTO_PRICE = 50, seasonNow = () => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`; };
+  const lottoAcc = () => { try { return JSON.parse(localStorage.getItem("daniels-arcade-account") || "null"); } catch { return null; } };
+  const lottoOnline = () => hasServer && !!(lottoAcc() && lottoAcc().token);
+  async function lottoApi(method, route, body) {   // (its own little fetch, so it works before the account code below has loaded)
+    const r = await fetch("/api/arcade/" + route, { method, headers: { "Content-Type": "application/json", "X-Arcade-Token": (lottoAcc() || {}).token || "" }, body: body ? JSON.stringify(body) : undefined });
+    const data = await r.json().catch(() => ({})); if (!r.ok) throw new Error(data.error || "Something went wrong."); return data;
+  }
+  let lottoView = null;
+  function grantLottoAdmin() {   // 🛠️ the grand prize: the arcade's Admin Panel — which every game checks — and Island Clash's own
+    save = ArcadeShop.update((sv) => { sv.adminUnlocked = true; });
+    try { const k = "island_clash_save", d = JSON.parse(localStorage.getItem(k) || "null"); if (d) { d.admin = true; d.adminUsed = true; localStorage.setItem(k, JSON.stringify(d)); } } catch {}
+  }
+  function localLottoRoll() {   // just you in the draw: always under 50 players, so a ticket wins 100 points
+    save = ArcadeShop.update((sv) => {
+      const L = sv.lotto || (sv.lotto = { season: seasonNow(), tickets: 0 });
+      if (L.season !== seasonNow()) { L.last = { season: L.season, tickets: L.tickets, players: L.tickets > 0 ? 1 : 0, won: L.tickets > 0 ? 100 : 0, claimed: false }; L.season = seasonNow(); L.tickets = 0; }
+    });
+  }
+  const canPayPoints = (n) => (ArcadeShop.isInf && ArcadeShop.isInf(save)) || save.coins >= n;
+  async function buyLotto(n) {
+    const cost = LOTTO_PRICE * n;
+    if (!canPayPoints(cost)) return toast(`🎟️ You need 🪙 ${cost} arcade points.`);
+    if (lottoOnline()) {
+      try { lottoView = await lottoApi("POST", "lotto/buy", { n }); } catch (e) { return toast("🎟️ " + e.message); }
+      save = ArcadeShop.update((sv) => { sv.coins -= cost; });
+    } else { localLottoRoll(); save = ArcadeShop.update((sv) => { sv.coins -= cost; sv.lotto.tickets += n; }); }
+    renderWallet(); toast(`🎟️ ${n} ticket${n > 1 ? "s" : ""} bought — good luck!`); renderLotto();
+  }
+  async function claimLotto() {
+    if (lottoOnline()) {
+      let r; try { r = await lottoApi("POST", "lotto/claim"); } catch (e) { return toast("🎟️ " + e.message); }
+      if (r.grand) { grantLottoAdmin(); toast("🎟️🎟️🎟️ YOU WON THE LOTTO! The 🛠️ Admin Panel is yours in every game!"); }
+      if (r.coins) { save = ArcadeShop.update((sv) => { sv.coins += r.coins; }); toast(`🎟️ You won 🪙 ${r.coins} points!`); }
+    } else {
+      const L = save.lotto && save.lotto.last; if (!L || L.claimed || !L.won) return toast("🎟️ Nothing to claim.");
+      save = ArcadeShop.update((sv) => { sv.lotto.last.claimed = true; sv.coins += sv.lotto.last.won; }); toast(`🎟️ You won 🪙 ${L.won} points!`);
+    }
+    renderWallet(); renderLotto();
+  }
+  async function renderLotto() {
+    const end = new Date(); end.setMonth(end.getMonth() + 1, 1); end.setHours(0, 0, 0, 0);
+    const days = Math.max(0, Math.ceil((end - Date.now()) / 864e5));
+    let mine, players, total, last, shared = lottoOnline();
+    if (shared) {
+      try { lottoView = await lottoApi("GET", "lotto"); } catch { shared = false; }
+    }
+    if (shared && lottoView) {
+      ({ mine, players, total } = lottoView); const l = lottoView.last;
+      last = l && { season: l.season, players: l.players, text: l.grandWinners.length ? `🛠️ Admin Panel won by ${l.grandWinners.join(", ")}!` : l.smallWinner ? `🪙 100 points won by ${l.smallWinner}` : l.players >= 250 ? "Nobody won the Admin Panel." : l.players ? "No draw (50–249 players)." : "No tickets.",
+                    canClaim: (l.iWonGrand || l.iWonSmall) && !l.claimed };
+    } else {
+      localLottoRoll(); const L = save.lotto; mine = L.tickets; players = L.tickets ? 1 : 0; total = L.tickets;
+      last = L.last && L.last.tickets ? { season: L.last.season, players: 1, text: "Only you played — your ticket won 🪙 100 points!", canClaim: !L.last.claimed && L.last.won > 0 } : null;
+    }
+    const prizeNow = players >= 250 ? "🛠️ Admin Panel draw ON (a 0.000000000000000000000000001% chance a ticket!)" : players < 50 ? "under 50 players: one ticket wins 🪙 100" : "50–249 players: no draw (250 players unlocks the 🛠️ Admin Panel draw)";
+    $("lotto").innerHTML = `<div class="ms" style="grid-template-columns:1fr auto"><b>🎟️ Your tickets: ${mine}</b><span>${days} day${days === 1 ? "" : "s"} left</span></div>
+      <div class="ms" style="display:block"><span>👥 ${players} player${players === 1 ? "" : "s"} · ${total} ticket${total === 1 ? "" : "s"} this season${shared ? "" : " (just you — log in to play with everyone)"}</span></div>
+      <small style="opacity:.85">${prizeNow}. 🏆 250 players needed for the Admin Panel prize.</small>
+      <div style="display:flex;gap:6px;justify-content:center;margin-top:6px"><button class="btn" id="lotto1">🎟️ Buy 1 (🪙 50)</button><button class="btn" id="lotto5">🎟️ Buy 5 (🪙 250)</button></div>
+      ${last ? `<small style="display:block;margin-top:6px">Last season (${last.season}): ${last.text}</small>${last.canClaim ? `<button class="btn" id="lottoClaim" style="margin-top:4px">🎁 Claim your prize!</button>` : ""}` : ""}`;
+    $("lotto1").onclick = () => buyLotto(1); $("lotto5").onclick = () => buyLotto(5);
+    const c = $("lottoClaim"); if (c) c.onclick = claimLotto;
+  }
+  renderLotto();
 
   // ---------------------------------------------------------------- hard quest + admin panel
   // The invisible corner of the shop's 🎁 Codes tab opens the quest. Beating it unlocks the Admin

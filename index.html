@@ -1058,7 +1058,7 @@
   // 🎟️ LOTTO: spend 50 arcade points on a ticket. A season is a month; when it ends the tickets are drawn:
   //   • 250+ players: each ticket has a 0.000000000000000000000000001% chance to win the 🛠️ Admin Panel in
   //     every game and the arcade (practically never!);
-  //   • fewer than 50 players: one ticket wins 100 points.   (50–249 players: no draw.)
+  //   • fewer than 50 players: one ticket wins 75 points.   (50–249 players: no draw.)
   // Logged in (with the arcade server): everyone's tickets are in one draw on the server. Otherwise it's just you.
   const LOTTO_PRICE = 50, seasonNow = () => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`; };
   const lottoAcc = () => { try { return JSON.parse(localStorage.getItem("daniels-arcade-account") || "null"); } catch { return null; } };
@@ -1072,10 +1072,10 @@
     save = ArcadeShop.update((sv) => { sv.adminUnlocked = true; });
     try { const k = "island_clash_save", d = JSON.parse(localStorage.getItem(k) || "null"); if (d) { d.admin = true; d.adminUsed = true; localStorage.setItem(k, JSON.stringify(d)); } } catch {}
   }
-  function localLottoRoll() {   // just you in the draw: always under 50 players, so a ticket wins 100 points
+  function localLottoRoll() {   // just you in the draw: always under 50 players, so a ticket wins 75 points
     save = ArcadeShop.update((sv) => {
       const L = sv.lotto || (sv.lotto = { season: seasonNow(), tickets: 0 });
-      if (L.season !== seasonNow()) { L.last = { season: L.season, tickets: L.tickets, players: L.tickets > 0 ? 1 : 0, won: L.tickets > 0 ? 100 : 0, claimed: false }; L.season = seasonNow(); L.tickets = 0; }
+      if (L.season !== seasonNow()) { L.last = { season: L.season, tickets: L.tickets, players: L.tickets > 0 ? 1 : 0, won: L.tickets > 0 ? 75 : 0, claimed: false }; L.season = seasonNow(); L.tickets = 0; }
     });
   }
   const canPayPoints = (n) => (ArcadeShop.isInf && ArcadeShop.isInf(save)) || save.coins >= n;
@@ -1108,13 +1108,13 @@
     }
     if (shared && lottoView) {
       ({ mine, players, total } = lottoView); const l = lottoView.last;
-      last = l && { season: l.season, players: l.players, text: l.grandWinners.length ? `🛠️ Admin Panel won by ${l.grandWinners.join(", ")}!` : l.smallWinner ? `🪙 100 points won by ${l.smallWinner}` : l.players >= 250 ? "Nobody won the Admin Panel." : l.players ? "No draw (50–249 players)." : "No tickets.",
+      last = l && { season: l.season, players: l.players, text: l.grandWinners.length ? `🛠️ Admin Panel won by ${l.grandWinners.join(", ")}!` : l.smallWinner ? `🪙 75 points won by ${l.smallWinner}` : l.players >= 250 ? "Nobody won the Admin Panel." : l.players ? "No draw (50–249 players)." : "No tickets.",
                     canClaim: (l.iWonGrand || l.iWonSmall) && !l.claimed };
     } else {
       localLottoRoll(); const L = save.lotto; mine = L.tickets; players = L.tickets ? 1 : 0; total = L.tickets;
-      last = L.last && L.last.tickets ? { season: L.last.season, players: 1, text: "Only you played — your ticket won 🪙 100 points!", canClaim: !L.last.claimed && L.last.won > 0 } : null;
+      last = L.last && L.last.tickets ? { season: L.last.season, players: 1, text: "Only you played — your ticket won 🪙 75 points!", canClaim: !L.last.claimed && L.last.won > 0 } : null;
     }
-    const prizeNow = players >= 250 ? "🛠️ Admin Panel draw ON (a 0.000000000000000000000000001% chance a ticket!)" : players < 50 ? "under 50 players: one ticket wins 🪙 100" : "50–249 players: no draw (250 players unlocks the 🛠️ Admin Panel draw)";
+    const prizeNow = players >= 250 ? "🛠️ Admin Panel draw ON (a 0.000000000000000000000000001% chance a ticket!)" : players < 50 ? "under 50 players: one ticket wins 🪙 75" : "50–249 players: no draw (250 players unlocks the 🛠️ Admin Panel draw)";
     $("lotto").innerHTML = `<div class="ms" style="grid-template-columns:1fr auto"><b>🎟️ Your tickets: ${mine}</b><span>${days} day${days === 1 ? "" : "s"} left</span></div>
       <div class="ms" style="display:block"><span>👥 ${players} player${players === 1 ? "" : "s"} · ${total} ticket${total === 1 ? "" : "s"} this season${shared ? "" : " (just you — log in to play with everyone)"}</span></div>
       <small style="opacity:.85">${prizeNow}. 🏆 250 players needed for the Admin Panel prize.</small>

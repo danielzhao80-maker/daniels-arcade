@@ -58,6 +58,15 @@
   .rar-common { border-color: #b2bec3; } .rar-rare { border-color: #48dbfb; } .rar-epic { border-color: #a55eea; } .rar-legendary { border-color: #feca57; } .rar-owner { border-color: #f9ca24; box-shadow: 0 0 22px #f9ca24, 0 0 40px #e67e22; background: linear-gradient(135deg, rgba(249,202,36,.3), rgba(230,126,34,.3)) !important; } .rar-uncommon { border-color: #55efc4; } .rar-divine { border-color: #fff3b0; box-shadow: 0 0 16px #fff3b0; } .rar-celestial { border-color: #74b9ff; box-shadow: 0 0 18px #74b9ff, inset 0 0 12px #6c5ce7; } .rar-secret { border-color: #fd79a8; box-shadow: 0 0 20px #fd79a8, 0 0 34px #a29bfe; background: linear-gradient(135deg, rgba(253,121,168,.25), rgba(108,92,231,.3)) !important; } .rar-mythic { border-color: #ff6b6b; box-shadow: 0 0 14px #ff6b6b; }
   #result { background: rgba(10,5,25,.92); justify-content: center; }
   #eggShow { font-size: 5rem; margin: 10px; transition: transform .3s; }
+  /* 🎃 🎄 events: a banner on the menu and falling bats / snow */
+  #evBanner { display: none; margin: 4px 0 8px; padding: 10px 14px; border-radius: 16px; font-weight: 900; text-align: center; max-width: 560px; }
+  #evBanner.halloween { display: block; background: linear-gradient(135deg, #e67e22, #6c3483); }
+  #evBanner.christmas { display: block; background: linear-gradient(135deg, #c0392b, #1e8449); }
+  #evFall { position: fixed; inset: 0; pointer-events: none; z-index: 6; overflow: hidden; }
+  #evFall span { position: absolute; top: -40px; font-size: 1.4rem; opacity: .45; animation: evfall linear infinite; }
+  @keyframes evfall { to { transform: translateY(110vh) rotate(360deg); } }
+  #event.halloween { background: radial-gradient(circle at 50% 15%, #e67e22, #2c0f3a 70%); }
+  #event.christmas { background: radial-gradient(circle at 50% 15%, #2ecc71, #0b2a3a 70%); }
 </style>
 </head>
 <body>
@@ -68,6 +77,7 @@
 <div class="screen on" id="menu">
   <h1>🐾 Summon Battlers</h1>
   <div class="sub">Summon your pets and battle! Collect pets from eggs, build your deck of 6, and smash the enemy base.</div>
+  <div id="evBanner"><span id="evBannerText"></span><div class="row" style="margin:6px 0 0"><button class="orange" id="btnEvent">🎉 Open the event</button></div></div>
   <div class="row"><span class="pill">🪙 <b id="coins">0</b></span><span class="pill">🗺️ Stage <b id="stageN">1</b>/30</span><span class="pill">⭐ <b id="starsN">0</b></span><span class="pill">🐾 <b id="petsN">0</b>/<b id="petsMax">1024</b></span></div>
   <div class="row">
     <button class="green" id="btnPlay">⚔️ Play</button>
@@ -147,6 +157,14 @@
   <div class="sub" id="ownMsg" style="font-weight:900;font-size:1.05rem;min-height:1.4em"></div>
   <div class="row"><button class="small" id="ownBack">⬅ Back</button></div>
 </div>
+<div class="screen" id="event">
+  <h2 id="evTitle"></h2>
+  <div class="sub" id="evSub"></div>
+  <div class="row"><span class="pill" id="evCurPill"></span><span class="pill" id="evBadges"></span></div>
+  <div id="evBody" style="width:min(720px,96vw)"></div>
+  <div class="row"><button class="small" data-back>⬅ Back</button></div>
+</div>
+<div id="evFall"></div>
 <div class="screen" id="result">
   <h2 id="resTitle"></h2>
   <div class="sub" id="resText" style="font-size:1.05rem"></div>
@@ -245,6 +263,8 @@ const EXTRA = {
   sking:   { name: "Scorpion King",  emoji: "🦂", boss: true, hp: 1250, dmg: 32, range: 34, speed: 0.6, rate: 55, poison: 18, splash: 35 },
   mammoth: { name: "Frost Mammoth",  emoji: "🦣", boss: true, hp: 1700, dmg: 36, range: 36, speed: 0.5, rate: 60, freeze: 14, splash: 35 },
   magma:   { name: "Magma Golem",    emoji: "🗿", boss: true, hp: 3100, dmg: 55, range: 36, speed: 0.45, rate: 60, splash: 70, boom: { dmg: 400, r: 120 } },
+  pumpkinking: { name: "Pumpkin King",  emoji: "🎃", boss: true, hp: 5000, dmg: 60, range: 40, speed: 0.5, rate: 55, splash: 80, poison: 25, summon: { id: "bat", every: 240 } },
+  snowking:    { name: "Snow Monster",  emoji: "☃️", boss: true, hp: 5000, dmg: 55, range: 40, speed: 0.45, rate: 55, splash: 80, freeze: 20, summon: { id: "penguin", every: 240 } },
   voidlord:{ name: "Void Lord",      emoji: "👾", boss: true, hp: 4200, dmg: 62, range: 150, speed: 0.5, rate: 55, fly: true, splash: 80, summon: { id: "inkling", every: 240 } },
 };
 // ---- ✨ 500 MORE PETS: 50 animals × 10 elements ("🔥 Fire Fox"). The animal sets the ROLE, the element adds a
@@ -370,6 +390,18 @@ for (const [id, el] of Object.entries(ORIG_ELEMENT)) {
   const d = PETS[id]; d.element = el;
   d.role = d.heal ? "healer" : d.shield ? "tank" : d.fly && d.range < 60 ? "flyer" : d.range >= 60 ? "shooter" : d.speed >= 1.7 ? "runner" : "fighter";
 }
+// ---- 🎃 🎄 EVENT PETS: only from the event shop while their event is on — yours for good after that.
+const EVENT_PETS = {
+  pumpkinknight: { name: "Pumpkin Knight",  emoji: "🎃", rarity: "epic",      event: "halloween", price: 60,  element: "fire",   role: "tank",    cost: 6, hp: 700,  dmg: 24, range: 28,  speed: 0.9, rate: 44, shield: 0.3, boom: { dmg: 200, r: 90 }, desc: "🎃 HALLOWEEN — a tough knight whose pumpkin head EXPLODES when it's beaten." },
+  ghost:         { name: "Friendly Ghost",  emoji: "👻", rarity: "legendary", event: "halloween", price: 120, element: "shadow", role: "flyer",   cost: 6, hp: 900,  dmg: 40, range: 26,  speed: 1.6, rate: 36, fly: true, lifesteal: 0.3, desc: "🎃 HALLOWEEN — FLOATS over the ground and heals from its spooky touch." },
+  witch:         { name: "Witch",           emoji: "🧙‍♀️", rarity: "legendary", event: "halloween", price: 150, element: "toxic",  role: "shooter", cost: 7, hp: 800,  dmg: 45, range: 160, speed: 0.9, rate: 46, splash: 60, poison: 30, desc: "🎃 HALLOWEEN — throws POISON potions that splash whole groups." },
+  vampire:       { name: "Vampire Count",   emoji: "🧛", rarity: "mythic",    event: "halloween", price: 300, element: "shadow", role: "fighter", cost: 9, hp: 1800, dmg: 60, range: 28,  speed: 1.3, rate: 38, lifesteal: 0.6, summon: { id: "bat", every: 300 }, desc: "🎃 HALLOWEEN — drinks HEALTH from its bites and calls 🦇 bats every 5 s." },
+  snowman:       { name: "Snowman",         emoji: "⛄", rarity: "epic",      event: "christmas", price: 60,  element: "ice",    role: "tank",    cost: 5, hp: 800,  dmg: 16, range: 120, speed: 0.6, rate: 50, shield: 0.3, freeze: 40, desc: "🎄 CHRISTMAS — a tough snowman throwing snowballs that FREEZE." },
+  reindeer:      { name: "Flying Reindeer", emoji: "🦌", rarity: "legendary", event: "christmas", price: 120, element: "wind",   role: "flyer",   cost: 6, hp: 900,  dmg: 42, range: 26,  speed: 2.2, rate: 32, fly: true, charge: 3, desc: "🎄 CHRISTMAS — FLIES in fast and hits 3× on its first charge." },
+  elf:           { name: "Toy Elf",         emoji: "🧝", rarity: "legendary", event: "christmas", price: 150, element: "nature", role: "healer",  cost: 6, hp: 700,  dmg: 20, range: 140, speed: 1.1, rate: 40, heal: 70, desc: "🎄 CHRISTMAS — fixes up (HEALS) every friend near it." },
+  santa:         { name: "Santa Claus",     emoji: "🎅", rarity: "mythic",    event: "christmas", price: 300, element: "light",  role: "shooter", cost: 9, hp: 2200, dmg: 55, range: 150, speed: 0.9, rate: 44, splash: 70, aura: 0.3, summon: { id: "elf", every: 360 }, desc: "🎄 CHRISTMAS — present bombs on whole groups, +30% for friends, and calls 🧝 elves." },
+};
+Object.assign(PETS, EVENT_PETS);
 // ---- 🔓 ABILITIES unlock as a pet levels up: Lv 3 its element's, Lv 6 its role's, Lv 10 an ULTIMATE (by rarity).
 const ABILITIES = {
   burn:    { emoji: "🔥", name: "Burn",            desc: "Hits set enemies on fire (they keep burning for 3 s)." },
@@ -492,7 +524,7 @@ function hatch(kind, free, r1, r2) {   // → { id, fresh, shards } or { error }
   const egg = EGGS[kind]; if (!egg) return { error: "No such egg." };
   if (free) { if (!(S.freeEggs[kind] > 0)) return { error: "You have no free egg of that kind." }; S.freeEggs[kind]--; }
   else { if (!canSpend(egg.cost)) return { error: `You need 🪙 ${egg.cost}.` }; spend(egg.cost); }
-  const rar = rollRarity(egg.odds, r1), pool = Object.keys(PETS).filter((id) => PETS[id].rarity === rar);
+  const rar = rollRarity(egg.odds, r1), pool = Object.keys(PETS).filter((id) => PETS[id].rarity === rar && !PETS[id].event);   // (🎃 🎄 event pets: event shop only)
   const id = pool[Math.floor((r2 === undefined ? Math.random() : r2) * pool.length) % pool.length];
   S.hatched = (S.hatched || 0) + 1; questAdd("hatch", 1);
   let out;
@@ -563,6 +595,9 @@ function ownerAction(act, arg) {
     const ids = ["ogre", "sking", "mammoth", "magma", "voidlord"], id = ids[Math.max(0, Math.min(4, +arg || 0))];
     battle.units.push(makeUnit(0, id, 3, BASE_X[0] + 50, 1)); return `👹 ${EXTRA[id].name} fights for YOU!`;
   }
+  if (act === "evforce") { try { arg ? localStorage.setItem(EVENT_FORCE, arg) : localStorage.removeItem(EVENT_FORCE); } catch (e) {} const ev = eventNow(); return ev ? `${ev.emoji} ${ev.name} event ON` : arg === "off" ? "🚫 Events off" : "📅 Events follow the date (no event right now)"; }
+  if (act === "evcur") { S.candy = (S.candy || 0) + 500; S.presents = (S.presents || 0) + 500; save(); return "🍬 +500 candy and 🎁 +500 presents"; }
+  if (act === "evpets") { for (const id of Object.keys(EVENT_PETS)) if (!S.pets[id]) S.pets[id] = { lvl: 1, shards: 0 }; save(); return "🎃🎄 All 8 event pets are yours!"; }
   if (act === "titles") { ["sb-summoner", "sb-mythic", "sb-champion"].forEach((t) => earnTitle(t)); return "🏅 All 3 Summon Battlers arcade titles"; }
   if (act === "codes") { S.codes = []; save(); return "🎁 Every code works again"; }
   if (act === "reset") { const keepOwner = S.owner; S = freshSave(); S.owner = keepOwner; save(); return "🔄 Started over (you're still the owner)"; }
@@ -572,6 +607,7 @@ function redeemCode(raw) {
   const code = String(raw || "").trim().toUpperCase().replace(/\s+/g, "");
   if (!code) return "Type a code first.";
   if (codeHash(code) === OWNER_HASH) { S.owner = true; save(); openOwner(); return "👑 OWNER PANEL unlocked — no limits!"; }
+  const evMsg = redeemEventCode(code); if (evMsg) return evMsg;   // 🎃 🎄
   const c = CODES[code]; if (!c) return "❌ That code doesn't exist.";
   if (S.codes.includes(code)) return "You already used that code.";
   S.codes.push(code);
@@ -625,7 +661,7 @@ function startSurvival() {
 function survivalWave(bt) {   // the next wave: more pets, rarer and higher level each time
   bt.wave++;
   const rank = Math.min(7, Math.floor(bt.wave / 4)), lvl = Math.min(MAX_LVL, 1 + Math.floor(bt.wave / 3)), n = Math.min(14, 2 + bt.wave);
-  const pool = Object.keys(PETS).filter((id) => RAR_RANK[PETS[id].rarity] <= rank && RAR_RANK[PETS[id].rarity] >= rank - 2);
+  const pool = Object.keys(PETS).filter((id) => RAR_RANK[PETS[id].rarity] <= rank && RAR_RANK[PETS[id].rarity] >= rank - 2 && !PETS[id].event);
   for (let i = 0; i < n; i++) { const u = makeUnit(1, pool[Math.floor(bt.rnd() * pool.length)], lvl, BASE_X[1] - 40 - i * 14, i % 3); bt.units.push(u); }
   bt.texts.push({ x: 700, y: 150, t: 100, text: `♾️ WAVE ${bt.wave}!` });
 }
@@ -673,6 +709,128 @@ function claimQuest(i) {
   save(); return msg;
 }
 const dailyToClaim = () => S.dailyDay !== localDay() || dailyQuests().list.some((q) => !q.done && q.n >= QUESTS.find((x) => x.id === q.id).goal);
+// ---- 🎃 HALLOWEEN and 🎄 CHRISTMAS EVENTS (the arcade's dates: 1 Oct – 7 Nov, 1 Dec – 7 Jan). While one is on:
+// a banner and falling bats / snow, 🍬 candy or 🎁 presents from every battle, an event shop (4 event pets each — yours
+// for good — and an event egg), a daily Trick or Treat / Advent Calendar door, an event BOSS, badges and event codes.
+// Which event: the owner's switch (summon_battlers_event_force), then the arcade's event links
+// (monster_attack_event_force: /halloween/, /christmas/), then the date.
+const EVENTS = {
+  halloween: { id: "halloween", name: "Halloween", emoji: "🎃", cur: "candy", curEmoji: "🍬", curName: "candy", fall: ["🦇", "🍂", "👻", "🦇"], ends: "7 November",
+               on: (d) => d.getMonth() === 9 || (d.getMonth() === 10 && d.getDate() <= 7), boss: "pumpkinking",
+               world: { name: "Haunted Graveyard", emoji: "🎃", sky: ["#1a0b2e", "#e67e22"], ground: "#3d2b1f" }, foes: ["bat", "snake", "scorpion", "owl", "shadow-cat", "toxic-spider"] },
+  christmas: { id: "christmas", name: "Christmas", emoji: "🎄", cur: "presents", curEmoji: "🎁", curName: "presents", fall: ["❄️", "❄️", "⛄", "❄️"], ends: "7 January",
+               on: (d) => d.getMonth() === 11 || (d.getMonth() === 0 && d.getDate() <= 7), boss: "snowking",
+               world: { name: "North Pole", emoji: "🎄", sky: ["#0b2a3a", "#a5d8ff"], ground: "#f1f6fb" }, foes: ["penguin", "wolf", "turtle", "owl", "ice-polarbear", "ice-seal"] },
+};
+const EVENT_EGG_COST = 25, EVENT_FORCE = "summon_battlers_event_force";
+// 🏅 badges for beating the event boss: 1, 3 and 10 times (each year's event counts on)
+const EVENT_BADGES = { halloween: [[1, "🎃 Pumpkin Smasher"], [3, "🦇 Night Hunter"], [10, "👑 Pumpkin King Slayer"]], christmas: [[1, "⛄ Snow Buster"], [3, "🧝 Santa's Helper"], [10, "🎅 Christmas Hero"]] };
+const EVENT_CODES = { SPOOKY: { ev: "halloween", n: 30 }, TRICKORTREAT: { ev: "halloween", n: 50 }, SNOWMAN: { ev: "christmas", n: 30 }, MERRYXMAS: { ev: "christmas", n: 50 } };
+function eventNow(d) {
+  for (const key of [EVENT_FORCE, "monster_attack_event_force"]) {
+    let f = null; try { f = localStorage.getItem(key); } catch (e) {}
+    if (f === "off") return null;
+    if (f && EVENTS[f]) return EVENTS[f];
+    if (f === "auto") break;
+  }
+  d = d || new Date();
+  return Object.values(EVENTS).find((e) => e.on(d)) || null;
+}
+const evCur = (ev) => Math.max(0, Math.floor(S[ev.cur] || 0));
+function addEventCur(n) {   // 🍬 / 🎁 for the event that's on → the text for the result screen ("" when no event)
+  const ev = eventNow(); if (!ev || !(n > 0)) return "";
+  S[ev.cur] = evCur(ev) + n; return ` · ${ev.curEmoji} +${n} ${ev.curName}`;
+}
+const eventPetsOf = (ev) => Object.keys(EVENT_PETS).filter((id) => EVENT_PETS[id].event === ev.id);
+const badgesOf = () => Object.entries(EVENT_BADGES).flatMap(([id, list]) => list.filter(([n]) => ((S.evBossWins || {})[id] || 0) >= n).map(([, b]) => b));
+function buyEventPet(id) {
+  const ev = eventNow(), d = EVENT_PETS[id];
+  if (!ev || !d || d.event !== ev.id) return `That pet is only in the ${d ? EVENTS[d.event].name : ""} event shop.`;
+  if (owned(id)) return `You already have ${d.emoji} ${d.name}!`;
+  if (evCur(ev) < d.price) return `You need ${ev.curEmoji} ${d.price} ${ev.curName} (you have ${evCur(ev)}).`;
+  S[ev.cur] -= d.price; S.pets[id] = { lvl: 1, shards: 0 }; if (S.deck.length < DECK_SIZE) S.deck.push(id); save();
+  return null;
+}
+function hatchEventEgg(r) {   // a random event pet — or shards for one you have
+  const ev = eventNow(); if (!ev) return { error: "No event is on right now." };
+  if (evCur(ev) < EVENT_EGG_COST) return { error: `You need ${ev.curEmoji} ${EVENT_EGG_COST} ${ev.curName}.` };
+  S[ev.cur] -= EVENT_EGG_COST;
+  const list = eventPetsOf(ev), id = list[Math.floor((r === undefined ? Math.random() : r) * list.length) % list.length];
+  let out; if (!S.pets[id]) { S.pets[id] = { lvl: 1, shards: 0 }; if (S.deck.length < DECK_SIZE) S.deck.push(id); out = { id, fresh: true, shards: 0 }; }
+  else { S.pets[id].shards += 10; out = { id, fresh: false, shards: 10 }; }
+  S.hatched = (S.hatched || 0) + 1; questAdd("hatch", 1); save(); return out;
+}
+function claimEventDaily(d) {   // 🚪 Trick or Treat (Halloween) / 📅 the Advent Calendar (Christmas): once a day
+  const ev = eventNow(d); if (!ev) return "No event is on right now.";
+  d = d || new Date(); const day = localDay(d);
+  if (S.evDaily === day) return `${ev.emoji} Come back tomorrow for another ${ev.id === "halloween" ? "trick or treat" : "door"}!`;
+  S.evDaily = day; let msg;
+  if (ev.id === "halloween") {
+    if (Math.random() < 0.25) { S.candy = evCur(ev) + 3; msg = "👻 TRICK! BOO! … ok, here's 🍬 3 candy anyway."; }
+    else { const c = 10 + Math.floor(Math.random() * 16), g = 100 + Math.floor(Math.random() * 201); S.candy = evCur(ev) + c; S.coins += g; msg = `🍬 TREAT! +${c} candy and 🪙 ${g}`; }
+  } else {
+    const dec = d.getMonth() === 11, n = d.getDate();
+    if (dec && n === 25) { S.presents = evCur(ev) + 100; S.freeEggs.golden = (S.freeEggs.golden || 0) + 1; msg = "🎅 MERRY CHRISTMAS! 🎁 +100 presents and a free 🌟 Golden Egg!"; }
+    else if (dec && n <= 24) { S.presents = evCur(ev) + 5 + n; msg = `📅 Door ${n}: 🎁 +${5 + n} presents`; }
+    else { S.presents = evCur(ev) + 10; msg = "📅 🎁 +10 presents"; }
+  }
+  save(); return msg;
+}
+function startEventBoss(rnd) {   // 👹 the event boss, as strong as how far you've got in the campaign
+  const ev = eventNow(); if (!ev) return "No event is on right now.";
+  const n = Math.max(3, Math.min(STAGES, S.stage)), base = stageInfo(n);
+  // the enemy: that stage's world pets plus the event's own (the stronger ones only later on); the boss grows with you
+  const deck = base.deck.concat(ev.foes.filter((id) => PETS[id] && RAR_RANK[PETS[id].rarity] <= Math.floor(n / 6)));
+  const st = Object.assign(base, { event: ev.id, boss: true, bossId: ev.boss, bossScale: 0.15 + 0.85 * (n / STAGES), worldDef: ev.world, deck, coins: 0 });
+  rnd = rnd || Math.random;
+  battle = { st, rnd, frame: 0, units: [], shots: [], fx: [], texts: [], over: false, energy: [5, 5], tick: [0, 0],
+             base: [Math.round(1000 * (1 + 0.08 * (totalStars() / 10))), st.baseHp], baseMax: [0, st.baseHp], aiWait: 120, bossOut: false };
+  battle.baseMax[0] = battle.base[0];
+  showBattle(); return null;
+}
+function redeemEventCode(code) {   // → a message, or null if it isn't an event code
+  const c = EVENT_CODES[code]; if (!c) return null;
+  const ev = eventNow(); if (!ev || ev.id !== c.ev) return `${EVENTS[c.ev].emoji} That's a ${EVENTS[c.ev].name} code — it only works during ${EVENTS[c.ev].name}!`;
+  const key = code + "-" + new Date().getFullYear();   // (once per year's event)
+  if (S.codes.includes(key)) return "You already used that code this year.";
+  S.codes.push(key); S[ev.cur] = evCur(ev) + c.n; save(); return `🎁 ${code}: ${ev.curEmoji} +${c.n} ${ev.curName}!`;
+}
+function renderEventDecor() {   // the banner and falling bats / snow (menu and event screens)
+  const ev = eventNow(), b = $("evBanner"), fall = $("evFall");
+  b.className = ev ? ev.id : "";
+  if (ev) $("evBannerText").textContent = `${ev.emoji} The ${ev.name.toUpperCase()} EVENT is on! Event pets, a boss and ${ev.curEmoji} ${ev.curName} — until ${ev.ends}.`;
+  const want = ev && ($("menu").classList.contains("on") || $("event").classList.contains("on")) ? ev.id : "";
+  if (fall.dataset.ev === want) return;
+  fall.dataset.ev = want;
+  fall.innerHTML = want ? Array.from({ length: 16 }, (_, i) => `<span style="left:${(i * 6.3 + 3) % 100}%;animation-duration:${7 + (i * 1.7) % 6}s;animation-delay:-${(i * 2.3) % 9}s">${ev.fall[i % ev.fall.length]}</span>`).join("") : "";
+}
+function renderEvent() {
+  const ev = eventNow(), body = $("evBody");
+  $("event").className = "screen on " + (ev ? ev.id : "");
+  if (!ev) { $("evTitle").textContent = "🎉 Events"; $("evSub").textContent = "🎃 Halloween (October – 7 Nov) and 🎄 Christmas (December – 7 Jan). Come back then!"; $("evCurPill").textContent = ""; $("evBadges").textContent = ""; body.innerHTML = ""; renderEventDecor(); return; }
+  $("evTitle").textContent = `${ev.emoji} ${ev.name} Event`;
+  $("evSub").textContent = `Win battles for ${ev.curEmoji} ${ev.curName}, then spend it on event pets — they're yours for good! On until ${ev.ends}.`;
+  $("evCurPill").textContent = `${ev.curEmoji} ${evCur(ev)} ${ev.curName}`;
+  const bad = badgesOf(); $("evBadges").textContent = bad.length ? bad.join(" · ") : "🏅 no badges yet";
+  const wins = (S.evBossWins || {})[ev.id] || 0, next = EVENT_BADGES[ev.id].find(([n]) => wins < n), claimed = S.evDaily === localDay();
+  const sec = (t, inner) => `<div class="card" style="text-align:left;margin-bottom:10px;cursor:default"><div class="n">${t}</div>${inner}</div>`;
+  body.innerHTML =
+    sec(`👹 Boss: ${EXTRA[ev.boss].emoji} ${EXTRA[ev.boss].name}`, `<div class="d">Beat it in the ${ev.world.emoji} ${ev.world.name} for ${ev.curEmoji} 40 ${ev.curName}. Beaten ${wins} time${wins === 1 ? "" : "s"}${next ? ` — ${next[0]} for the ${next[1]} badge` : " — every badge won!"}.</div>
+      <div class="row" style="justify-content:flex-start"><button class="red" id="evBoss">⚔️ Fight the boss</button></div>`) +
+    sec(ev.id === "halloween" ? "🚪 Trick or Treat (once a day)" : "📅 Advent Calendar (a door a day)", `<div class="d">${ev.id === "halloween" ? "Knock for candy and coins… or a trick!" : "Every December door is bigger — and Christmas Day is the best."}</div>
+      <div class="row" style="justify-content:flex-start"><button class="green" id="evDaily" ${claimed ? "disabled" : ""}>${claimed ? "✅ Come back tomorrow" : ev.id === "halloween" ? "🚪 Knock knock!" : "📅 Open today's door"}</button></div>`) +
+    sec(`🛒 Event shop`, `<div class="grid" style="margin-top:6px">${eventPetsOf(ev).map((id) => { const d = EVENT_PETS[id], have = owned(id);
+      return `<div class="card rar-${d.rarity}" style="cursor:default"><span class="c">⚡${d.cost}</span><div class="e">${d.emoji}</div><div class="n">${d.name}</div><div class="d" style="color:${RARITY[d.rarity].color}">${RARITY[d.rarity].name}</div><div class="d">${d.desc.replace(/^\S+ \S+ — /, "")}</div>
+        <button class="small ${have ? "" : "orange"}" data-evbuy="${id}" ${have ? "disabled" : ""}>${have ? "✅ Yours" : `${ev.curEmoji} ${d.price}`}</button></div>`; }).join("")}
+      <div class="card" style="cursor:default"><div class="e">${ev.id === "halloween" ? "🧺" : "🎁"}</div><div class="n">${ev.id === "halloween" ? "Candy Basket" : "Present Box"}</div><div class="d">A random ${ev.name} pet — or 10 shards for one you have.</div>
+        <button class="small orange" id="evEgg">${ev.curEmoji} ${EVENT_EGG_COST}</button></div></div>`) +
+    sec("🎁 Event codes", `<div class="d">Psst… try codes like ${ev.id === "halloween" ? "SPOOKY" : "SNOWMAN"} in the 🎁 CODE box on the menu (event codes only work during their event).</div>`);
+  $("evBoss").onclick = () => { const e = startEventBoss(); if (e) toast(e); };
+  $("evDaily").onclick = () => { toast(claimEventDaily()); renderEvent(); };
+  body.querySelectorAll("[data-evbuy]").forEach((b) => (b.onclick = () => { const id = b.dataset.evbuy, e = buyEventPet(id); toast(e || `${EVENT_PETS[id].emoji} ${EVENT_PETS[id].name} is yours — for good!`); renderEvent(); }));
+  $("evEgg").onclick = () => { const r = hatchEventEgg(); if (r.error) return toast(r.error); const d = PETS[r.id]; toast(r.fresh ? `NEW EVENT PET: ${d.emoji} ${d.name}!` : `${d.emoji} ${d.name} again — +${r.shards} shards`); renderEvent(); };
+  renderEventDecor();
+}
 function startStage(n, rnd) {
   const st = stageInfo(n); if (n > S.stage) return "That stage is locked — beat the one before it.";
   rnd = rnd || Math.random;
@@ -723,7 +881,9 @@ function step() {
   if (bt.survival && (bt.frame >= bt.nextWave || (bt.frame > bt.nextWave - 1020 && !bt.units.some((u) => u.side === 1 && u.hp > 0)))) { survivalWave(bt); bt.nextWave = bt.frame + 1200; }   // ♾️
   for (const s of [0, 1]) if ((bt.tick[s] += dbl) >= ENERGY_EVERY * (s ? bt.st.aiSlow : 1)) { bt.tick[s] = 0; bt.energy[s] = Math.min(MAX_ENERGY, bt.energy[s] + 1); }
   // 🤖 the enemy: the boss comes out first on a boss stage, then it summons what it can afford (with a little wait)
-  if (bt.st.boss && !bt.bossOut && bt.frame > 90) { bt.bossOut = true; bt.units.push(makeUnit(1, bt.st.bossId, 1 + Math.floor(bt.st.n / 12), BASE_X[1] - 50, 1)); bt.texts.push({ x: 800, y: 200, t: 120, text: `👹 ${def(bt.st.bossId).name} appears!` }); }
+  if (bt.st.boss && !bt.bossOut && bt.frame > 90) { bt.bossOut = true; bt.units.push(makeUnit(1, bt.st.bossId, 1 + Math.floor(bt.st.n / 12), BASE_X[1] - 50, 1));
+    if (bt.st.bossScale) { const b = bt.units[bt.units.length - 1]; b.hp *= bt.st.bossScale; b.maxHp = b.hp; b.dmg *= Math.max(0.4, bt.st.bossScale); if (bt.st.n < 18) b.summonCd = Infinity; }   // 🎃 🎄 the event boss grows with you (its helpers come from stage 18)
+    bt.texts.push({ x: 800, y: 200, t: 120, text: `👹 ${def(bt.st.bossId).name} appears!` }); }
   if (!bt.online && --bt.aiWait <= 0) {
     const can = bt.st.deck.filter((id) => def(id).cost <= bt.energy[1]);
     if (can.length && (bt.energy[1] >= 6 || bt.rnd() < 0.3)) { summon(1, can[Math.floor(bt.rnd() * can.length)]); bt.aiWait = 90 + Math.floor(bt.rnd() * 100); }
@@ -820,14 +980,30 @@ function endBattle(giveUp) {
   if (bt.pvp) {   // ⚔️ who won?
     bt.over = true;
     const p1 = giveUp ? false : bt.base[1] <= 0 ? true : bt.base[0] <= 0 ? false : bt.base[0] >= bt.base[1];
-    S.coins += 25; save();
-    showResult(giveUp ? "🏳️ Player 1 gave up — 🔴 Player 2 wins!" : p1 ? "🏆 🟢 PLAYER 1 WINS!" : "🏆 🔴 PLAYER 2 WINS!", `Great battle! 🪙 +25 for playing. Bases left: 🟢 ${Math.max(0, Math.ceil(bt.base[0]))} · 🔴 ${Math.max(0, Math.ceil(bt.base[1]))}`, false);
+    S.coins += 25; const ev = giveUp ? "" : addEventCur(2); save();
+    showResult(giveUp ? "🏳️ Player 1 gave up — 🔴 Player 2 wins!" : p1 ? "🏆 🟢 PLAYER 1 WINS!" : "🏆 🔴 PLAYER 2 WINS!", `Great battle! 🪙 +25 for playing${ev}. Bases left: 🟢 ${Math.max(0, Math.ceil(bt.base[0]))} · 🔴 ${Math.max(0, Math.ceil(bt.base[1]))}`, false);
+    return;
+  }
+  if (bt.st.event) {   // 🎃 🎄 the event boss
+    bt.over = true;
+    let win = bt.base[1] <= 0 && !giveUp;
+    if (!giveUp && bt.frame >= BATTLE_TIME && bt.base[0] > 0 && bt.base[1] > 0) win = bt.base[0] / bt.baseMax[0] > bt.base[1] / bt.st.baseHp;
+    const E = EVENTS[bt.st.event], boss = EXTRA[E.boss];
+    if (win) {
+      const before = badgesOf(); S.evBossWins = Object.assign({}, S.evBossWins, { [E.id]: ((S.evBossWins || {})[E.id] || 0) + 1 });
+      const got = addEventCur(40), coins = 200; S.coins += coins; S.wins = (S.wins || 0) + 1; questAdd("win", 1); questAdd("boss", 1);
+      const fresh = badgesOf().filter((b) => !before.includes(b)); save();
+      showResult(`${E.emoji} ${boss.emoji} YOU BEAT THE ${boss.name.toUpperCase()}!`, `🪙 +${coins}${got}${fresh.length ? ` · 🏅 NEW BADGE: ${fresh.join(", ")}!` : ""}`, false);
+    } else {
+      const got = giveUp ? "" : addEventCur(3); save();
+      showResult(giveUp ? "🏳️ You gave up" : `💥 The ${boss.name} won`, giveUp ? "Try again — event pets help!" : `So close!${got} for trying. Level up your pets and try again.`, false);
+    }
     return;
   }
   if (bt.survival) {   // ♾️ coins for every wave you got through
     bt.over = true; const w = Math.max(0, bt.wave - (bt.units.some((u) => u.side === 1 && u.hp > 0) ? 1 : 0)), coins = 20 * w, best = w > (S.bestWave || 0);
-    S.coins += coins; if (best) S.bestWave = w; questAdd("survive", w, true); save();
-    showResult(best ? `♾️ NEW BEST: wave ${w}!` : `♾️ You survived ${w} wave${w === 1 ? "" : "s"}`, `🪙 +${coins} · your best: wave ${S.bestWave || 0}`, false);
+    S.coins += coins; if (best) S.bestWave = w; questAdd("survive", w, true); const ev = addEventCur(w); save();
+    showResult(best ? `♾️ NEW BEST: wave ${w}!` : `♾️ You survived ${w} wave${w === 1 ? "" : "s"}`, `🪙 +${coins}${ev} · your best: wave ${S.bestWave || 0}`, false);
     return;
   }
   bt.over = true;
@@ -844,13 +1020,15 @@ function endBattle(giveUp) {
     const gift = first && n % 6 === 0 ? "golden" : first && n % 3 === 0 ? "basic" : null;
     if (gift) S.freeEggs[gift] = (S.freeEggs[gift] || 0) + 1;
     title = `${"⭐".repeat(stars)} VICTORY!`;
-    text = `You beat stage ${n}${bt.st.boss ? ` and the boss ${def(bt.st.bossId).name}` : ""}! 🪙 +${coins}${gift ? ` · a free ${EGGS[gift].emoji} ${EGGS[gift].name}!` : ""}`;
+    const ev = addEventCur(5 + Math.floor(n / 3) + (bt.st.boss ? 10 : 0));   // 🎃 🎄
+    let arcadeCandy = 0; try { if (window.ArcadeShop && ArcadeShop.halloween) arcadeCandy = ArcadeShop.halloween.winCandyOnce("summon", 30); } catch (e) {}   // 🍬 the arcade's Halloween candy (once a year)
+    text = `You beat stage ${n}${bt.st.boss ? ` and the boss ${def(bt.st.bossId).name}` : ""}! 🪙 +${coins}${gift ? ` · a free ${EGGS[gift].emoji} ${EGGS[gift].name}!` : ""}${ev}${arcadeCandy ? ` · 🍬 +${arcadeCandy} arcade candy (Monster Attack!)` : ""}`;
     if (n === STAGES) earnTitle("sb-champion", "🏆 SUMMON CHAMPION! You beat all 30 stages — title unlocked!");
     if (bt.st.boss && bt.units.filter((u) => u.side === 0).length === 0) {}
   } else {
-    const coins = giveUp ? 0 : 10 + 3 * n; S.coins += coins;
+    const coins = giveUp ? 0 : 10 + 3 * n; S.coins += coins; const ev = giveUp ? "" : addEventCur(1);
     title = giveUp ? "🏳️ You gave up" : "💥 Defeat";
-    text = giveUp ? "Try again — level up your pets in 🐾 My Pets!" : `Your base fell. 🪙 +${coins} for trying. Level up your pets and hatch more eggs!`;
+    text = giveUp ? "Try again — level up your pets in 🐾 My Pets!" : `Your base fell. 🪙 +${coins}${ev} for trying. Level up your pets and hatch more eggs!`;
   }
   save();
   showResult(title, text, win);
@@ -860,7 +1038,7 @@ function endBattle(giveUp) {
 const $ = (id) => document.getElementById(id);
 let toastT = 0;
 function toast(t) { const e = $("toast"); e.textContent = t; e.style.display = "block"; clearTimeout(toastT); toastT = setTimeout(() => (e.style.display = "none"), 2600); }
-function show(id) { document.querySelectorAll(".screen").forEach((s) => s.classList.toggle("on", s.id === id)); $("hud").classList.remove("on"); $("topHud").classList.remove("on"); }
+function show(id) { document.querySelectorAll(".screen").forEach((s) => s.classList.toggle("on", s.id === id)); $("hud").classList.remove("on"); $("topHud").classList.remove("on"); try { renderEventDecor(); } catch (e) {} }
 document.querySelectorAll("[data-back]").forEach((b) => (b.onclick = () => { renderMenu(); show("menu"); }));
 function refreshOwnerBtn() { const on = isOwner() && ownerVisit; $("btnOwner").style.display = on && !battle ? "inline-block" : "none"; $("btnOwnerB").style.display = on ? "inline-block" : "none"; }
 let ownerFrom = "menu";
@@ -877,6 +1055,8 @@ function renderOwner() {
     sec("🗺️ Stages", btn("stages", "", "🔓 Unlock all 30") + btn("stars", "", "⭐⭐⭐ Every stage", "green")) +
     sec("⚔️ In battle", btn("infenergy", "", onOff(S.infEnergy, "⚡ Infinite energy"), S.infEnergy ? "green" : "") + btn("win", "", "⚡ Win this battle", "green") +
       ["👹 Ogre", "🦂 Scorpion King", "🦣 Mammoth", "🗿 Magma Golem", "👾 Void Lord"].map((n, i) => btn("boss", i, `${n} on my side`, "red")).join("")) +
+    sec(`🎃🎄 Events — now: ${eventNow() ? eventNow().emoji + " " + eventNow().name : "none"}`, btn("evforce", "", "📅 By the date") + btn("evforce", "halloween", "🎃 Halloween ON", "orange") + btn("evforce", "christmas", "🎄 Christmas ON", "green") + btn("evforce", "off", "🚫 Events off", "red") +
+      btn("evcur", "", "🍬🎁 +500 of each", "green") + btn("evpets", "", "🎃🎄 All 8 event pets", "green")) +
     sec("🏅 Titles · 🎁 Codes · 🧹", btn("titles", "", "🏅 All 3 arcade titles", "green") + btn("codes", "", "Reset my codes") + btn("reset", "", "🔄 Start over", "red"));
   $("ownBody").querySelectorAll("[data-oa]").forEach((b) => (b.onclick = () => {
     const msg = ownerAction(b.dataset.oa, b.dataset.arg);
@@ -901,7 +1081,7 @@ function renderDaily() {
   $("dailyBody").querySelectorAll("[data-claim]").forEach((b) => (b.onclick = () => { toast(claimQuest(+b.dataset.claim)); renderDaily(); renderMenu(); }));
 }
 function renderMenu() {
-  refreshOwnerBtn();
+  refreshOwnerBtn(); renderEventDecor();
   $("dailyDot").textContent = dailyToClaim() ? "🔴" : "";
   $("petsMax").textContent = Object.keys(PETS).length; $("coins").textContent = infCoins() ? "∞" : S.coins.toLocaleString(); $("stageN").textContent = Math.min(S.stage, STAGES); $("starsN").textContent = totalStars(); $("petsN").textContent = Object.keys(S.pets).length;
 }
@@ -941,7 +1121,7 @@ function renderPets() {
 }
 function showPet(id) {
   const d = PETS[id], p = S.pets[id], box = $("petInfo");
-  if (!p) { toast(`❓ A ${RARITY[d.rarity].name} pet — hatch eggs to find it!`); return; }
+  if (!p) { toast(d.event ? `${EVENTS[d.event].emoji} A ${EVENTS[d.event].name} event pet — get it in the event shop while ${EVENTS[d.event].name} is on!` : `❓ A ${RARITY[d.rarity].name} pet — hatch eggs to find it!`); return; }
   const m = lvlMul(p.lvl), full = p.lvl >= MAX_LVL;
   box.innerHTML = `<div class="e" style="font-size:3.4rem">${d.emoji}</div><div class="n" style="font-size:1.2rem">${d.name} · Lv ${p.lvl}</div>
     <div class="d" style="color:${RARITY[d.rarity].color};font-weight:900">${RARITY[d.rarity].name}</div><div class="d">${d.desc}</div>
@@ -1105,7 +1285,7 @@ function renderCustom(editId) {
 function showBattle() {
   show(null); $("hud").classList.add("on"); $("topHud").classList.add("on");
   $("p2box").style.display = battle.pvp ? "flex" : "none"; $("p1lab").style.display = battle.pvp ? "inline-block" : "none";
-  $("hudStage").textContent = battle.pvp ? "⚔️ PvP" : battle.survival ? "♾️ Survival" : battle.online ? `🌐 vs ${NETS.friendName || "a friend"}` : `${battle.st.worldDef.emoji} Stage ${battle.st.n}${battle.st.boss ? " 👹 BOSS" : ""}`;
+  $("hudStage").textContent = battle.pvp ? "⚔️ PvP" : battle.survival ? "♾️ Survival" : battle.online ? `🌐 vs ${NETS.friendName || "a friend"}` : battle.st.event ? `${battle.st.worldDef.emoji} ${battle.st.worldDef.name} — 👹 ${EXTRA[battle.st.bossId].name}` : `${battle.st.worldDef.emoji} Stage ${battle.st.n}${battle.st.boss ? " 👹 BOSS" : ""}`;
   refreshOwnerBtn();
   const card = (id, attr) => `<div class="card rar-${PETS[id].rarity}" ${attr}="${id}"><span class="c">⚡${PETS[id].cost}</span><div class="e" style="font-size:1.6rem">${PETS[id].emoji}</div><div class="n" style="font-size:.72rem">${PETS[id].name}</div></div>`;
   $("hand2").innerHTML = battle.pvp ? battle.pdeck[1].map((id) => card(id, "data-sum2")).join("") : "";
@@ -1126,11 +1306,14 @@ function renderHud() {
 }
 function showResult(title, text, win) {
   show("result"); $("resTitle").textContent = title; $("resText").textContent = text;
-  $("resNext").style.display = win && battle && !battle.online && !battle.survival && battle.st.n < STAGES ? "inline-block" : "none";
+  $("resNext").style.display = win && battle && !battle.online && !battle.survival && !battle.st.event && battle.st.n < STAGES ? "inline-block" : "none";
+  $("resMap").textContent = battle && battle.st.event ? "🎉 Back to the event" : "🗺️ Map";
   $("resNext").textContent = win ? "➡ Next stage" : "🔁 Try again";
 }
 $("resNext").onclick = () => { const n = battle.st.n + 1; battle = null; const e = startStage(n); if (e) toast(e); };
-$("resMap").onclick = () => { const wasOnline = battle && (battle.online || battle.survival || battle.pvp); battle = null; if (wasOnline) { netReset(); renderMenu(); show("menu"); } else { renderMap(); show("map"); } };
+$("resMap").onclick = () => { const wasOnline = battle && (battle.online || battle.survival || battle.pvp), wasEvent = battle && battle.st.event; battle = null;
+  if (wasEvent) { show("event"); renderEvent(); } else if (wasOnline) { netReset(); renderMenu(); show("menu"); } else { renderMap(); show("map"); } };
+$("btnEvent").onclick = () => { show("event"); renderEvent(); };
 $("btnQuit").onclick = () => endBattle(true);
 $("btnPlay").onclick = () => { renderMap(); show("map"); };
 $("btn3d").onclick = () => setMode3d(!S.mode3d);
@@ -1195,6 +1378,8 @@ function draw() {
     const bw = d.boss ? 90 : 36; ctx.fillStyle = "#2d3436"; ctx.fillRect(ux - bw / 2, y - size * 0.7, bw, 5); ctx.fillStyle = mine ? "#55efc4" : "#ff6b6b"; ctx.fillRect(ux - bw / 2, y - size * 0.7, bw * Math.max(0, u.hp / u.maxHp), 5);
   }
   for (const f of bt.fx) { ctx.fillStyle = `rgba(255,140,0,${f.t / 30})`; ctx.beginPath(); ctx.arc(X(f.x), f.y - 10, f.r * (1.2 - f.t / 30), 0, Math.PI * 2); ctx.fill(); }
+  const ev = eventNow();   // 🎃 🎄 bats / snow falling over the battle
+  if (ev && !bt.online) for (let i = 0; i < 12; i++) { const fy = ((bt.frame * (0.6 + (i % 4) * 0.2) + i * 97) % 520) - 60, fx = (i * 89 + Math.sin((bt.frame + i * 40) / 50) * 30) % W; ctx.globalAlpha = 0.7; stamp(ev.fall[i % ev.fall.length], fx, fy, 18); ctx.globalAlpha = 1; }
   ctx.font = "bold 18px Nunito, sans-serif"; ctx.textAlign = "center";
   for (const t of bt.texts) { ctx.globalAlpha = Math.min(1, t.t / 20); ctx.fillStyle = "#fff"; ctx.strokeStyle = "#000"; ctx.lineWidth = 4; ctx.strokeText(t.text, X(t.x), t.y); ctx.fillText(t.text, X(t.x), t.y); ctx.globalAlpha = 1; }
   ctx.restore();
@@ -1303,7 +1488,7 @@ function frame(now) {
 if (window.ArcadeShop && ArcadeShop.registerCurrency) {
   ArcadeShop.registerCurrency({ name: "Coins", emoji: "🪙", rate: 100, room: () => 1e9, grant(n) { S.coins += n; save(); renderMenu(); } });
 }
-window.nullpState = () => ({ bestWave: S.bestWave || 0, coins: S.coins, stage: S.stage, pets: Object.keys(S.pets).length, deck: S.deck.join(", "), inBattle: !!battle });
+window.nullpState = () => ({ event: eventNow() ? eventNow().name : "none", candy: S.candy || 0, presents: S.presents || 0, bestWave: S.bestWave || 0, coins: S.coins, stage: S.stage, pets: Object.keys(S.pets).length, deck: S.deck.join(", "), inBattle: !!battle });
 
 load(); resize(); renderMenu(); save(); $("btn3d").textContent = `🎲 3D mode: ${S.mode3d ? "ON" : "off"}`;
 requestAnimationFrame(frame);

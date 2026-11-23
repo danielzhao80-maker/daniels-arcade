@@ -139,7 +139,7 @@ const run = (n, max) => q(`(function(){ var i = 0; while (battle && !battle.over
 
 // ---- start ----
 reset();
-check(q('Object.keys(PETS).length') === 1040 && q('Object.keys(S.pets).length') === 4 && q('S.deck.length') === 4 && q('S.coins') === 250, 'a new player: 1040 pets (24 + 13 top-rarity + 3 👑 owner-only + 1000 elemental), 4 to start with, 🪙 250');
+check(q('Object.keys(PETS).length') === 1048 && q('Object.keys(S.pets).length') === 4 && q('S.deck.length') === 4 && q('S.coins') === 250, 'a new player: 1048 pets (24 + 13 top-rarity + 3 👑 owner-only + 1000 elemental + 8 🎃🎄 event), 4 to start with, 🪙 250');
 check(JSON.stringify(q('RAR_ORDER')) === JSON.stringify(['common', 'uncommon', 'rare', 'epic', 'legendary', 'mythic', 'divine', 'celestial', 'secret', 'owner']), '10 rarities: Common … ✨ Divine, 🌌 Celestial, 🤫 Secret and 👑 Owner');
 check(q('CREATURES.length') === 50 && q(`new Set(CREATURES.map(function(c){ return c[1]; }).concat(ANIMALS.map(function(a){ return a[1]; }))).size`) === 100, 'the 50 new creatures all look different (100 different animals in all)');
 check(q(`CREATURES.every(function(c){ return c[4] && Object.keys(c[4]).length && c[5]; })`), 'every new creature has its own signature power');
@@ -315,7 +315,7 @@ if (process.env.OWNER_CODE) {   // the real code is only checked when given: OWN
 check(/10,000/.test(q(`ownerAction('coins')`)) && q('S.coins') === 10250 && q('ownerVisit') === true, '🪙 +10,000 coins (and the 👑 button shows for this visit)');
 q(`ownerAction('infcoins'); S.coins = 0;`);
 check(!q(`hatch('cosmic').error`) && q('S.coins') === 0, '♾️ infinite coins: eggs are free');
-check(/1040/.test(q(`ownerAction('allpets')`)) && q('Object.keys(S.pets).length') === 1040, '🐾 every pet (all 1040)');
+check(/1048/.test(q(`ownerAction('allpets')`)) && q('Object.keys(S.pets).length') === 1048, '🐾 every pet (all 1048)');
 q(`ownerAction('maxpets'); ownerAction('bestdeck');`);
 check(q(`Object.values(S.pets).every(function(p){ return p.lvl === MAX_LVL; })`) && q('S.deck.length') === 6, '⭐ max level for every pet, 🃏 best deck');
 check(/every stage/.test(q(`ownerAction('stars')`)) && q('S.stage') === 30 && q('totalStars()') === 90, '⭐⭐⭐ every stage');
@@ -455,6 +455,68 @@ check(q(`document.getElementById('p2box').style.display`) === 'flex' && /data-su
 q(`battle.base[0] = 0; step();`);
 check(/PLAYER 2 WINS/.test(q(`document.getElementById('resTitle').textContent`)), 'break a base: that player wins');
 q('battle = null;');
+
+// ---- 🎃 🎄 events ----
+reset(); store['monster_attack_event_force'] = 'off';
+check(q('eventNow(new Date(2026, 5, 1))') === null, 'no event in June (and the arcade’s “off” link turns them off)');
+delete store['monster_attack_event_force'];
+check(q('eventNow(new Date(2026, 9, 20)).id') === 'halloween' && q('eventNow(new Date(2026, 10, 7)).id') === 'halloween' && q('eventNow(new Date(2026, 10, 8))') === null, '🎃 Halloween: October to 7 November');
+check(q('eventNow(new Date(2026, 11, 3)).id') === 'christmas' && q('eventNow(new Date(2027, 0, 7)).id') === 'christmas' && q('eventNow(new Date(2027, 0, 8))') === null, '🎄 Christmas: December to 7 January');
+store['monster_attack_event_force'] = 'christmas';
+check(q('eventNow(new Date(2026, 5, 1)).id') === 'christmas', 'the arcade’s /christmas/ link turns it on any time');
+store['summon_battlers_event_force'] = 'halloween';
+check(q('eventNow(new Date(2026, 5, 1)).id') === 'halloween', "…and the owner's switch wins over the link");
+delete store['monster_attack_event_force'];
+check(q('Object.keys(EVENT_PETS).length') === 8 && q('Object.keys(EVENT_PETS).every(function (id) { return PETS[id] && abilitiesOf(id).length === 3; })'), '8 event pets (4 each), with abilities that unlock');
+check(q('Object.keys(EVENTS).every(function (k) { return EVENTS[k].foes.every(function (id) { return !!PETS[id]; }); })'), "every boss fight's enemy pets exist");
+reset({ freeEggs: { celestial: 300, cosmic: 300 } });
+check(q(`(function () { for (var i = 0; i < 300; i++) { hatch('celestial', true); hatch('cosmic', true); } return !Object.keys(S.pets).some(function (id) { return PETS[id].event; }); })()`), 'event pets never come out of normal eggs');
+reset();
+q('startStage(1); battle.base[1] = 0; step();');
+check(/🍬 \+5 candy/.test(q("document.getElementById('resText').textContent")) && q('S.candy') === 5, 'win a stage during Halloween: 🍬 candy');
+reset({ stage: 12 });
+q('startStage(12); battle.base[0] = 0; step();');
+check(q('S.candy') === 1, '…even a loss gives 1');
+reset({ candy: 59 });
+check(/need 🍬 60/.test(q("buyEventPet('pumpkinknight')")) && !q("owned('pumpkinknight')"), 'event shop: not enough candy');
+q('S.candy = 200;');
+check(q("buyEventPet('pumpkinknight')") === null && q("owned('pumpkinknight')") && q('S.candy') === 140 && q("S.deck.includes('pumpkinknight')"), '🎃 buy the Pumpkin Knight with candy (yours for good)');
+check(/already have/.test(q("buyEventPet('pumpkinknight')")) && /Christmas event shop/.test(q("buyEventPet('santa')")), "…once — and Christmas pets aren't sold at Halloween");
+check(q('hatchEventEgg(0).id') === 'pumpkinknight' && q("S.pets.pumpkinknight.shards") === 10 && q('S.candy') === 115, '🧺 Candy Basket: a random Halloween pet (or shards)');
+q('S.candy = 0;');
+check(/need 🍬 25/.test(q('hatchEventEgg().error')), '…costs 🍬 25');
+check(/TREAT|TRICK/.test(q('claimEventDaily(new Date(2026, 9, 20))')) && /tomorrow/.test(q('claimEventDaily(new Date(2026, 9, 20))')), '🚪 Trick or Treat once a day');
+// the boss
+reset({ stage: 9, pets: { mouse: { lvl: 1, shards: 0 } }, deck: ['mouse'] });
+check(q('startEventBoss()') === null && q('battle.st.event') === 'halloween' && q('battle.st.bossId') === 'pumpkinking' && /Pumpkin King/.test(q("document.getElementById('hudStage').textContent")), '👹 the Pumpkin King boss fight');
+q('for (var i = 0; i < 200; i++) step();');
+check(q("battle.units.some(function (u) { return u.id === 'pumpkinking' && u.side === 1; })"), '…the boss comes out');
+q('battle.base[1] = 0; step();');
+check(/PUMPKIN KING/.test(q("document.getElementById('resTitle').textContent")) && q('S.candy') === 40 && q('S.evBossWins.halloween') === 1 && /Pumpkin Smasher/.test(q("document.getElementById('resText').textContent")), 'beat it: 🍬 40 and the 🎃 Pumpkin Smasher badge');
+check(q("document.getElementById('resNext').style.display") === 'none' && /event/.test(q("document.getElementById('resMap').textContent")), '…and back to the event (no “next stage”)');
+// codes
+reset();
+check(/\+30 candy/.test(q("redeemCode('spooky')")) && q('S.candy') === 30 && /already/.test(q("redeemCode('SPOOKY')")), '🎁 SPOOKY: 🍬 30 (once a year)');
+check(/only works during Christmas/.test(q("redeemCode('SNOWMAN')")), "a Christmas code doesn't work at Halloween");
+// Christmas
+store['summon_battlers_event_force'] = 'christmas'; reset();
+check(/Door 5: 🎁 \+10/.test(q('claimEventDaily(new Date(2026, 11, 5))')) && q('S.presents') === 10, '📅 Advent Calendar door 5: 🎁 10');
+reset(); check(/MERRY CHRISTMAS/.test(q('claimEventDaily(new Date(2026, 11, 25))')) && q('S.freeEggs.golden') === 1, '🎅 Christmas Day: 🎁 100 and a Golden Egg');
+reset({ presents: 300 });
+check(q("buyEventPet('santa')") === null && q("owned('santa')") && q('S.presents') === 0, '🎅 buy Santa Claus with presents');
+q("startEventBoss(); battle.base[1] = 0; step();");
+check(/SNOW MONSTER/.test(q("document.getElementById('resTitle').textContent")) && q('S.presents') === 40, '☃️ beat the Snow Monster: 🎁 40');
+q('battle = null; renderEvent();');
+check(/Santa Claus/.test(q("document.getElementById('evBody').innerHTML")) && /Christmas Event/.test(q("document.getElementById('evTitle').textContent")), 'the 🎄 event screen draws');
+// owner
+reset({ owner: true });
+check(/Halloween event ON/.test(q("ownerAction('evforce', 'halloween')")) && store['summon_battlers_event_force'] === 'halloween', '👑 owner: turn Halloween on');
+check(/Events off/.test(q("ownerAction('evforce', 'off')")) && q('eventNow()') === null, '…or events off');
+q("ownerAction('evcur'); ownerAction('evpets');");
+check(q('S.candy') === 500 && q('S.presents') === 500 && q("Object.keys(EVENT_PETS).every(function (id) { return owned(id); })"), '…+500 of each, and all 8 event pets');
+q('ownerAction("evforce", "");'); delete store['summon_battlers_event_force'];
+q('renderEvent();');
+check(q("document.getElementById('evBody').innerHTML") === '' || q('eventNow()') !== null, 'no event: the event screen says come back later');
 
 // ---- screens + drawing ----
 reset();

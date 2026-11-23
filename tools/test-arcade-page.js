@@ -699,6 +699,12 @@ A("coins10"); A("coins100"); ok("+10 +100", r.save().coins === 117);
   ok("…with the draw animation (Claim right there)", r.id("lottoDrawVeil").classList.contains("open") && !r.id("lottoDrawClaim").hidden && /5 tickets/.test(r.id("lottoDrawSub").textContent));
   r.id("lottoDrawClaim").click(); await flush(5);
   ok("claiming from the animation", !r.id("lottoDrawVeil").classList.contains("open") && r.save().lotto.last.claimed === true);
+  // ▶ Watch the draw: a preview — nothing drawn, nothing used
+  r.setSave((x) => { x.lotto.tickets = 7; }); const ends = r.save().lotto.endsAt, seen = r.w.localStorage.getItem("daniels-arcade-lotto-seen");
+  r.w.Math.random = () => 0.5; A("lottopreview"); r.adv(1.4); await flush(3); for (let i = 0; i < 9; i++) { r.adv(0.3); await flush(3); } r.w.Math.random = rnd;
+  ok("▶ Watch the draw plays the animation with your 7 tickets", r.id("lottoDrawVeil").classList.contains("open") && r.$$("#lottoDrawTix .tk.lose").length === 7 && /Preview/.test(r.id("lottoDrawSub").textContent) && /preview/.test(r.id("lottoDrawResult").textContent) && r.id("lottoDrawClaim").hidden);
+  r.id("lottoDrawOk").click(); await flush(3);
+  ok("…and nothing changes: same tickets, same draw time", r.save().lotto.tickets === 7 && r.save().lotto.endsAt === ends && r.w.localStorage.getItem("daniels-arcade-lotto-seen") === seen);
   r.id("admLottoAt").value = ""; A("lottoat"); ok("no time picked → a hint", /Pick a date/.test(r.toast())); }
 // 🎃 Halloween & Backrooms admin buttons
 r.w.localStorage.setItem("monster_attack_candy", "5"); r.w.localStorage.removeItem("monster_attack_hw_earned_" + new Date(r.st.now).getFullYear());

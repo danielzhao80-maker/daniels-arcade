@@ -497,6 +497,7 @@
       <button class="btn" data-admin="lottoat">Set when it opens</button>
       <button class="btn ghost" data-admin="lottonow">Open now</button>
       <button class="btn ghost" data-admin="lottoyearly">Yearly</button>
+      <button class="btn ghost" data-admin="lottopreview">▶ Watch the draw</button>
     </div>
 
     <h4>⚡ Abilities</h4>
@@ -1163,11 +1164,12 @@
   const LOTTO_SEEN = "daniels-arcade-lotto-seen";   // (per computer: which draws you've already watched)
   const lottoSeen = () => { try { return localStorage.getItem(LOTTO_SEEN) || ""; } catch { return ""; } };
   let lottoDrawing = false;
-  function playLottoDraw(d) {   // d: { id, season, tickets, won (points), grand, canClaim }
+  function playLottoDraw(d) {   // d: { id, season, tickets, won (points), grand, canClaim, preview }
     lottoDrawing = true;
-    try { localStorage.setItem(LOTTO_SEEN, d.id); } catch {}
+    if (!d.preview) try { localStorage.setItem(LOTTO_SEEN, d.id); } catch {}
     const shown = Math.min(d.tickets, 12);
-    $("lottoDrawSub").textContent = `Season ${d.season} — you had ${d.tickets} ticket${d.tickets === 1 ? "" : "s"}. Each one has a 1% chance…`;
+    $("lottoDrawSub").textContent = d.preview ? `▶ Preview — just for fun: your ${d.tickets} ticket${d.tickets === 1 ? "" : "s"} are NOT used, and nothing is won.`
+      : `Season ${d.season} — you had ${d.tickets} ticket${d.tickets === 1 ? "" : "s"}. Each one has a 1% chance…`;
     $("lottoDrawTix").innerHTML = Array.from({ length: shown }, () => `<div class="tk">🎟️</div>`).join("") + (d.tickets > shown ? `<div class="tk" style="width:auto;padding:0 8px">+${d.tickets - shown}</div>` : "");
     $("lottoDrawResult").textContent = "🥁 …"; $("lottoDrawResult").classList.remove("pop");
     $("lottoDrawClaim").hidden = $("lottoDrawOk").hidden = true;
@@ -1184,7 +1186,8 @@
         }
         tix.forEach((t) => { if (!/win|lose/.test(t.className)) t.className = "tk lose"; });   // (the "+N more" one too)
         const r = $("lottoDrawResult");
-        r.textContent = d.grand ? "🛠️🎉 YOU WON THE ADMIN PANEL! 🎉" : d.won ? `🎉 A lucky ticket! You won 🪙 ${d.won} points!` : "😢 No lucky ticket this time. Your tickets are used up — good luck next season!";
+        r.textContent = d.preview ? (d.won ? "🎉 In the real draw, that would win 🪙 75 points! (preview)" : "😢 No lucky ticket in this preview. Your real tickets are still waiting!")
+          : d.grand ? "🛠️🎉 YOU WON THE ADMIN PANEL! 🎉" : d.won ? `🎉 A lucky ticket! You won 🪙 ${d.won} points!` : "😢 No lucky ticket this time. Your tickets are used up — good luck next season!";
         r.classList.add("pop");
         $("lottoDrawClaim").hidden = !d.canClaim; $("lottoDrawOk").hidden = false;
         done();
@@ -1569,6 +1572,12 @@
     }
     if (act === "lottonow") { if (!twice("lottonow", "Click Open now again to draw the lotto.")) return; return scheduleLotto("now"); }
     if (act === "lottoyearly") return scheduleLotto("yearly");
+    if (act === "lottopreview") {   // ▶ play the draw animation with your tickets — nothing is drawn or used
+      const mine = lottoOnline() && lottoView ? lottoView.mine : (ArcadeShop.load().lotto || {}).tickets || 0, n = mine || 5;
+      let lucky = false; for (let i = 0; i < Math.min(n, 1e6) && !lucky; i++) lucky = Math.random() < 0.01;
+      $("adminVeil").classList.remove("open");
+      return playLottoDraw({ preview: true, tickets: n, won: lucky ? 75 : 0, grand: false, canClaim: false });
+    }
     const all = Object.values(SHOP).flat();
     const msg = {};
     ArcadeShop.update((sv) => {

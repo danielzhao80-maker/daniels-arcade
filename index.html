@@ -113,6 +113,7 @@
   }
   .panel-veil.open { display: flex; }
   /* 🎟️ the lotto draw */
+  #lottoDrawVeil { z-index: 60; }   /* above the Admin Panel (Open now / Watch the draw are pressed from there) */
   .lotto-draw { text-align: center; }
   .lotto-draw h2 { margin: 0 auto 8px !important; }
   .lotto-tix { display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; margin: 18px 0; min-height: 44px; }
@@ -1582,7 +1583,6 @@
     if (act === "lottopreview") {   // ▶ play the draw animation with your tickets — nothing is drawn or used
       const mine = lottoOnline() && lottoView ? lottoView.mine : (ArcadeShop.load().lotto || {}).tickets || 0, n = mine || 5;
       let lucky = false; for (let i = 0; i < Math.min(n, 1e6) && !lucky; i++) lucky = Math.random() < 0.01;
-      $("adminVeil").classList.remove("open");
       return playLottoDraw({ preview: true, tickets: n, won: lucky ? 75 : 0, grand: false, canClaim: false });
     }
     const all = Object.values(SHOP).flat();

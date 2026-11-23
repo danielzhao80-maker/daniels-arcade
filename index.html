@@ -1098,7 +1098,7 @@
   // 🎟️ LOTTO: spend 50 arcade points on a ticket. A season is a year (the 🛠️ Admin Panel can pick another time); when it ends the tickets are drawn:
   //   • 250+ players: each ticket has a 0.000000000000000000000000001% chance to win the 🛠️ Admin Panel in
   //     every game and the arcade (practically never!);
-  //   • fewer than 50 players: each ticket has a 1% chance to win its player 75 points.   (50–249 players: no draw.)
+  //   • fewer than 50 players: each player (with a ticket) has a 1% chance to win 75 points — more tickets don't add to it.   (50–249 players: no draw.)
   // Logged in (with the arcade server): everyone's tickets are in one draw on the server. Otherwise it's just you.
   const LOTTO_PRICE = 50, seasonNow = () => String(new Date().getFullYear());
   const lottoAcc = () => { try { return JSON.parse(localStorage.getItem("daniels-arcade-account") || "null"); } catch { return null; } };
@@ -1114,7 +1114,7 @@
   }
   const nextYear = () => new Date(new Date().getFullYear() + 1, 0, 1).getTime();
   const yearAfter = (season) => { const y = parseInt(season, 10); return y ? new Date(y + 1, 0, 1).getTime() : 0; };
-  function localLottoRoll() {   // just you in the draw: always under 50 players, so each ticket has a 1% chance at 75 points
+  function localLottoRoll() {   // just you in the draw: always under 50 players, so you have a 1% chance at 75 points
     const L0 = save.lotto;   // (only write the save when something changes)
     if (L0 && L0.yearly && L0.endsAt > Date.now() && !/^\d{4}-\d{2}$/.test(L0.season)) return;
     if (L0 && /^\d{4}-\d{2}$/.test(L0.season)) save = ArcadeShop.update((sv) => { sv.lotto.season = sv.lotto.season.slice(0, 4); });   // "2026-11" → "2026"
@@ -1123,7 +1123,7 @@
       const L = sv.lotto || (sv.lotto = { season: seasonNow(), tickets: 0 });
       if (!L.yearly) { L.yearly = true; L.endsAt = Math.max(L.endsAt || 0, yearAfter(L.season) || nextYear()); }   // (seasons used to be months)
       if (L.endsAt <= Date.now()) {
-        let lucky = false; for (let i = 0; i < Math.min(L.tickets, 1e6) && !lucky; i++) lucky = Math.random() < 0.01;
+        const lucky = L.tickets > 0 && Math.random() < 0.01;   // 1% a player
         L.last = { season: L.season, tickets: L.tickets, players: L.tickets > 0 ? 1 : 0, won: lucky ? 75 : 0, claimed: false, at: Date.now() };
         L.season = L.season === seasonNow() ? seasonNow() + "-2" : seasonNow(); L.tickets = 0; L.endsAt = nextYear();
       }
@@ -1173,7 +1173,7 @@
     if (!d.preview) try { localStorage.setItem(LOTTO_SEEN, d.id); } catch {}
     const shown = Math.min(d.tickets, 12);
     $("lottoDrawSub").textContent = d.preview ? `▶ Preview — just for fun: your ${d.tickets} ticket${d.tickets === 1 ? "" : "s"} are NOT used, and nothing is won.`
-      : `Season ${d.season} — you had ${d.tickets} ticket${d.tickets === 1 ? "" : "s"}. Each one has a 1% chance…`;
+      : `Season ${d.season} — you had ${d.tickets} ticket${d.tickets === 1 ? "" : "s"}. You have a 1% chance…`;
     $("lottoDrawTix").innerHTML = Array.from({ length: shown }, () => `<div class="tk">🎟️</div>`).join("") + (d.tickets > shown ? `<div class="tk" style="width:auto;padding:0 8px">+${d.tickets - shown}</div>` : "");
     $("lottoDrawResult").textContent = "🥁 …"; $("lottoDrawResult").classList.remove("pop");
     $("lottoDrawClaim").hidden = $("lottoDrawOk").hidden = true;
@@ -1230,7 +1230,7 @@
     clearTimeout(lottoTimer);   // under a day left: keep the countdown fresh, and open the lotto the moment it's time
     if (left < 864e5) lottoTimer = setTimeout(renderLotto, Math.min(left + 1500, 60e3));
     const an = $("admLottoNow"); if (an) an.textContent = `This season (${shared ? "everyone, on the server" : "just you"}) opens ${new Date(end).toLocaleString()} — ${leftText}.`;
-    const prizeNow = players >= 250 ? "🛠️ Admin Panel draw ON (a 0.000000000000000000000000001% chance a ticket!)" : players < 50 ? "under 50 players: each ticket has a 1% chance at 🪙 75" : "50–249 players: no draw (250 players unlocks the 🛠️ Admin Panel draw)";
+    const prizeNow = players >= 250 ? "🛠️ Admin Panel draw ON (a 0.000000000000000000000000001% chance a ticket!)" : players < 50 ? "under 50 players: each player has a 1% chance at 🪙 75" : "50–249 players: no draw (250 players unlocks the 🛠️ Admin Panel draw)";
     $("lotto").innerHTML = `<div class="ms" style="grid-template-columns:1fr auto"><b>🎟️ Your tickets: ${mine}</b><span title="Drawn ${new Date(end).toLocaleString()}">${leftText}</span></div>
       <div class="ms" style="display:block"><span>👥 ${players} player${players === 1 ? "" : "s"} · ${total} ticket${total === 1 ? "" : "s"} this season${shared ? "" : " (just you — log in to play with everyone)"}</span></div>
       <small style="opacity:.85">${prizeNow}. 🏆 250 players needed for the Admin Panel prize.</small>
@@ -1592,7 +1592,7 @@
     if (act === "lottoyearly") return scheduleLotto("yearly");
     if (act === "lottopreview") {   // ▶ play the draw animation with your tickets — nothing is drawn or used
       const mine = lottoOnline() && lottoView ? lottoView.mine : (ArcadeShop.load().lotto || {}).tickets || 0, n = mine || 5;
-      let lucky = false; for (let i = 0; i < Math.min(n, 1e6) && !lucky; i++) lucky = Math.random() < 0.01;
+      const lucky = Math.random() < 0.01;   // 1% a player
       return playLottoDraw({ preview: true, tickets: n, won: lucky ? 75 : 0, grand: false, canClaim: false });
     }
     const all = Object.values(SHOP).flat();

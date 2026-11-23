@@ -674,7 +674,7 @@ A("coins10"); A("coins100"); ok("+10 +100", r.save().coins === 117);
   ok("admin: set when the lotto opens", Math.abs(r.save().lotto.endsAt - (r.w.Date.now() + 3 * 864e5)) < 6e4 && /3 days left/.test(r.id("lotto").textContent) && /opens/.test(r.id("admLottoNow").textContent), r.save().lotto && r.save().lotto.endsAt);
   r.setSave((x) => { x.lotto.tickets = 2; }); const c0 = r.save().coins;
   A("lottonow"); await flush(5); ok("Open now asks twice — the button says so", r.save().lotto.tickets === 2 && /Click again/.test(r.$('[data-admin="lottonow"]').textContent));
-  const rnd = r.w.Math.random; r.w.Math.random = () => 0.005;   // a lucky ticket (1% a ticket)
+  const rnd = r.w.Math.random; r.w.Math.random = () => 0.005;   // a lucky draw (1% a player)
   A("lottonow"); await flush(5); r.w.Math.random = rnd;
   ok("…and goes back to “Open now”", r.$('[data-admin="lottonow"]').textContent === "Open now");
   ok("admin: Open now draws the lotto (a lucky ticket wins 75)", r.save().lotto.tickets === 0 && r.save().lotto.last.won === 75 && /Claim/.test(r.id("lotto").textContent));
@@ -694,6 +694,10 @@ A("coins10"); A("coins100"); ok("+10 +100", r.save().coins === 117);
   ok("unlucky draw: every ticket ✖, and the sad message", r.$$("#lottoDrawTix .tk.lose").length === 3 && /No lucky ticket/.test(r.id("lottoDrawResult").textContent) && r.id("lottoDrawClaim").hidden);
   r.id("lottoDrawOk").click(); await flush(3);
   ok("unlucky tickets win nothing", r.save().lotto.last.won === 0 && /no lucky ticket/.test(r.id("lotto").textContent) && !r.id("lottoClaim"));
+  { r.setSave((x) => { x.lotto.tickets = 300; }); let calls = 0; r.w.Math.random = () => (calls++ ? 0.005 : 0.5);   // 1st roll unlucky, any more would be lucky
+    A("lottonow"); A("lottonow"); await flush(5); r.w.Math.random = rnd;
+    ok("1% a player: 300 tickets still get one roll (no win)", r.save().lotto.last.tickets === 300 && r.save().lotto.last.won === 0);
+    r.adv(5); await flush(5); r.id("lottoDrawOk").click(); await flush(3); }
   // the time comes while the page is open → the lotto opens by itself
   r.setSave((x) => { x.lotto.tickets = 4; x.lotto.endsAt = r.w.Date.now() + 90e3; }); A("lottonow"); A("lottonow"); await flush(5);
   r.adv(5); await flush(5); r.id("lottoDrawOk").click(); await flush(3);   // (skip that draw's animation)

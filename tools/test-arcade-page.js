@@ -634,6 +634,8 @@ r = boot({ seed: { [KEY]: { adminUnlocked: true, hardDone: true, mediumDone: tru
 ok("new save with Easy done keeps admin", r.save().adminUnlocked === true);
 r = boot({ seed: { [KEY]: { adminUnlocked: true, hardDone: true } } });
 ok("old owner-skip save keeps admin", r.save().adminUnlocked === true);
+r = boot({ seed: { [KEY]: { lotto: { season: "2026", yearly: true, endsAt: Date.now() + 864e5 * 30, tickets: 0, last: { season: "2025", tickets: 3, won: 75, claimed: false, at: 1 } } }, "daniels-arcade-lotto-seen": "off:2025:1" } });
+ok("🎟️ an unclaimed lotto win: a reminder when you open the arcade, and the card says YOU WON", /You won the lotto/.test(r.toast()) && /YOU WON THE LOTTO/.test(r.id("lottoYou").textContent) && !r.id("lottoDrawVeil").classList.contains("open"));
 r = boot({ seed: { [KEY]: { adminUnlocked: true, lottoAdmin: true } } });
 ok("🎟️ an Admin Panel won in the lotto stays after a reload (no quests needed)", r.save().adminUnlocked === true && r.d.body.classList.contains("is-admin"));
 r = boot({ seed: { [KEY]: { adminUnlocked: true, lottoAdmin: true, mediumDone: true } } });
@@ -688,6 +690,7 @@ A("coins10"); A("coins100"); ok("+10 +100", r.save().coins === 117);
   const rnd = r.w.Math.random; r.w.Math.random = () => 0.005;   // a lucky draw (1% a player)
   A("lottonow"); await flush(5); r.w.Math.random = rnd;
   ok("…and goes back to “Open now”", r.$('[data-admin="lottonow"]').textContent === "Open now");
+  ok("the card tells you: YOU WON (claim it)", /YOU WON THE LOTTO — 🪙 75/.test(r.id("lottoYou").textContent) && /Claim your prize/.test(r.id("lottoYou").textContent) && r.id("lottoYou").classList.contains("won"));
   ok("admin: Open now draws the lotto (a lucky ticket wins 75)", r.save().lotto.tickets === 0 && r.save().lotto.last.won === 75 && /Claim/.test(r.id("lotto").textContent));
   ok("the draw animation opens: your 2 tickets shake", r.id("lottoDrawVeil").classList.contains("open") && r.$$("#lottoDrawTix .tk").length === 2 && /2 tickets/.test(r.id("lottoDrawSub").textContent) && r.id("lottoDrawOk").hidden);
   r.adv(1.4); await flush(3); r.adv(0.3); await flush(3); r.adv(0.3); await flush(3); r.adv(0.3); await flush(3);
@@ -697,11 +700,13 @@ A("coins10"); A("coins100"); ok("+10 +100", r.save().coins === 117);
   A("lottoyearly"); await flush(5);
   ok("…and it doesn't play again for the same draw", !r.id("lottoDrawVeil").classList.contains("open"));
   r.id("lottoClaim").click(); await flush(5); ok("…and the prize can be claimed", r.save().coins === c0 + 75);
+  ok("…then the card says it's claimed", /Prize claimed/.test(r.id("lottoYou").textContent));
   A("lottoyearly"); await flush(5);
   const nm = new Date(r.w.Date.now()); ok("admin: back to yearly", r.save().lotto.endsAt === new Date(nm.getFullYear() + 1, 0, 1).getTime());
   r.setSave((x) => { x.lotto.tickets = 3; }); r.w.Math.random = () => 0.5;
   A("lottonow"); A("lottonow"); await flush(5); r.w.Math.random = rnd;
   r.adv(1.4); await flush(3); for (let i = 0; i < 4; i++) { r.adv(0.3); await flush(3); }
+  ok("the card tells you: you didn't win", /didn't win the lotto/.test(r.id("lottoYou").textContent) && r.id("lottoYou").classList.contains("lost"));
   ok("unlucky draw: every ticket ✖, and the sad message", r.$$("#lottoDrawTix .tk.lose").length === 3 && /No lucky ticket/.test(r.id("lottoDrawResult").textContent) && r.id("lottoDrawClaim").hidden);
   r.id("lottoDrawOk").click(); await flush(3);
   ok("unlucky tickets win nothing", r.save().lotto.last.won === 0 && /no lucky ticket/.test(r.id("lotto").textContent) && !r.id("lottoClaim"));

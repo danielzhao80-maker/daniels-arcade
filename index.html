@@ -113,7 +113,12 @@
   }
   .panel-veil.open { display: flex; }
   /* 🎟️ the lotto draw */
-  #lottoDrawVeil { z-index: 60; }   /* above the Admin Panel (Open now / Watch the draw are pressed from there) */
+  #lottoDrawVeil { z-index: 60; }
+  .lotto-you { margin-top: 8px; padding: 10px; border-radius: 12px; font-weight: 900; line-height: 1.4; }
+  #lotto .lotto-you small { display: block; font-weight: 800; color: inherit; opacity: .9; }
+  .lotto-you { margin: 0 0 8px; }
+  .lotto-you.won { background: linear-gradient(135deg, #ffd34d, #ff9f1c); color: #2a1a00; animation: tkpop .5s ease; }
+  .lotto-you.lost { background: rgba(255,255,255,.05); border: 1px solid var(--line); color: var(--muted); }   /* above the Admin Panel (Open now / Watch the draw are pressed from there) */
   .lotto-draw { text-align: center; }
   .lotto-draw h2 { margin: 0 auto 8px !important; }
   .lotto-tix { display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; margin: 18px 0; min-height: 44px; }
@@ -1204,7 +1209,7 @@
   $("lottoDrawOk").onclick = () => { $("lottoDrawVeil").classList.remove("open"); };
   $("lottoDrawClaim").onclick = () => { $("lottoDrawVeil").classList.remove("open"); claimLotto(); };
 
-  let lottoTimer = 0, lottoWant = 1;   // (how many tickets the box is set to)
+  let lottoTimer = 0, lottoWant = 1, lottoTold = false;   // (how many tickets the box is set to)
   async function renderLotto() {
     let mine, players, total, last, shared = lottoOnline();
     if (shared) {
@@ -1220,10 +1225,12 @@
       ({ mine, players, total } = lottoView); const l = lottoView.last;
       last = l && { season: l.season, players: l.players, text: l.grandWinners.length ? `🛠️ Admin Panel won by ${l.grandWinners.join(", ")}!` : (l.smallWinners || []).length ? `🪙 75 points won by ${l.smallWinners.join(", ")}` : l.players >= 250 ? "Nobody won the Admin Panel." : l.players >= 50 ? "No draw (50–249 players)." : l.players ? "No lucky tickets this time." : "No tickets.",
                     canClaim: (l.iWonGrand || l.iWonSmall) && !l.claimed };
+      if (l && l.myTickets > 0) last.me = l.iWonGrand ? "grand" : l.iWonSmall ? "won" : "lost";
       if (l && l.myTickets > 0) last.draw = { id: "on:" + l.season, season: l.season, tickets: l.myTickets, won: l.iWonSmall ? 75 : 0, grand: l.iWonGrand, canClaim: last.canClaim };
     } else {
       localLottoRoll(); const L = save.lotto; mine = L.tickets; players = L.tickets ? 1 : 0; total = L.tickets;
       last = L.last && L.last.tickets ? { season: L.last.season, players: 1, text: L.last.won ? "Only you played — a lucky ticket won 🪙 75 points!" : "Only you played — no lucky ticket this time.", canClaim: !L.last.claimed && L.last.won > 0 } : null;
+      if (last) last.me = L.last.won ? "won" : "lost";
       if (last) last.draw = { id: "off:" + L.last.season + ":" + (L.last.at || ""), season: L.last.season, tickets: L.last.tickets, won: L.last.won, grand: false, canClaim: last.canClaim };
     }
     if (last && last.draw && lottoSeen() !== last.draw.id && !lottoDrawingNow()) playLottoDraw(last.draw);   // first time: watch the draw
@@ -1233,7 +1240,9 @@
     if (left < 864e5) lottoTimer = setTimeout(renderLotto, Math.min(left + 1500, 60e3));
     const an = $("admLottoNow"); if (an) an.textContent = `This season (${shared ? "everyone, on the server" : "just you"}) opens ${new Date(end).toLocaleString()} — ${leftText}.`;
     const prizeNow = players >= 250 ? "🛠️ Admin Panel draw ON (a 0.000000000000000000000000001% chance a ticket!)" : players < 50 ? "under 50 players: each player has a 1% chance at 🪙 75" : "50–249 players: no draw (250 players unlocks the 🛠️ Admin Panel draw)";
-    $("lotto").innerHTML = `<div class="ms" style="grid-template-columns:1fr auto"><b>🎟️ Your tickets: ${mine}</b><span title="Drawn ${new Date(end).toLocaleString()}">${leftText}</span></div>
+    $("lotto").innerHTML = `${last && last.me ? `<div id="lottoYou" class="lotto-you ${last.me === "lost" ? "lost" : "won"}">${last.me === "grand" ? "🛠️🎉 YOU WON THE LOTTO — the Admin Panel!" : last.me === "won" ? "🎉 YOU WON THE LOTTO — 🪙 75 points!" : "😢 You didn't win the lotto last season."}
+        <small>${last.me === "lost" ? "Better luck this season!" : last.canClaim ? "Press 🎁 Claim your prize! at the bottom 👇" : "✅ Prize claimed."}</small></div>` : ""}
+      <div class="ms" style="grid-template-columns:1fr auto"><b>🎟️ Your tickets: ${mine}</b><span title="Drawn ${new Date(end).toLocaleString()}">${leftText}</span></div>
       <div class="ms" style="display:block"><span>👥 ${players} player${players === 1 ? "" : "s"} · ${total} ticket${total === 1 ? "" : "s"} this season${shared ? "" : " (just you — log in to play with everyone)"}</span></div>
       <small style="opacity:.85">${prizeNow}. 🏆 250 players needed for the Admin Panel prize.</small>
       <div style="display:flex;gap:6px;justify-content:center;align-items:center;flex-wrap:wrap;margin-top:6px">
@@ -1242,6 +1251,7 @@
       </div>
       <div style="display:flex;gap:6px;justify-content:center;margin-top:6px"><button class="btn ghost" id="lotto1">Buy 1 (🪙 50)</button><button class="btn ghost" id="lotto5">Buy 5 (🪙 250)</button></div>
       ${last ? `<small style="display:block;margin-top:6px">Last season (${last.season}): ${last.text}</small>${last.canClaim ? `<button class="btn" id="lottoClaim" style="margin-top:4px">🎁 Claim your prize!</button>` : ""}` : ""}`;
+    if (last && last.canClaim && !lottoTold && !lottoDrawingNow()) { lottoTold = true; toast("🎟️ You won the lotto! Claim your prize on the 🎟️ Lotto card."); }
     $("lotto1").onclick = () => buyLotto(1); $("lotto5").onclick = () => buyLotto(5);
     $("lottoN").oninput = () => {   // the price updates as you type
       const n = Math.floor(Number($("lottoN").value)), okN = n >= 1 && n <= 1000;

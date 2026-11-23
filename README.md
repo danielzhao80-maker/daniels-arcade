@@ -1,7 +1,34 @@
+<div align="center">
+
 # 🕹️ Daniel's Arcade
 
+**All of Daniel's games in one place — with coins you earn by playing, a shop, skins, abilities, titles, codes, quests, accounts and a lotto.**
+
+<a href="https://github.com/danielzhao80-maker/daniels-arcade/archive/refs/heads/main.zip"><img src="https://img.shields.io/badge/Download-ZIP-2ea44f?style=for-the-badge&logo=github&logoColor=white" alt="Download" height="44"></a>
+&nbsp;
+<a href="https://danielzhao80-maker.github.io/daniels-arcade/"><img src="https://img.shields.io/badge/Play-Online-e74c3c?style=for-the-badge&logo=googlechrome&logoColor=white" alt="Play online" height="44"></a>
+
+</div>
+
+## Summary
+
+- **8 games** to launch from one page: Monster Attack!, REBUILD, Buckshot Roulette, Track Run, Learn English, Island Clash and Summon Battlers
+- 🪙 Earn coins just by playing, then spend them in the 🛒 shop on themes, avatars, titles, skins and ⚡ abilities
+- 🏅 Achievements and secret titles in every game, 🔐 quests, 🎁 codes and a 🎟️ lotto
+- 🎃 Halloween and 🎄 Christmas events (links: `/halloween/`, `/christmas/`)
+
+## Play it on your computer
+
+1. Press **Download** above (or the green **Code** button → **Download ZIP**).
+2. Unzip it.
+3. Open **`index.html`** in Chrome.
+
+Part of [🕹️ Daniel's Arcade](https://danielzhao80-maker.github.io/daniels-arcade/).
+
+---
+
 One place for all of Daniel's games — **Monster Attack!**, **REBUILD**, **Buckshot Roulette**,
-**Track Run** and **Learn English** — with play-time coins, a shop, skins, abilities, codes,
+**Track Run**, **Learn English**, **Island Clash** and **Summon Battlers** — with play-time coins, a shop, skins, abilities, codes,
 quests and accounts.
 
 ## Open it

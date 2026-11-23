@@ -673,9 +673,10 @@ A("coins10"); A("coins100"); ok("+10 +100", r.save().coins === 117);
   A("lottoat"); await flush(5);
   ok("admin: set when the lotto opens", Math.abs(r.save().lotto.endsAt - (r.w.Date.now() + 3 * 864e5)) < 6e4 && /3 days left/.test(r.id("lotto").textContent) && /opens/.test(r.id("admLottoNow").textContent), r.save().lotto && r.save().lotto.endsAt);
   r.setSave((x) => { x.lotto.tickets = 2; }); const c0 = r.save().coins;
-  A("lottonow"); await flush(5); ok("Open now asks twice", r.save().lotto.tickets === 2);
+  A("lottonow"); await flush(5); ok("Open now asks twice — the button says so", r.save().lotto.tickets === 2 && /Click again/.test(r.$('[data-admin="lottonow"]').textContent));
   const rnd = r.w.Math.random; r.w.Math.random = () => 0.005;   // a lucky ticket (1% a ticket)
   A("lottonow"); await flush(5); r.w.Math.random = rnd;
+  ok("…and goes back to “Open now”", r.$('[data-admin="lottonow"]').textContent === "Open now");
   ok("admin: Open now draws the lotto (a lucky ticket wins 75)", r.save().lotto.tickets === 0 && r.save().lotto.last.won === 75 && /Claim/.test(r.id("lotto").textContent));
   ok("the draw animation opens: your 2 tickets shake", r.id("lottoDrawVeil").classList.contains("open") && r.$$("#lottoDrawTix .tk").length === 2 && /2 tickets/.test(r.id("lottoDrawSub").textContent) && r.id("lottoDrawOk").hidden);
   r.adv(1.4); await flush(3); r.adv(0.3); await flush(3); r.adv(0.3); await flush(3); r.adv(0.3); await flush(3);
